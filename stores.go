@@ -1,3 +1,3 @@
 package main
 
-import _ "neuprintHTTP/storage/neuprintneo4j"
+import _ "github.com/janelia-flyem/neuprintHTTP/storage/neuprintneo4j"

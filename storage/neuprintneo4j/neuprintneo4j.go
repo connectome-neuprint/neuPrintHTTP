@@ -1,7 +1,7 @@
 package neuprintneo4j
 
 import (
-        "neuprintHTTP/storage"
+        "github.com/janelia-flyem/neuprintHTTP/storage"
         "github.com/blang/semver"
         "fmt"
 )

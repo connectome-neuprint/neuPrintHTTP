@@ -2,7 +2,7 @@ package main
 
 import (
         "encoding/json"
-        "neuprintHTTP/storage"
+        "github.com/janelia-flyem/neuprintHTTP/storage"
         "fmt"
         "os"
         "io/ioutil"
