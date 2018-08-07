@@ -7,16 +7,38 @@ package main
 
 import (
 	"flag"
+        "fmt"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"strconv"
+        "os"
 )
+
+func customUsage() {
+     fmt.Printf("Usage: %s [OPTIONS] CONFIG.json\n", os.Args[0])
+     flag.PrintDefaults()
+}
 
 func main() {
 	// create command line argument for port
 	var port int = 11000
+        flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.Parse()
+        if flag.NArg() != 1 {
+            flag.Usage()
+            return
+        }
+         
+        config, err := loadConfig(flag.Args()[0])
+        if err != nil {
+            fmt.Print(err)
+            return
+        }
+        fmt.Println(config.Store.GetName())
+        fmt.Println(config.Store.GetVersion())
+        fmt.Println(config.Store.GetDatasets())
+        fmt.Println(config.AuthFile)
 
 	// create echo web framework
 	e := echo.New()

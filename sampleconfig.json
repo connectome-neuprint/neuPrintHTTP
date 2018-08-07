@@ -1,0 +1,9 @@
+{
+    "engine": "neuPrint-neo4j",
+    "engine-config": {
+        "user": "neo4j",
+        "password": "neo4j",
+        "datasets": ["hemi", "mb6"]
+    },
+    "auth-file": "authorized.json"
+}
