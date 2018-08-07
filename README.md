@@ -1,6 +1,6 @@
-# neuprintHTTP
+# neuPrintHTTP
 
-Implements a connectomics REST interface that leverages the [neuprint](github.com/janelia-flyem/neuprint) data model.
+Implements a connectomics REST interface that leverages the [neuprint](https://github.com/janelia-flyem/neuPrint) data model.
 
 ## Installation
 
