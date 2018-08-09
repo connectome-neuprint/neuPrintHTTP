@@ -5,5 +5,7 @@
         "password": "neo4j",
         "datasets": ["hemi", "mb6"]
     },
-    "auth-file": "authorized.json"
+    "auth-file": "authorized.json",
+    "ssl-cert": "cert.pem",
+    "ssl-key": "key.pem"
 }

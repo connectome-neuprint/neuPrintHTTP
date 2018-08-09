@@ -13,7 +13,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"strconv"
         "os"
-        //"golang.org/x/crypto/acme/autocert"
+        "golang.org/x/crypto/acme/autocert"
 )
 
 func customUsage() {
@@ -46,13 +46,20 @@ func main() {
 	e := echo.New()
 
 	// setup logging and panic recover
-        //e.AutoTLSManager.Cache = autocert.DirCache("./cache")
+        
+        manCert := false
+        if config.CertPEM != "" && config.KeyPEM != "" {
+            manCert = true
+        }
+
+        if !manCert {
+            e.AutoTLSManager.Cache = autocert.DirCache("./cache")
+        }
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
         e.Pre(middleware.HTTPSRedirect())
         e.Pre(middleware.HTTPSNonWWWRedirect())
         e.Pre(middleware.NonWWWRedirect())
-        //e.StartAutoTLS(":11000")
 
         e.GET("/", func (c echo.Context) error {
             return c.String(http.StatusOK, "Hello World!")
@@ -60,6 +67,9 @@ func main() {
 	
         // start server
 	portstr := strconv.Itoa(port)
-        e.Logger.Fatal(e.StartTLS(":"+portstr, "cert.pem", "key.pem"))
-        //e.Logger.Fatal(e.StartAutoTLS(":"+portstr))
+        if manCert {
+            e.Logger.Fatal(e.StartTLS(":"+portstr, config.CertPEM, config.KeyPEM))
+        } else {
+            e.Logger.Fatal(e.StartAutoTLS(":"+portstr))
+        }
 }
