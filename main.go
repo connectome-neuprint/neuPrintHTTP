@@ -6,7 +6,6 @@
 package main
 
 import (
-	"net/http"
         "flag"
         "fmt"
 	"github.com/labstack/echo"
@@ -14,6 +13,7 @@ import (
 	"strconv"
         "os"
         "golang.org/x/crypto/acme/autocert"
+        "github.com/janelia-flyem/neuPrintHTTP/api"
 )
 
 func customUsage() {
@@ -61,10 +61,11 @@ func main() {
         e.Pre(middleware.HTTPSNonWWWRedirect())
         e.Pre(middleware.NonWWWRedirect())
 
-        e.GET("/", func (c echo.Context) error {
-            return c.String(http.StatusOK, "Hello World!")
-        })
-	
+        if err = api.SetupRoutes(e, config.Store); err != nil {
+            fmt.Print(err)
+            return
+        }
+
         // start server
 	portstr := strconv.Itoa(port)
         if manCert {
