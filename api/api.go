@@ -9,6 +9,22 @@ import (
 const APIVERSION = "1.0"
 const PREFIX = "/api"
 
+
+type setupAPI func(*ConnectomeAPI, *echo.Echo)error
+
+var (
+    availAPIs map[string]setupAPI
+)
+
+func RegisterAPI(name string, f setupAPI) {
+    if availAPIs == nil {
+        availAPIs = map[string]setupAPI{name: f}
+    } else {
+        availAPIs[name] = f
+    }
+}
+
+
 type ConnectionType int
 const (
     GET ConnectionType = iota
@@ -18,15 +34,15 @@ const (
 )
 
 type ConnectomeAPI struct {
-    store storage.Store
-    supportedEndpoints map[string]bool
+    Store storage.Store
+    SupportedEndpoints map[string]bool
 }
 
 func newConnectomeAPI(store storage.Store) *ConnectomeAPI {
     return &ConnectomeAPI{store, make(map[string]bool)} 
 }
 
-func (c *ConnectomeAPI) SetRoute(e echo.Echo, connType ConnectionType, prefix string, route echo.HandlerFunc) {
+func (c *ConnectomeAPI) SetRoute(e *echo.Echo, connType ConnectionType, prefix string, route echo.HandlerFunc) {
     switch connType {
         case GET: 
             e.GET("/api" + prefix, route)
@@ -47,13 +63,11 @@ func (c *ConnectomeAPI) SetRoute(e echo.Echo, connType ConnectionType, prefix st
 func SetupRoutes(e *echo.Echo, store storage.Store) error {
     apiObj := newConnectomeAPI(store)
 
-    // meta API
-    /*if err := apiObj.setUpMeta(e); err != nil {
-        return err
-    }*/
-    // TODO generically add specialized API
-
-
+    for _, f := range availAPIs {
+        if err := f(apiObj, e); err != nil {
+            return err
+        }
+    }
 
     e.GET("/api/version", apiObj.getAPIVersion)
     e.GET("/api/available", func (c echo.Context) error {

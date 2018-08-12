@@ -10,9 +10,9 @@ import (
 
 // Store is an instance of Engine
 type Store interface {
-    GetName() string
-    GetVersion() string
-    GetDatasets() []string
+    GetVersion() (string, error)
+    GetDatabase() (string, string, error)
+    GetDatasets() ([]string, error)
 }
 
 // Engine is the backend database that implements connectomics API

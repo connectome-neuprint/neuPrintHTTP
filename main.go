@@ -37,9 +37,6 @@ func main() {
             fmt.Print(err)
             return
         }
-        fmt.Println(config.Store.GetName())
-        fmt.Println(config.Store.GetVersion())
-        fmt.Println(config.Store.GetDatasets())
         fmt.Println(config.AuthFile)
 
 	// create echo web framework

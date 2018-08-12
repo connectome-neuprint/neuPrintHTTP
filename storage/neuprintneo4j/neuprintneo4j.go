@@ -53,7 +53,7 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
         }
     }
 
-    // ?! check if code is compatible with DB version
+    // TODO: check if code is compatible with DB version
     dbversion, _ := semver.Make(VERSION)
 
     return Store{user, pass, datasets, dbversion}, nil
@@ -66,17 +66,14 @@ type Store struct {
     version semver.Version
 }
 
-func (store Store) GetName() string {
-    return NAME
+func (store Store) GetDatabase() (loc string, desc string, err error) {
+    return "somwhere", NAME, nil
 }
 
-func (store Store) GetVersion() string {
-    return store.version.String()
+func (store Store) GetVersion() (string, error) {
+    return store.version.String(), nil
 }
 
-func (store Store) GetDatasets() []string {
-    return store.datasets
+func (store Store) GetDatasets() ([]string, error) {
+    return store.datasets, nil
 }
-
-
-// ?! implement connectomics API
