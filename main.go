@@ -12,7 +12,10 @@ import (
 	"github.com/labstack/echo/middleware"
 	"strconv"
         "os"
+	"net/http"
         "golang.org/x/crypto/acme/autocert"
+        "github.com/gorilla/sessions"
+        "github.com/labstack/echo-contrib/session"
         "github.com/janelia-flyem/neuPrintHTTP/api"
 )
 
@@ -57,7 +60,25 @@ func main() {
         e.Pre(middleware.HTTPSRedirect())
         e.Pre(middleware.HTTPSNonWWWRedirect())
         e.Pre(middleware.NonWWWRedirect())
+        e.Use(session.Middleware(sessions.NewCookieStore([]byte(config.CookieSecret))))
 
+        // setup auth
+        e.GET("/login", loginHandler)
+	e.POST("/logout", logoutHandler)
+	//e.GET("/logout", logoutHandler) // ?! temporary for easy testing
+	e.GET("/oauth2callback", oauthCallbackHandler)
+	e.GET("/profile", authMiddleWare(profileHandler))
+        
+        // ?! add middle ware auth (ignore auth functions, eventually add jwt check)
+       
+        // TODO add a default
+        e.GET("/", func (c echo.Context) error { return c.HTML(http.StatusOK, "hello world") })
+
+        // TODO add api to get token
+
+
+
+        // load API
         if err = api.SetupRoutes(e, config.Store); err != nil {
             fmt.Print(err)
             return

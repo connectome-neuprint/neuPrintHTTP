@@ -7,5 +7,8 @@
     },
     "auth-file": "authorized.json",
     "ssl-cert": "cert.pem",
-    "ssl-key": "key.pem"
+    "ssl-key": "key.pem",
+    "client-id": "blah",
+    "client-secret": "blah2",
+    "jwt-secret": "blah3"
 }
