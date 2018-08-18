@@ -146,9 +146,13 @@ func fetchProfile(ctx context.Context, tok *oauth2.Token) (*plus.Person, error) 
 
 func authMiddleWare(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-            _, err  := session.Get(defaultSessionID, c)
+            currSession, err  := session.Get(defaultSessionID, c)
+            redirectUrl := "/login?redirect=" + c.Request().URL.Path
             if err != nil {
-	        return c.Redirect(http.StatusFound, c.Request().URL.Path)
+                return c.Redirect(http.StatusFound, redirectUrl)
+            }
+            if profile, ok := currSession.Values[googleProfileSessionKey].(*Profile); !ok || profile == nil { 
+                return c.Redirect(http.StatusFound, redirectUrl)
             }
             
             return next(c)
