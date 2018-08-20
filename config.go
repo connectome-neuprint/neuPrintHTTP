@@ -12,6 +12,7 @@ import (
 
 
 var OAuthConfig *oauth2.Config
+var JWTSecret string
 
 type configInfo struct {
     Engine  string `json:"engine"`
@@ -49,6 +50,7 @@ func loadConfig(configFile string) (config Config, err error) {
     config.KeyPEM = configRaw.KeyPEM
     config.CookieSecret = configRaw.CookieSecret
     config.Store, err = storage.ParseConfig(configRaw.Engine, configRaw.EngineConfig)
+    JWTSecret = configRaw.JWTSecret
    
     // setup authentication information
     OAuthConfig = configureOAuthClient(configRaw.ClientID, configRaw.ClientSecret)

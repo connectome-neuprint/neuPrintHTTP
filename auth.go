@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+        "reflect"
 
 	plus "google.golang.org/api/plus/v1"
 
@@ -16,6 +17,8 @@ import (
         "github.com/labstack/echo-contrib/session"
         "github.com/labstack/echo"
         "fmt"
+        "github.com/dgrijalva/jwt-go"
+        "time"
 )
 
 
@@ -30,6 +33,8 @@ const (
 	// This key is used in the OAuth flow session to store the URL to redirect the
 	// user to after the OAuth flow is complete.
 	oauthFlowRedirectKey = "redirect"
+
+        AlgorithmHS256 = "HS256"
 )
 
 func init() {
@@ -37,6 +42,13 @@ func init() {
 	gob.Register(&oauth2.Token{})
 	gob.Register(&Profile{})
 }
+
+type jwtCustomClaims struct {
+	Email string `json:"email"`
+	ImageURL string  `json:"image-url"`
+	jwt.StandardClaims
+}
+
 
 // loginHandler initiates an OAuth flow to authenticate the user.
 func loginHandler(c echo.Context) error {
@@ -146,15 +158,41 @@ func fetchProfile(ctx context.Context, tok *oauth2.Token) (*plus.Person, error) 
 
 func authMiddleWare(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-            currSession, err  := session.Get(defaultSessionID, c)
-            redirectUrl := "/login?redirect=" + c.Request().URL.Path
-            if err != nil {
-                return c.Redirect(http.StatusFound, redirectUrl)
+            // check for either Bearer token or cookie
+            auth := c.Request().Header.Get(echo.HeaderAuthorization)
+            l := len("Bearer")
+            if len(auth) > l+1 && auth[:l] == "Bearer" {
+                auth = auth[l+1:]
+                claimsPtr := &jwtCustomClaims{}
+                t := reflect.ValueOf(claimsPtr).Type().Elem()
+                claims := reflect.New(t).Interface().(jwt.Claims)
+                token, err := jwt.ParseWithClaims(auth, claims, func(t *jwt.Token) (interface{}, error) {
+                                                // Check the signing method
+                                                if t.Method.Alg() != AlgorithmHS256 {
+                                                    return nil, fmt.Errorf("unexpected jwt signing method=%v", t.Header["alg"])
+                                                }
+                                                return []byte(JWTSecret), nil})
+                if err == nil && token.Valid {
+                    // Store user information from token into context.
+                    c.Set("user", token)
+                } else {
+                    return &echo.HTTPError{
+                        Code:     http.StatusUnauthorized,
+                        Message:  "invalid or expired jwt",
+                        Internal: err,
+                    }
+                }
+            } else {
+                currSession, err  := session.Get(defaultSessionID, c)
+                redirectUrl := "/login?redirect=" + c.Request().URL.Path
+                if err != nil {
+                    return c.Redirect(http.StatusFound, redirectUrl)
+                }
+                if profile, ok := currSession.Values[googleProfileSessionKey].(*Profile); !ok || profile == nil { 
+                    return c.Redirect(http.StatusFound, redirectUrl)
+                }
             }
-            if profile, ok := currSession.Values[googleProfileSessionKey].(*Profile); !ok || profile == nil { 
-                return c.Redirect(http.StatusFound, redirectUrl)
-            }
-            
+
             return next(c)
 	}
 }
@@ -182,19 +220,27 @@ func logoutHandler(c echo.Context) error {
 // profileFromSession retreives the Google+ profile from the default session.
 // Returns nil if the profile cannot be retreived (e.g. user is logged out).
 func profileFromSession(c echo.Context) *Profile {
+        user, ok := c.Get("user").(*jwt.Token)
+	if ok {
+            claims := user.Claims.(*jwtCustomClaims)
+            email := claims.Email
+            url := claims.ImageURL
+            return &Profile{email, url}
+        }
+
         currSession, err  := session.Get(defaultSessionID, c)
-	if err != nil {
-		return nil
-	}
-	tok, ok := currSession.Values[oauthTokenSessionKey].(*oauth2.Token)
-	if !ok || !tok.Valid() {
-		return nil
-	}
-	profile, ok := currSession.Values[googleProfileSessionKey].(*Profile)
-	if !ok {
-		return nil
-	}
-	return profile
+        if err != nil {
+            return nil
+        }
+        tok, ok := currSession.Values[oauthTokenSessionKey].(*oauth2.Token)
+        if !ok || !tok.Valid() {
+            return nil
+        }
+        profile, ok := currSession.Values[googleProfileSessionKey].(*Profile)
+        if !ok {
+            return nil
+        }
+        return profile
 }
 
 func profileHandler(c echo.Context) error {
@@ -202,15 +248,39 @@ func profileHandler(c echo.Context) error {
     return c.JSON(http.StatusOK, profile)
 }
 
+func tokenHandler(c echo.Context) error {
+    // Set claims
+    profile := profileFromSession(c)
+    
+    claims := &jwtCustomClaims{
+        profile.Email,
+        profile.ImageURL,
+        jwt.StandardClaims{
+            ExpiresAt: time.Now().Add(time.Hour * 50000).Unix(),
+        },
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+   
+    // Generate encoded token and send it as response.
+    t, err := token.SignedString([]byte(JWTSecret))
+    if err != nil {
+        return err
+    }
+    return c.JSON(http.StatusOK, map[string]string{
+        "token": t,
+    }) 
+}
+
+
+
+
 type Profile struct {
-	ID, DisplayName, ImageURL, Email string
+	ImageURL, Email string
 }
 
 // stripProfile returns a subset of a plus.Person.
 func stripProfile(p *plus.Person) *Profile {
 	return &Profile{
-		ID:          p.Id,
-		DisplayName: p.DisplayName,
 		ImageURL:    p.Image.Url,
                 Email:       p.Emails[0].Value,
 	}

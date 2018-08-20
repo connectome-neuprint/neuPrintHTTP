@@ -65,9 +65,10 @@ func main() {
         // setup auth
         e.GET("/login", loginHandler)
 	e.POST("/logout", logoutHandler)
-	e.GET("/logout", logoutHandler) // ?! temporary for easy testing
+	//e.GET("/logout", logoutHandler) // ?! temporary for easy testing
 	e.GET("/oauth2callback", oauthCallbackHandler)
 	e.GET("/profile", authMiddleWare(profileHandler))
+	e.GET("/token", authMiddleWare(tokenHandler))
         
         // ?! add middle ware auth (ignore auth functions, eventually add jwt check)
        
