@@ -1,9 +1,10 @@
 {
     "engine": "neuPrint-neo4j",
     "engine-config": {
+        "server": "http://dolafit-ws2.int.janelia.org:7474",
         "user": "neo4j",
-        "password": "neo4j",
-        "datasets": ["hemi", "mb6"]
+        "password": "n304j",
+        "datasets": [""mb6"]
     },
     "auth-file": "authorized.json",
     "ssl-cert": "cert.pem",
