@@ -15,18 +15,18 @@ func init() {
 var ENDPOINTS = [...]string{"datasets", "database", "version"}
 const PREFIX = "/dbmeta"
 
-func setupAPI(c *api.ConnectomeAPI, e *echo.Echo) error {
+func setupAPI(c *api.ConnectomeAPI) error {
     if _, ok := c.Store.(StorageAPI); ok {
         q := &metaQuery{c.Store}
         for _, endPoint := range ENDPOINTS {
             c.SupportedEndpoints[endPoint] = true
             switch endPoint {
                 case "version":
-                    c.SetRoute(e, api.GET, PREFIX + "/version", q.getVersion)
+                    c.SetRoute(api.GET, PREFIX + "/version", q.getVersion)
                 case "database":
-                    c.SetRoute(e, api.GET, PREFIX + "/database", q.getDatabase)
+                    c.SetRoute(api.GET, PREFIX + "/database", q.getDatabase)
                 case "datasets":
-                    c.SetRoute(e, api.GET, PREFIX + "/datasets", q.getDatasets)
+                    c.SetRoute(api.GET, PREFIX + "/datasets", q.getDatasets)
             }
         }
     } else {

@@ -14,14 +14,14 @@ func init() {
 var ENDPOINTS = [...]string{"custom"}
 const PREFIX = "/custom"
 
-func setupAPI(c *api.ConnectomeAPI, e *echo.Echo) error {
+func setupAPI(c *api.ConnectomeAPI) error {
     if customInt, ok := c.Store.(StorageAPI); ok {
         q := &customQuery{customInt}
         for _, endPoint := range ENDPOINTS {
             c.SupportedEndpoints[endPoint] = true
             switch endPoint {
                 case "custom":
-                    c.SetRoute(e, api.GET, PREFIX + "/custom", q.getCustom)
+                    c.SetRoute(api.GET, PREFIX + "/custom", q.getCustom)
             }
         }
     }

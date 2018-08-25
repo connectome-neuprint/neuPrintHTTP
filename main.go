@@ -10,13 +10,10 @@ import (
         "fmt"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
-	"strconv"
         "os"
 	"net/http"
-        "golang.org/x/crypto/acme/autocert"
-        "github.com/gorilla/sessions"
-        "github.com/labstack/echo-contrib/session"
         "github.com/janelia-flyem/neuPrintHTTP/api"
+        "github.com/janelia-flyem/neuPrintHTTP/secure"
 )
 
 func customUsage() {
@@ -44,52 +41,44 @@ func main() {
 
 	// create echo web framework
 	e := echo.New()
-
-	// setup logging and panic recover
-        
-        manCert := false
-        if config.CertPEM != "" && config.KeyPEM != "" {
-            manCert = true
-        }
-
-        if !manCert {
-            e.AutoTLSManager.Cache = autocert.DirCache("./cache")
-        }
-	e.Use(middleware.Logger())
+        e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-        e.Pre(middleware.HTTPSRedirect())
-        e.Pre(middleware.HTTPSNonWWWRedirect())
         e.Pre(middleware.NonWWWRedirect())
-        e.Use(session.Middleware(sessions.NewCookieStore([]byte(config.CookieSecret))))
-
-        // setup auth
-        e.GET("/login", loginHandler)
-	e.POST("/logout", logoutHandler)
-	//e.GET("/logout", logoutHandler) // ?! temporary for easy testing
-	e.GET("/oauth2callback", oauthCallbackHandler)
-	e.GET("/profile", authMiddleWare(profileHandler))
-	e.GET("/token", authMiddleWare(tokenHandler))
         
-        // ?! add middle ware auth (ignore auth functions, eventually add jwt check)
        
-        // TODO add a default
-        e.GET("/", func (c echo.Context) error { return c.HTML(http.StatusOK, "hello world") })
+        // call new secure API
+        authorizer, err := secure.NewFileAuthorizer(config.AuthFile)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        sconfig := secure.SecureConfig {
+            SSLCert: config.CertPEM,
+            SSLKey: config.KeyPEM,
+            ClientID: config.ClientID,
+            ClientSecret: config.ClientSecret,
+            AuthorizeChecker: authorizer,
+            Hostname: config.Hostname,
+        }
+        secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(config.Secret))
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
 
-        // TODO add api to get token
+        // TODO: point to default page (login, token download, swagger link)
+        e.GET("/", func (c echo.Context) error { return c.HTML(http.StatusOK, "neuPrintHTTP default home page") })
 
+        // create read only group
+        readGrp := e.Group("/api")
+        readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
 
-
-        // load API
-        if err = api.SetupRoutes(e, config.Store); err != nil {
+        // load connectomic READ-ONLY API
+        if err = api.SetupRoutes(e, readGrp, config.Store); err != nil {
             fmt.Print(err)
             return
         }
 
         // start server
-	portstr := strconv.Itoa(port)
-        if manCert {
-            e.Logger.Fatal(e.StartTLS(":"+portstr, config.CertPEM, config.KeyPEM))
-        } else {
-            e.Logger.Fatal(e.StartAutoTLS(":"+portstr))
-        }
+        secureAPI.StartEchoSecure(port)
 }

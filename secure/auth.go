@@ -1,16 +1,16 @@
-package main
+package secure 
 
 import (
 	"encoding/gob"
 	"errors"
 	"net/http"
 	"net/url"
-        "reflect"
 
 	plus "google.golang.org/api/plus/v1"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
         "github.com/gorilla/sessions"
 
 	uuid "github.com/satori/go.uuid"
@@ -37,10 +37,24 @@ const (
         AlgorithmHS256 = "HS256"
 )
 
+// global to hold oauth configuration
+var OAuthConfig *oauth2.Config
+var JWTSecret []byte
+
 func init() {
 	// Gob encoding for gorilla/sessions
 	gob.Register(&oauth2.Token{})
 	gob.Register(&Profile{})
+}
+
+func configureOAuthClient(clientID, clientSecret, url string) {
+    OAuthConfig = &oauth2.Config{
+            ClientID:     clientID,
+            ClientSecret: clientSecret,
+            RedirectURL:  url,
+            Scopes:       []string{"email", "profile"},
+            Endpoint:     google.Endpoint,
+    }
 }
 
 type jwtCustomClaims struct {
@@ -52,8 +66,6 @@ type jwtCustomClaims struct {
 
 // loginHandler initiates an OAuth flow to authenticate the user.
 func loginHandler(c echo.Context) error {
-        // ?! ?? will this auto login if signed in (how do I not require auth to call)
-
 	sessionID := uuid.Must(uuid.NewV4()).String()
         r := c.Request()
         w := c.Response()
@@ -156,47 +168,6 @@ func fetchProfile(ctx context.Context, tok *oauth2.Token) (*plus.Person, error) 
 	return plusService.People.Get("me").Do()
 }
 
-func authMiddleWare(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-            // check for either Bearer token or cookie
-            auth := c.Request().Header.Get(echo.HeaderAuthorization)
-            l := len("Bearer")
-            if len(auth) > l+1 && auth[:l] == "Bearer" {
-                auth = auth[l+1:]
-                claimsPtr := &jwtCustomClaims{}
-                t := reflect.ValueOf(claimsPtr).Type().Elem()
-                claims := reflect.New(t).Interface().(jwt.Claims)
-                token, err := jwt.ParseWithClaims(auth, claims, func(t *jwt.Token) (interface{}, error) {
-                                                // Check the signing method
-                                                if t.Method.Alg() != AlgorithmHS256 {
-                                                    return nil, fmt.Errorf("unexpected jwt signing method=%v", t.Header["alg"])
-                                                }
-                                                return []byte(JWTSecret), nil})
-                if err == nil && token.Valid {
-                    // Store user information from token into context.
-                    c.Set("user", token)
-                } else {
-                    return &echo.HTTPError{
-                        Code:     http.StatusUnauthorized,
-                        Message:  "invalid or expired jwt",
-                        Internal: err,
-                    }
-                }
-            } else {
-                currSession, err  := session.Get(defaultSessionID, c)
-                redirectUrl := "/login?redirect=" + c.Request().URL.Path
-                if err != nil {
-                    return c.Redirect(http.StatusFound, redirectUrl)
-                }
-                if profile, ok := currSession.Values[googleProfileSessionKey].(*Profile); !ok || profile == nil { 
-                    return c.Redirect(http.StatusFound, redirectUrl)
-                }
-            }
-
-            return next(c)
-	}
-}
-
 // logoutHandler clears the default session.
 func logoutHandler(c echo.Context) error {
         currSession, err  := session.Get(defaultSessionID, c)
@@ -212,8 +183,6 @@ func logoutHandler(c echo.Context) error {
 		redirectURL = "/"
 	}
 	
-        // ?! ?? do I need to logout from service
-        
 	return c.Redirect(http.StatusFound, redirectURL)
 }
 
@@ -262,7 +231,7 @@ func tokenHandler(c echo.Context) error {
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
    
     // Generate encoded token and send it as response.
-    t, err := token.SignedString([]byte(JWTSecret))
+    t, err := token.SignedString(JWTSecret)
     if err != nil {
         return err
     }
@@ -270,9 +239,6 @@ func tokenHandler(c echo.Context) error {
         "token": t,
     }) 
 }
-
-
-
 
 type Profile struct {
 	ImageURL, Email string

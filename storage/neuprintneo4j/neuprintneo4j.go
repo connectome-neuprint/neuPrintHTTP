@@ -4,7 +4,6 @@ import (
         "github.com/janelia-flyem/neuPrintHTTP/storage"
         "github.com/blang/semver"
         "fmt"
-        "github.com/jmcvetta/neoism"
         "net/http"
         "time"
         "io/ioutil"
@@ -67,13 +66,13 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
     // TODO: check if code is compatible with DB version
     dbversion, _ := semver.Make(VERSION)
 
-    db, err := neoism.Connect("http://" + user + ":" + pass + "@" + server)
-    if err != nil {
+    // TODO: check connection to DB 
+    /*if err != nil {
         return emptyStore, fmt.Errorf("could not connect to database") 
-    }
+    }*/
     url := "http://" + user + ":" + pass + "@" + server + "/db/data/transaction/commit"
 
-    return Store{db, datasets, dbversion, url}, nil
+    return Store{datasets, dbversion, url}, nil
 }
 
 
@@ -155,7 +154,6 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 
 
 type Store struct {
-    database *neoism.Database
     datasets []string
     version semver.Version
     url string
