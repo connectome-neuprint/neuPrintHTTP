@@ -1,4 +1,4 @@
-package secure 
+package secure
 
 import (
 	"encoding/gob"
@@ -8,19 +8,18 @@ import (
 
 	plus "google.golang.org/api/plus/v1"
 
+	"github.com/gorilla/sessions"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-        "github.com/gorilla/sessions"
 
+	"fmt"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo-contrib/session"
 	uuid "github.com/satori/go.uuid"
-        "github.com/labstack/echo-contrib/session"
-        "github.com/labstack/echo"
-        "fmt"
-        "github.com/dgrijalva/jwt-go"
-        "time"
+	"time"
 )
-
 
 const (
 	defaultSessionID = "neuPrintHTTP"
@@ -34,7 +33,7 @@ const (
 	// user to after the OAuth flow is complete.
 	oauthFlowRedirectKey = "redirect"
 
-        AlgorithmHS256 = "HS256"
+	AlgorithmHS256 = "HS256"
 )
 
 // global to hold oauth configuration
@@ -48,36 +47,35 @@ func init() {
 }
 
 func configureOAuthClient(clientID, clientSecret, url string) {
-    OAuthConfig = &oauth2.Config{
-            ClientID:     clientID,
-            ClientSecret: clientSecret,
-            RedirectURL:  url,
-            Scopes:       []string{"email", "profile"},
-            Endpoint:     google.Endpoint,
-    }
+	OAuthConfig = &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  url,
+		Scopes:       []string{"email", "profile"},
+		Endpoint:     google.Endpoint,
+	}
 }
 
 type jwtCustomClaims struct {
-	Email string `json:"email"`
-	ImageURL string  `json:"image-url"`
+	Email    string `json:"email"`
+	ImageURL string `json:"image-url"`
 	jwt.StandardClaims
 }
-
 
 // loginHandler initiates an OAuth flow to authenticate the user.
 func loginHandler(c echo.Context) error {
 	sessionID := uuid.Must(uuid.NewV4()).String()
-        r := c.Request()
-        w := c.Response()
+	r := c.Request()
+	w := c.Response()
 
-        oauthFlowSession, err  := session.Get(sessionID, c)
+	oauthFlowSession, err := session.Get(sessionID, c)
 	if err != nil {
 		return fmt.Errorf("could not create oauth session: %v", err)
 	}
-        oauthFlowSession.Options = &sessions.Options{
-            MaxAge:   10 * 60,
-            HttpOnly: true,
-        }
+	oauthFlowSession.Options = &sessions.Options{
+		MaxAge:   10 * 60,
+		HttpOnly: true,
+	}
 
 	redirectURL, err := validateRedirectURL(c.FormValue("redirect"))
 	if err != nil {
@@ -119,7 +117,7 @@ func validateRedirectURL(path string) (string, error) {
 // oauthCallbackHandler completes the OAuth flow, retreives the user's profile
 // information and stores it in a session.
 func oauthCallbackHandler(c echo.Context) error {
-        oauthFlowSession, err  := session.Get(c.FormValue("state"), c)
+	oauthFlowSession, err := session.Get(c.FormValue("state"), c)
 	if err != nil {
 		return fmt.Errorf("invalid state parameter. try logging in again.")
 	}
@@ -170,7 +168,7 @@ func fetchProfile(ctx context.Context, tok *oauth2.Token) (*plus.Person, error) 
 
 // logoutHandler clears the default session.
 func logoutHandler(c echo.Context) error {
-        currSession, err  := session.Get(defaultSessionID, c)
+	currSession, err := session.Get(defaultSessionID, c)
 	if err != nil {
 		return fmt.Errorf("could not get default session: %v", err)
 	}
@@ -182,62 +180,62 @@ func logoutHandler(c echo.Context) error {
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
-	
+
 	return c.Redirect(http.StatusFound, redirectURL)
 }
 
 // profileFromSession retreives the Google+ profile from the default session.
 // Returns nil if the profile cannot be retreived (e.g. user is logged out).
 func profileFromSession(c echo.Context) *Profile {
-        user, ok := c.Get("user").(*jwt.Token)
+	user, ok := c.Get("user").(*jwt.Token)
 	if ok {
-            claims := user.Claims.(*jwtCustomClaims)
-            email := claims.Email
-            url := claims.ImageURL
-            return &Profile{email, url}
-        }
+		claims := user.Claims.(*jwtCustomClaims)
+		email := claims.Email
+		url := claims.ImageURL
+		return &Profile{email, url}
+	}
 
-        currSession, err  := session.Get(defaultSessionID, c)
-        if err != nil {
-            return nil
-        }
-        tok, ok := currSession.Values[oauthTokenSessionKey].(*oauth2.Token)
-        if !ok || !tok.Valid() {
-            return nil
-        }
-        profile, ok := currSession.Values[googleProfileSessionKey].(*Profile)
-        if !ok {
-            return nil
-        }
-        return profile
+	currSession, err := session.Get(defaultSessionID, c)
+	if err != nil {
+		return nil
+	}
+	tok, ok := currSession.Values[oauthTokenSessionKey].(*oauth2.Token)
+	if !ok || !tok.Valid() {
+		return nil
+	}
+	profile, ok := currSession.Values[googleProfileSessionKey].(*Profile)
+	if !ok {
+		return nil
+	}
+	return profile
 }
 
 func profileHandler(c echo.Context) error {
-    profile := profileFromSession(c)
-    return c.JSON(http.StatusOK, profile)
+	profile := profileFromSession(c)
+	return c.JSON(http.StatusOK, profile)
 }
 
 func tokenHandler(c echo.Context) error {
-    // Set claims
-    profile := profileFromSession(c)
-    
-    claims := &jwtCustomClaims{
-        profile.Email,
-        profile.ImageURL,
-        jwt.StandardClaims{
-            ExpiresAt: time.Now().Add(time.Hour * 50000).Unix(),
-        },
-    }
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-   
-    // Generate encoded token and send it as response.
-    t, err := token.SignedString(JWTSecret)
-    if err != nil {
-        return err
-    }
-    return c.JSON(http.StatusOK, map[string]string{
-        "token": t,
-    }) 
+	// Set claims
+	profile := profileFromSession(c)
+
+	claims := &jwtCustomClaims{
+		profile.Email,
+		profile.ImageURL,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 50000).Unix(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Generate encoded token and send it as response.
+	t, err := token.SignedString(JWTSecret)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"token": t,
+	})
 }
 
 type Profile struct {
@@ -247,8 +245,7 @@ type Profile struct {
 // stripProfile returns a subset of a plus.Person.
 func stripProfile(p *plus.Person) *Profile {
 	return &Profile{
-		ImageURL:    p.Image.Url,
-                Email:       p.Emails[0].Value,
+		ImageURL: p.Image.Url,
+		Email:    p.Emails[0].Value,
 	}
 }
-
