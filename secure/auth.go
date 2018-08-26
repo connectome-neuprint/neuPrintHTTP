@@ -70,6 +70,18 @@ func loginHandler(c echo.Context) error {
 	r := c.Request()
 	w := c.Response()
 
+	auto := c.QueryParam("auto")
+	if auto == "true" {
+		// check if already logged in
+		if currSession, err := session.Get(defaultSessionID, c); err == nil {
+			if profile, ok := currSession.Values[googleProfileSessionKey].(*Profile); ok && profile != nil {
+				currSession.Save(c.Request(), c.Response())
+				// there should be no redirect url if called in auto mode
+				return c.Redirect(http.StatusFound, "/profile")
+			}
+		}
+	}
+
 	oauthFlowSession, err := session.Get(sessionID, c)
 	if err != nil {
 		return fmt.Errorf("could not create oauth session: %v", err)
@@ -102,16 +114,16 @@ func loginHandler(c echo.Context) error {
 // application).
 func validateRedirectURL(path string) (string, error) {
 	if path == "" {
-		return "/", nil
+		return "/profile", nil
 	}
 
 	// Ensure redirect URL is valid and not pointing to a different server.
 	parsedURL, err := url.Parse(path)
 	if err != nil {
-		return "/", err
+		return "/profile", err
 	}
 	if parsedURL.IsAbs() {
-		return "/", errors.New("URL must not be absolute")
+		return "/profile", errors.New("URL must not be absolute")
 	}
 	return path, nil
 }
@@ -183,7 +195,7 @@ func logoutHandler(c echo.Context) error {
 		redirectURL = "/"
 	}
 
-	return c.Redirect(http.StatusFound, redirectURL)
+	return c.HTML(http.StatusOK, "")
 }
 
 // profileFromSession retreives the Google+ profile from the default session.

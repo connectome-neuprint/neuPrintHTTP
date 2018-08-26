@@ -84,7 +84,6 @@ func (s EchoSecure) AuthMiddleware(authLevel AuthorizationLevel) echo.Middleware
 				}
 
 				currSession.Save(c.Request(), c.Response())
-
 			}
 
 			// check authorize if it exists
@@ -144,7 +143,6 @@ func InitializeEchoSecure(e *echo.Echo, config SecureConfig, secret []byte) (Ech
 
 		// requires login
 		e.POST("/logout", s.AuthMiddleware(READ)(logoutHandler))
-		e.GET("/logout", s.AuthMiddleware(READ)(logoutHandler))
 		e.GET("/profile", s.AuthMiddleware(READ)(profileHandler))
 		e.GET("/token", s.AuthMiddleware(READ)(tokenHandler))
 	}
