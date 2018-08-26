@@ -72,6 +72,7 @@ func (s EchoSecure) AuthMiddleware(authLevel AuthorizationLevel) echo.Middleware
 				}
 			} else {
 				currSession, err := session.Get(defaultSessionID, c)
+
 				redirectUrl := "/login?redirect=" + c.Request().URL.Path
 				if err != nil {
 					return c.Redirect(http.StatusFound, redirectUrl)
@@ -81,6 +82,9 @@ func (s EchoSecure) AuthMiddleware(authLevel AuthorizationLevel) echo.Middleware
 				} else {
 					email = profile.Email
 				}
+
+				currSession.Save(c.Request(), c.Response())
+
 			}
 
 			// check authorize if it exists
