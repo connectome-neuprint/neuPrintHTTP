@@ -9,7 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/janelia-flyem/neuPrintHTTP/api"
-	"github.com/janelia-flyem/neuPrintHTTP/secure"
+	"github.com/janelia-flyem/echo-secure"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"net/http"
