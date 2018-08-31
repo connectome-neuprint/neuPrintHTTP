@@ -20,6 +20,7 @@ type configInfo struct {
 	Hostname      string      `json:"hostname"`
 	AuthToken     string      `json:"auth-token"`
 	AuthDatastore string      `json:"auth-datastore"`
+	StaticDir     string      `json:"static-dir"`
 }
 
 type Config struct {
@@ -33,6 +34,7 @@ type Config struct {
 	ClientSecret  string
 	AuthToken     string
 	AuthDatastore string
+	StaticDir     string
 }
 
 func loadConfig(configFile string) (config Config, err error) {
@@ -50,6 +52,7 @@ func loadConfig(configFile string) (config Config, err error) {
 
 	config.AuthFile = configRaw.AuthFile
 	config.AuthDatastore = configRaw.AuthDatastore
+	config.StaticDir = configRaw.StaticDir
 	config.AuthToken = configRaw.AuthToken
 	config.CertPEM = configRaw.CertPEM
 	config.KeyPEM = configRaw.KeyPEM

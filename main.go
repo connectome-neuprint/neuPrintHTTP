@@ -76,7 +76,11 @@ func main() {
 	}
 
 	// TODO: point to default page (login, token download, swagger link)
-	e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, "neuPrintHTTP default home page") })
+	if config.StaticDir != "" {
+		e.Static("/", config.StaticDir)
+	} else {
+		e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, "neuPrintHTTP default home page") })
+	}
 
 	// create read only group
 	readGrp := e.Group("/api")

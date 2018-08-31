@@ -14,5 +14,6 @@
     "secret": "blah3",
     "hostname": "localhost",
     "auth-token": "XXXX",
-    "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/"
+    "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/",
+    "static-dir": ""
 }
