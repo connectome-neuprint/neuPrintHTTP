@@ -8,8 +8,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/janelia-flyem/neuPrintHTTP/api"
 	"github.com/janelia-flyem/echo-secure"
+	"github.com/janelia-flyem/neuPrintHTTP/api"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"net/http"
@@ -37,7 +37,6 @@ func main() {
 		fmt.Print(err)
 		return
 	}
-	fmt.Println(config.AuthFile)
 
 	// create echo web framework
 	e := echo.New()
@@ -45,12 +44,23 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
 
-	// call new secure API
-	authorizer, err := secure.NewFileAuthorizer(config.AuthFile)
-	if err != nil {
-		fmt.Println(err)
-		return
+	var authorizer secure.Authorizer
+	// call new secure API and set authorization method
+	fmt.Println(config.AuthDatastore)
+	if config.AuthDatastore != "" {
+		authorizer, err = secure.NewDatastoreAuthorizer(config.AuthDatastore, config.AuthToken)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	} else {
+		authorizer, err = secure.NewFileAuthorizer(config.AuthFile)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
+
 	sconfig := secure.SecureConfig{
 		SSLCert:          config.CertPEM,
 		SSLKey:           config.KeyPEM,

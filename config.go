@@ -9,26 +9,30 @@ import (
 )
 
 type configInfo struct {
-	Engine       string      `json:"engine"`
-	EngineConfig interface{} `json:"engine-config"`
-	AuthFile     string      `json:"auth-file"`
-	CertPEM      string      `json:"ssl-cert,omitempty"`
-	KeyPEM       string      `json:"ssl-key,omitempty"`
-	ClientID     string      `json:"client-id"`
-	ClientSecret string      `json:"client-secret"`
-	Secret       string      `json:"secret"`
-	Hostname     string      `json:"hostname"`
+	Engine        string      `json:"engine"`
+	EngineConfig  interface{} `json:"engine-config"`
+	AuthFile      string      `json:"auth-file"`
+	CertPEM       string      `json:"ssl-cert,omitempty"`
+	KeyPEM        string      `json:"ssl-key,omitempty"`
+	ClientID      string      `json:"client-id"`
+	ClientSecret  string      `json:"client-secret"`
+	Secret        string      `json:"secret"`
+	Hostname      string      `json:"hostname"`
+	AuthToken     string      `json:"auth-token"`
+	AuthDatastore string      `json:"auth-datastore"`
 }
 
 type Config struct {
-	Store        storage.Store
-	AuthFile     string
-	CertPEM      string
-	KeyPEM       string
-	Secret       string
-	Hostname     string
-	ClientID     string
-	ClientSecret string
+	Store         storage.Store
+	AuthFile      string
+	CertPEM       string
+	KeyPEM        string
+	Secret        string
+	Hostname      string
+	ClientID      string
+	ClientSecret  string
+	AuthToken     string
+	AuthDatastore string
 }
 
 func loadConfig(configFile string) (config Config, err error) {
@@ -45,6 +49,8 @@ func loadConfig(configFile string) (config Config, err error) {
 	// TODO create store and load config separately
 
 	config.AuthFile = configRaw.AuthFile
+	config.AuthDatastore = configRaw.AuthDatastore
+	config.AuthToken = configRaw.AuthToken
 	config.CertPEM = configRaw.CertPEM
 	config.KeyPEM = configRaw.KeyPEM
 	config.Secret = configRaw.Secret

@@ -11,5 +11,8 @@
     "ssl-key": "key.pem",
     "client-id": "blah",
     "client-secret": "blah2",
-    "jwt-secret": "blah3"
+    "secret": "blah3",
+    "hostname": "localhost",
+    "auth-token": "XXXX",
+    "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/"
 }
