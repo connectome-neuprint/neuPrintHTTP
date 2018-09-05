@@ -75,16 +75,19 @@ func main() {
 		return
 	}
 
-	// TODO: point to default page (login, token download, swagger link)
-	if config.StaticDir != "" {
-		e.Static("/", config.StaticDir)
-	} else {
-		e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, "neuPrintHTTP default home page") })
-	}
-
 	// create read only group
 	readGrp := e.Group("/api")
 	readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
+
+	// setup default page
+	// TODO: point to swagger documentation
+	if config.StaticDir != "" {
+		e.Static("/", config.StaticDir)
+	} else {
+		e.GET("/", secureAPI.AuthMiddleware(secure.READ)(func(c echo.Context) error {
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+		}))
+	}
 
 	// load connectomic READ-ONLY API
 	if err = api.SetupRoutes(e, readGrp, config.Store); err != nil {
