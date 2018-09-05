@@ -1,19 +1,19 @@
 {
     "engine": "neuPrint-neo4j",
     "engine-config": {
-        "server": "http://dolafit-ws2.int.janelia.org:7474",
+        "server": "http://NEO4JSERVER:7474",
         "user": "neo4j",
-        "password": "n304j",
+        "password": "neo4j",
         "datasets": ["mb6"]
     },
     "auth-file": "authorized.json",
     "ssl-cert": "cert.pem",
     "ssl-key": "key.pem",
-    "oauthclient-id": "blah",
-    "oauthclient-secret": "blah2",
-    "appsecret": "blah3",
+    "oauthclient-id": "SOMEID",
+    "oauthclient-secret": "SOMESECRET",
+    "appsecret": "MYSECRET",
     "hostname": "localhost",
-    "auth-token": "XXXX",
-    "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/",
+    "auth-token": "GOOGLECLOUDFUNC_TOKEN",
+    "auth-datastore": "GOOGLECLOUDFUNC",
     "static-dir": ""
 }
