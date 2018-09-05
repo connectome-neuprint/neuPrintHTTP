@@ -4,14 +4,14 @@
         "server": "http://dolafit-ws2.int.janelia.org:7474",
         "user": "neo4j",
         "password": "n304j",
-        "datasets": [""mb6"]
+        "datasets": ["mb6"]
     },
     "auth-file": "authorized.json",
     "ssl-cert": "cert.pem",
     "ssl-key": "key.pem",
-    "client-id": "blah",
-    "client-secret": "blah2",
-    "secret": "blah3",
+    "oauthclient-id": "blah",
+    "oauthclient-secret": "blah2",
+    "appsecret": "blah3",
     "hostname": "localhost",
     "auth-token": "XXXX",
     "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/",

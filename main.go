@@ -1,8 +1,3 @@
-// create server
-// parse json to set storage plugin, point to authorized list, read forbidden into memory, secrete key?, metadata for datasets??
-// find out what interfaces are disabled
-// check db version number (that API should be valid)
-
 package main
 
 import (
@@ -10,6 +5,7 @@ import (
 	"fmt"
 	"github.com/janelia-flyem/echo-secure"
 	"github.com/janelia-flyem/neuPrintHTTP/api"
+	"github.com/janelia-flyem/neuPrintHTTP/config"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"net/http"
@@ -32,11 +28,15 @@ func main() {
 		return
 	}
 
-	config, err := loadConfig(flag.Args()[0])
+	// parse options
+	options, err := config.LoadConfig(flag.Args()[0])
 	if err != nil {
 		fmt.Print(err)
 		return
 	}
+
+	// create datastore based on configuration
+	store, err := config.CreateStore(options)
 
 	// create echo web framework
 	e := echo.New()
@@ -46,15 +46,14 @@ func main() {
 
 	var authorizer secure.Authorizer
 	// call new secure API and set authorization method
-	fmt.Println(config.AuthDatastore)
-	if config.AuthDatastore != "" {
-		authorizer, err = secure.NewDatastoreAuthorizer(config.AuthDatastore, config.AuthToken)
+	if options.AuthDatastore != "" {
+		authorizer, err = secure.NewDatastoreAuthorizer(options.AuthDatastore, options.AuthToken)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 	} else {
-		authorizer, err = secure.NewFileAuthorizer(config.AuthFile)
+		authorizer, err = secure.NewFileAuthorizer(options.AuthFile)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -62,14 +61,14 @@ func main() {
 	}
 
 	sconfig := secure.SecureConfig{
-		SSLCert:          config.CertPEM,
-		SSLKey:           config.KeyPEM,
-		ClientID:         config.ClientID,
-		ClientSecret:     config.ClientSecret,
+		SSLCert:          options.CertPEM,
+		SSLKey:           options.KeyPEM,
+		ClientID:         options.ClientID,
+		ClientSecret:     options.ClientSecret,
 		AuthorizeChecker: authorizer,
-		Hostname:         config.Hostname,
+		Hostname:         options.Hostname,
 	}
-	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(config.Secret))
+	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -81,8 +80,8 @@ func main() {
 
 	// setup default page
 	// TODO: point to swagger documentation
-	if config.StaticDir != "" {
-		e.Static("/", config.StaticDir)
+	if options.StaticDir != "" {
+		e.Static("/", options.StaticDir)
 	} else {
 		e.GET("/", secureAPI.AuthMiddleware(secure.READ)(func(c echo.Context) error {
 			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
@@ -90,7 +89,7 @@ func main() {
 	}
 
 	// load connectomic READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, config.Store); err != nil {
+	if err = api.SetupRoutes(e, readGrp, store); err != nil {
 		fmt.Print(err)
 		return
 	}

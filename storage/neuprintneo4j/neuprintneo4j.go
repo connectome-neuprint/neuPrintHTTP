@@ -169,6 +169,7 @@ func (store Store) GetDatasets() ([]string, error) {
 }
 
 func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
+	// TODO: prevent modifications
 	cypher, ok := req["cypher"].(string)
 	if !ok {
 		err = fmt.Errorf("cypher keyword not found in request JSON")
