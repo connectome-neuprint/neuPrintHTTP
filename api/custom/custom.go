@@ -15,6 +15,7 @@ var ENDPOINTS = [...]string{"custom"}
 
 const PREFIX = "/custom"
 
+// setupAPI sets up the optionally supported custom endpoints
 func setupAPI(c *api.ConnectomeAPI) error {
 	if customInt, ok := c.Store.(StorageAPI); ok {
 		q := &customQuery{customInt}

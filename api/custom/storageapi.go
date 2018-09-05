@@ -1,6 +1,6 @@
 package custom
 
-// api that engine needs to impelment
+// StorageAPI specifies the interface that backend  engine needs to satisfy
 type StorageAPI interface {
 	CustomRequest(map[string]interface{}) (interface{}, error)
 }

@@ -32,6 +32,9 @@ func (e Engine) GetName() string {
 	return e.name
 }
 
+// NewStore creates an store instance that works with neo4j.
+// The neo4j engine requires a user name and password to authenticate and
+// the location of the server.
 func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	datamap, ok := data.(map[string]interface{})
 	var emptyStore storage.Store
@@ -74,35 +77,47 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	return Store{datasets, dbversion, url}, nil
 }
 
+// neoResultProc contain the default response formatted from neo4j
+// as column names and rows of data
 type neoResultProc struct {
 	Columns []string        `json:"columns"`
 	Data    [][]interface{} `json:"data"`
 }
 
+// neoRow is an array of rows that are returned from neo4j
 type neoRow struct {
 	Row []interface{} `json:"row"`
 }
+
+// neoResult is the response for a given neo4j statement
 type neoResult struct {
 	Columns []string `json:"columns"`
 	Data    []neoRow `json:"data"`
 }
+
+// neoError is the error information returned for a given statement
 type neoError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
+// neoResults is the set of results for all statements
 type neoResults struct {
 	Results []neoResult `json:"results"`
 	Errors  []neoError  `json:"errors"`
 }
 
+// neoStatement is a single query statement
 type neoStatement struct {
 	Statement string `json:"statement"`
 }
+
+// neoStatements is a set of query statements
 type neoStatements struct {
 	Statements []neoStatement `json:"statements"`
 }
 
+// makeRequest makes a simple cypher request to neo4j
 func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 	neoClient := http.Client{
 		Timeout: time.Second * 60,
@@ -150,24 +165,29 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 	return &procRes, nil
 }
 
+// Store is the neo4j storage instance
 type Store struct {
 	datasets []string
 	version  semver.Version
 	url      string
 }
 
+// GetDatabsae returns database information
 func (store Store) GetDatabase() (loc string, desc string, err error) {
-	return "somwhere", NAME, nil
+	return store.url, NAME, nil
 }
 
+// GetVersion returns the version of the driver
 func (store Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
+// GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() ([]string, error) {
 	return store.datasets, nil
 }
 
+// CustomRequest implements API that allows users to specify exact query
 func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
 	// TODO: prevent modifications
 	cypher, ok := req["cypher"].(string)

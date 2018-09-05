@@ -16,6 +16,7 @@ var ENDPOINTS = [...]string{"datasets", "database", "version"}
 
 const PREFIX = "/dbmeta"
 
+// setupAPI loads all the endpoints for dbmeta
 func setupAPI(c *api.ConnectomeAPI) error {
 	if _, ok := c.Store.(StorageAPI); ok {
 		q := &metaQuery{c.Store}

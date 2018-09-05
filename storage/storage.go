@@ -25,6 +25,7 @@ var (
 	availEngines map[string]Engine
 )
 
+// RegisterEngine associates a given storage backend with a name
 func RegisterEngine(e Engine) {
 	if availEngines == nil {
 		availEngines = map[string]Engine{e.GetName(): e}
@@ -33,6 +34,7 @@ func RegisterEngine(e Engine) {
 	}
 }
 
+// ParseConfig finds the appropriate storage engine from the configuration and initializes it
 func ParseConfig(engineName string, data interface{}) (store Store, err error) {
 	if availEngines == nil {
 		return nil, fmt.Errorf("No engines loaded")

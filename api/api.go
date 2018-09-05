@@ -15,6 +15,7 @@ var (
 	availAPIs map[string]setupAPI
 )
 
+// RegisterAPI loads api for specified names
 func RegisterAPI(name string, f setupAPI) {
 	if availAPIs == nil {
 		availAPIs = map[string]setupAPI{name: f}
@@ -42,6 +43,8 @@ func newConnectomeAPI(store storage.Store, e *echo.Group) *ConnectomeAPI {
 	return &ConnectomeAPI{store, make(map[string]bool), e}
 }
 
+// SetRoute sets a handler function to a given prefix.  It provides routes
+// to a versioned and versionless API.
 func (c *ConnectomeAPI) SetRoute(connType ConnectionType, prefix string, route echo.HandlerFunc) {
 	switch connType {
 	case GET:
@@ -59,8 +62,10 @@ func (c *ConnectomeAPI) SetRoute(connType ConnectionType, prefix string, route e
 	}
 }
 
+// SetupRoutes intializes all the loaded API.
+// TODO: middleware to check version number specified by each endpoint 
 func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store) error {
-	apiObj := newConnectomeAPI(store, eg)
+        apiObj := newConnectomeAPI(store, eg)
 
 	for _, f := range availAPIs {
 		if err := f(apiObj); err != nil {
@@ -72,8 +77,8 @@ func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store) error {
 	eg.GET("/available", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, e.Routes())
 	})
+        // TODO: endpont to serve out swagger
 
-	// TODO serve out swagger
 	return nil
 }
 

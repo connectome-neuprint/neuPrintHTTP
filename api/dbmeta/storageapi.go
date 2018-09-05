@@ -1,6 +1,6 @@
 package dbmeta
 
-// api that engine needs to impelment
+// StorageAPI specifies the interface that backend  engine needs to satisfy
 type StorageAPI interface {
 	GetVersion() (string, error)
 	GetDatabase() (string, string, error)
