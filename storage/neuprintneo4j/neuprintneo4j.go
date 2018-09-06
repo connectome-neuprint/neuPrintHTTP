@@ -54,17 +54,6 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 		return emptyStore, fmt.Errorf("server not specified for neo4j")
 	}
 
-	datasetsInt, ok := datamap["datasets"].([]interface{})
-	if !ok {
-		return emptyStore, fmt.Errorf("datasets not specified for neo4j")
-	}
-	datasets := make([]string, len(datasetsInt))
-	for pos, val := range datasetsInt {
-		if datasets[pos], ok = val.(string); !ok {
-			return emptyStore, fmt.Errorf("datasets not specified properly for neo4j")
-		}
-	}
-
 	// TODO: check if code is compatible with DB version
 	dbversion, _ := semver.Make(VERSION)
 
@@ -74,7 +63,7 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	}*/
 	url := "http://" + user + ":" + pass + "@" + server + "/db/data/transaction/commit"
 
-	return Store{datasets, dbversion, url}, nil
+	return Store{dbversion, url}, nil
 }
 
 // neoResultProc contain the default response formatted from neo4j
@@ -167,9 +156,8 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 
 // Store is the neo4j storage instance
 type Store struct {
-	datasets []string
-	version  semver.Version
-	url      string
+	version semver.Version
+	url     string
 }
 
 // GetDatabsae returns database information
@@ -182,9 +170,47 @@ func (store Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
+type databaseInfo struct {
+	LastEdit string   `json:"last-mod"`
+	UUID     string   `json:"uuid"`
+	ROIs     []string `json:"ROIs"`
+}
+
 // GetDatasets returns information on the datasets supported
-func (store Store) GetDatasets() ([]string, error) {
-	return store.datasets, nil
+func (store Store) GetDatasets() (map[string]interface{}, error) {
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.synapseCountPerRoi"
+	metadata, err := store.makeRequest(cypher)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	for _, row := range metadata.Data {
+		fmt.Println(row)
+		dataset := row[0].(string)
+		uuid := "latest"
+		if row[1] != nil {
+			uuid = row[1].(string)
+		}
+		edit := row[2].(string)
+		roistr := row[3].(string)
+		roibytes := []byte(roistr)
+		var roidata map[string]interface{}
+		err = json.Unmarshal(roibytes, &roidata)
+		if err != nil {
+			return nil, err
+		}
+		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata))}
+
+		for roi := range roidata {
+			dbInfo.ROIs = append(dbInfo.ROIs, roi)
+		}
+
+		res[dataset] = dbInfo
+	}
+
+	return res, nil
 }
 
 // CustomRequest implements API that allows users to specify exact query

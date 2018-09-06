@@ -3,8 +3,7 @@
     "engine-config": {
         "server": "http://NEO4JSERVER:7474",
         "user": "neo4j",
-        "password": "neo4j",
-        "datasets": ["mb6"]
+        "password": "neo4j"
     },
     "auth-file": "authorized.json",
     "ssl-cert": "cert.pem",

@@ -12,7 +12,7 @@ import (
 type Store interface {
 	GetVersion() (string, error)
 	GetDatabase() (string, string, error)
-	GetDatasets() ([]string, error)
+	GetDatasets() (map[string]interface{}, error)
 }
 
 // Engine is the backend database that implements connectomics API

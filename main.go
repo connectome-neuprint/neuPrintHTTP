@@ -37,6 +37,10 @@ func main() {
 
 	// create datastore based on configuration
 	store, err := config.CreateStore(options)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	// create echo web framework
 	e := echo.New()

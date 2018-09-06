@@ -4,5 +4,5 @@ package dbmeta
 type StorageAPI interface {
 	GetVersion() (string, error)
 	GetDatabase() (string, string, error)
-	GetDatasets() ([]string, error)
+	GetDatasets() (map[string]interface{}, error)
 }
