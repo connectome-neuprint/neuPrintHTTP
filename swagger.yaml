@@ -1,0 +1,141 @@
+swagger: "2.0"
+info:
+  description: "REST interface for neuPrint"
+  version: "1.0.0"
+  title: "neuPrint API"
+tags:
+- name: "user"
+  description: "application level API"
+- name: "connectomics API"
+  description: "meta information on connectomics API"
+- name: "metadata"
+  description: "metadata endpoints for neuprint data model"
+- name: "custom"
+  description: "custom endpoints for connectomics API"
+schemes:
+- "https"
+paths:
+  /login:
+    get:
+      tags:
+      - "user"
+      summary: "Login User"
+      responses:
+        302:
+          description: "Redirect to /profile"
+  /token:
+    get:
+      tags:
+      - "user"
+      summary: "Get JWT"
+      responses:
+        200:
+          description: "successful operation"      
+  /profile:
+    get:
+      tags:
+      - "user"
+      summary: "Returns information on logged in user"
+      responses:
+        200:
+          description: "successful operation"
+  /logout:
+    post:
+      tags:
+      - "user"
+      summary: "Clears session cookie for user"
+      responses:
+        200:
+          description: "successful operation"
+  /api/help:
+    get:
+      tags:
+      - "connectomics API"
+      summary: "Swagger documentation for supported endpoints"
+      responses:
+        200:
+          description: "successful operation"
+  /api/available:
+    get:
+      tags:
+      - "connectomics API"
+      summary: "List of endpoints supported by server"
+      responses:
+        200:
+          description: "successful operation"     
+  /api/version:
+    get:
+      tags:
+      - "connectomics API"
+      summary: "version of the connectomics API"
+      responses:
+        200:
+          description: "successful operation"
+  /api/dbmeta/version:
+    get:
+      tags:
+      - "metadata"
+      summary: "Version of underlying data model"
+      responses:
+        200:
+          description: "successful operation"
+  /api/dbmeta/database:
+    get:
+      tags:
+      - "metadata"
+      summary: "Database information"
+      responses:
+        200:
+          description: "successful operation"
+  /api/dbmeta/datasets:
+    get:
+      tags:
+      - "metadata"
+      summary: "Datasets stored in the database"
+      responses:
+        200:
+          description: "successful operation"
+  /api/custom/custom:
+    get:
+      tags:
+      - "custom"
+      summary: "Make custom query against the database"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Custom query request"
+        required: true
+        schema:
+          $ref: "#/definitions/CustomReq"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/CustomResp"
+definitions:
+  CustomReq:
+    type: "object"
+    description: "Arbitrary map that depends on backend"
+    example: {cypher: "MATCH (n :Neuron) return n.bodyId"}
+  CustomResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["name", "size"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        example: [["t4", 323131], ["mi1", 232323]]
+        description: "Table of results"
+externalDocs:
+  description: "Find out more about neuPrint"
+  url: "https://github.com/janelia-flyem/neuPrint"

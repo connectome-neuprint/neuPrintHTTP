@@ -84,8 +84,12 @@ func main() {
 		e.Static("/", options.StaticDir)
 	} else {
 		e.GET("/", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
-			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><form action='/logout' method='post'><input type='submit' value='Logout' /></form><a href='/api/help'>Documentation</a></body></html>")
 		}))
+	}
+
+	if options.SwaggerDir != "" {
+		readGrp.Static("/help", options.SwaggerDir)
 	}
 
 	// load connectomic READ-ONLY API

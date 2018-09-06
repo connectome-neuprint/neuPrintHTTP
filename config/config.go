@@ -14,6 +14,7 @@ type Config struct {
 	ClientSecret  string      `json:"oauthclient-secret"`       // google oauth client secret
 	Secret        string      `json:"appsecret"`                // password for token and cookie generation
 	Hostname      string      `json:"hostname"`                 // name of server
+	SwaggerDir     string      `json:"swagger-docs"`     // static webpage
 	AuthFile      string      `json:"auth-file,omitempty"`      // json authorization file
 	CertPEM       string      `json:"ssl-cert,omitempty"`       // https certificate
 	KeyPEM        string      `json:"ssl-key,omitempty"`        // https private key

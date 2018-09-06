@@ -14,6 +14,7 @@
     "appsecret": "MYSECRET",
     "hostname": "localhost",
     "auth-token": "GOOGLECLOUDFUNC_TOKEN",
+    "swagger-docs": "GOPATH/src/github.com/janelia-flyem/neuPrintHTTP/swaggerdocs",
     "auth-datastore": "GOOGLECLOUDFUNC",
     "static-dir": ""
 }
