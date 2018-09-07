@@ -63,7 +63,7 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	}*/
 	url := "http://" + user + ":" + pass + "@" + server + "/db/data/transaction/commit"
 
-	return Store{dbversion, url}, nil
+	return Store{server, dbversion, url}, nil
 }
 
 // neoResultProc contain the default response formatted from neo4j
@@ -156,13 +156,14 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 
 // Store is the neo4j storage instance
 type Store struct {
+	server  string
 	version semver.Version
 	url     string
 }
 
 // GetDatabsae returns database information
 func (store Store) GetDatabase() (loc string, desc string, err error) {
-	return store.url, NAME, nil
+	return store.server, NAME, nil
 }
 
 // GetVersion returns the version of the driver
