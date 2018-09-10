@@ -24,6 +24,7 @@ func setupAPI(c *api.ConnectomeAPI) error {
 			switch endPoint {
 			case "custom":
 				c.SetRoute(api.GET, PREFIX+"/custom", q.getCustom)
+				c.SetRoute(api.POST, PREFIX+"/custom", q.getCustom)
 			}
 		}
 	}

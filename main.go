@@ -86,9 +86,20 @@ func main() {
 	// TODO: point to swagger documentation
 	if options.StaticDir != "" {
 		e.Static("/", options.StaticDir)
+		customHTTPErrorHandler := func(err error, c echo.Context) {
+			if he, ok := err.(*echo.HTTPError); ok {
+				if he.Code == http.StatusNotFound {
+					c.File(options.StaticDir)
+				}
+			}
+			e.DefaultHTTPErrorHandler(err, c)
+		}
+
+		e.HTTPErrorHandler = customHTTPErrorHandler
+
 	} else {
 		e.GET("/", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
-                    return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" -H \"Authorization: Bearer YOURTOKEN\" https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" -H \"Authorization: Bearer YOURTOKEN\" https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
 		}))
 	}
 
