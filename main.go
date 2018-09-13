@@ -57,7 +57,7 @@ func main() {
 	}
 
 	e.Use(LoggerWithConfig(LoggerConfig{
-		Format: "{uri=${uri}, status=${status}, bytes_in=${bytes_in}, bytes_out=${bytes_out}, latency=${latency}, time=${time_unix}, user=${custom:email}}\n",
+		Format: "{\"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"latency\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\"}\n",
 		Output: logFile,
 	}))
 
