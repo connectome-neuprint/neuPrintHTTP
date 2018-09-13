@@ -104,7 +104,7 @@ func main() {
 	}
 
 	if options.SwaggerDir != "" {
-		readGrp.Static("/help", options.SwaggerDir)
+		e.Static("/api/help", options.SwaggerDir)
 	}
 
 	// load connectomic READ-ONLY API
