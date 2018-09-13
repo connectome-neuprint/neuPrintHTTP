@@ -44,7 +44,16 @@ func main() {
 
 	// create echo web framework
 	e := echo.New()
-	e.Use(middleware.Logger())
+	//e.Use(middleware.Logger())
+	/*e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+	    Format: "{uri=${uri}, status=${status}, bytes_in=${bytes_in}, bytes_out=${bytes_out}, latency=${latency}, time=${time_unix}, user=${custom:email}}\n",
+	    Output: os.Stdout,
+	}))*/
+	e.Use(LoggerWithConfig(LoggerConfig{
+		Format: "{uri=${uri}, status=${status}, bytes_in=${bytes_in}, bytes_out=${bytes_out}, latency=${latency}, time=${time_unix}, user=${custom:email}}\n",
+		Output: os.Stdout,
+	}))
+
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
 

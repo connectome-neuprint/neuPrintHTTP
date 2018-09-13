@@ -188,7 +188,6 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 	res := make(map[string]interface{})
 
 	for _, row := range metadata.Data {
-		fmt.Println(row)
 		dataset := row[0].(string)
 		uuid := "latest"
 		if row[1] != nil {
