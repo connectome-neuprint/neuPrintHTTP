@@ -44,14 +44,21 @@ func main() {
 
 	// create echo web framework
 	e := echo.New()
-	//e.Use(middleware.Logger())
-	/*e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-	    Format: "{uri=${uri}, status=${status}, bytes_in=${bytes_in}, bytes_out=${bytes_out}, latency=${latency}, time=${time_unix}, user=${custom:email}}\n",
-	    Output: os.Stdout,
-	}))*/
+
+	// setup logger
+	logFile := os.Stdout
+
+	if options.LoggerFile != "" {
+		if logFile, err = os.OpenFile(options.LoggerFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer logFile.Close()
+	}
+
 	e.Use(LoggerWithConfig(LoggerConfig{
 		Format: "{uri=${uri}, status=${status}, bytes_in=${bytes_in}, bytes_out=${bytes_out}, latency=${latency}, time=${time_unix}, user=${custom:email}}\n",
-		Output: os.Stdout,
+		Output: logFile,
 	}))
 
 	e.Use(middleware.Recover())
