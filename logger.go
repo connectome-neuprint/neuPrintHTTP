@@ -35,7 +35,7 @@ type (
 		// - user_agent
 		// - status
 		// - error
-		// - latency (In nanoseconds)
+		// - latency (In milliseconds)
 		// - latency_human (Human readable)
 		// - bytes_in (Bytes received)
 		// - bytes_out (Bytes sent)
@@ -168,7 +168,8 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					}
 				case "latency":
 					l := stop.Sub(start)
-					return buf.WriteString(strconv.FormatInt(int64(l), 10))
+					latency := float64(int64(l)) / float64(1000000)
+					return buf.WriteString(strconv.FormatFloat(latency, 'f', 2, 64))
 				case "latency_human":
 					return buf.WriteString(stop.Sub(start).String())
 				case "bytes_in":
