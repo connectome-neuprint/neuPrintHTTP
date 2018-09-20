@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func customUsage() {
@@ -104,7 +105,8 @@ func main() {
 		e.Static("/", options.StaticDir)
 		customHTTPErrorHandler := func(err error, c echo.Context) {
 			if he, ok := err.(*echo.HTTPError); ok {
-				if he.Code == http.StatusNotFound {
+				req := c.Request()
+				if !strings.HasPrefix(req.RequestURI, "/api") && (he.Code == http.StatusNotFound) {
 					c.File(options.StaticDir)
 				}
 			}
