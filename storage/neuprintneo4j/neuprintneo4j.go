@@ -179,7 +179,7 @@ type databaseInfo struct {
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.synapseCountPerRoi"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo"
 	metadata, err := store.makeRequest(cypher)
 	if err != nil {
 		return nil, err

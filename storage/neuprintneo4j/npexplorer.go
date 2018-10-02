@@ -21,9 +21,9 @@ const (
 	SimpleConnectionsQuery = "MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE m.{neuronid} RETURN m.name AS Neuron1, n.name AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id ORDER BY m.name, m.bodyId, e.weight DESC"
 
 	RankedTableQuery  = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE m.{neuronid} RETURN m.name AS Neuron1, n.name AS Neuron2, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1 ORDER BY m.bodyId, e.weight DESC"
-	DistributionQuery = "MATCH (n:`{dataset}-Neuron` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.synapseCountPerRoi)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
+	DistributionQuery = "MATCH (n:`{dataset}-Neuron` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
 
-	CompletenessQuery = "MATCH (n:`{dataset}-Neuron`) {has_conditions} {pre_cond} {post_cond} {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:{dataset}) WITH apoc.convert.fromJsonMap(meta.synapseCountPerRoi) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS unlabelres, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
+	CompletenessQuery = "MATCH (n:`{dataset}-Neuron`) {has_conditions} {pre_cond} {post_cond} {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:{dataset}) WITH apoc.convert.fromJsonMap(meta.) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS unlabelres, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
 	CommonConnectivityQuery = "WITH [{neuron_list}] AS inputs MATCH (k:`{dataset}-Neuron`){connection}(c) WHERE (k.{idorname} IN inputs {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idorname})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.name, dynamicWeight, r.weight])) AS map"
 
@@ -85,24 +85,23 @@ func (store Store) ExplorerFindNeurons(params npexplorer.FindNeuronsParams) (res
 	}
 	cypher = strings.Replace(cypher, "{status_conds}", statusarr, -1)
 
-
 	roilist := ""
 	for index, roi := range params.InputROIs {
-		if initcond && index == 0{
-			roilist = "AND "
+		if initcond && index == 0 {
+			roilist += " AND "
 		} else if index > 0 {
 			roilist += " AND "
 		}
-		roilist = "(neuron.`" + roi + "`== true)"
+		roilist = roilist + "(neuron.`" + roi + "`= true)"
 		initcond = true
 	}
 	for index, roi := range params.OutputROIs {
-		if initcond && index == 0{
-			roilist = "AND "
+		if initcond && index == 0 {
+			roilist += " AND "
 		} else if index > 0 {
 			roilist += " AND "
 		}
-		roilist = "(neuron.`" + roi + "`== true)"
+		roilist = roilist + "(neuron.`" + roi + "`= true)"
 		initcond = true
 	}
 
