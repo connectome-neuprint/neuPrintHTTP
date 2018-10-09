@@ -25,7 +25,7 @@ const (
 
 	CompletenessQuery = "MATCH (n:`{dataset}-Neuron`) {has_conditions} {pre_cond} {post_cond} {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:{dataset}) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS unlabelres, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
-	CommonConnectivityQuery = "WITH [{neuron_list}] AS inputs MATCH (k:`{dataset}-Neuron`){connection}(c) WHERE (k.{idorname} IN inputs {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idorname})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.name, dynamicWeight, r.weight])) AS map"
+	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-Neuron`){connection}(c) WHERE (k.{idorname} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idorname})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.name, dynamicWeight, r.weight])) AS map"
 
 	FindNeuronsQuery = "MATCH (neuron :`{dataset}-Neuron`) {has_conditions} {hasneuron}{neuronid} {pre_cond} {post_cond} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.name AS bodyname, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost ORDER BY neuron.bodyId"
 )
@@ -194,10 +194,10 @@ func (store Store) ExplorerCommonConnectivity(params npexplorer.CommonConnectivi
 	cypher := strings.Replace(CommonConnectivityQuery, "{dataset}", params.Dataset, -1)
 	if params.FindInputs {
 		cypher = strings.Replace(cypher, "{connection}", "<-[r:ConnectsTo]-", -1)
-		cypher = strings.Replace(cypher, "{inputoroutput}", "output", -1)
+		cypher = strings.Replace(cypher, "{inputoroutput}", "input", -1)
 	} else {
 		cypher = strings.Replace(cypher, "{connection}", "-[r:ConnectsTo]->", -1)
-		cypher = strings.Replace(cypher, "{inputoroutput}", "input", -1)
+		cypher = strings.Replace(cypher, "{inputoroutput}", "output", -1)
 	}
 
 	if params.NeuronIds != nil && len(params.NeuronIds) > 0 {
