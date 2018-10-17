@@ -2,16 +2,15 @@ package main
 
 import (
 	"bytes"
+	"github.com/labstack/echo"
+	"github.com/labstack/gommon/color"
+	"github.com/valyala/fasttemplate"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/labstack/echo"
-	"github.com/labstack/gommon/color"
-	"github.com/valyala/fasttemplate"
 )
 
 type (
@@ -180,6 +179,15 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					return buf.WriteString(cl)
 				case "bytes_out":
 					return buf.WriteString(strconv.FormatInt(res.Size, 10))
+				case "category":
+					category := ""
+					if req.RequestURI != "" {
+						path := strings.Split(req.RequestURI[1:], "/")
+						if path[0] == "api" && len(path) >= 3 {
+							category = path[1] + "/" + path[2]
+						}
+					}
+					return buf.WriteString(category)
 				default:
 					switch {
 					case strings.HasPrefix(tag, "header:"):
