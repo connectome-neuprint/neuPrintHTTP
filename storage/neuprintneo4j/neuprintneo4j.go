@@ -71,6 +71,7 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 type neoResultProc struct {
 	Columns []string        `json:"columns"`
 	Data    [][]interface{} `json:"data"`
+	Debug   string          `json:"debug"`
 }
 
 // neoRow is an array of rows that are returned from neo4j
@@ -150,7 +151,7 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 		}
 		data[row] = arr
 	}
-	procRes := neoResultProc{result.Results[0].Columns, data}
+	procRes := neoResultProc{result.Results[0].Columns, data, cypher}
 	return &procRes, nil
 }
 
