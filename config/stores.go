@@ -2,8 +2,8 @@ package config
 
 // loads all storage plugins
 import (
-	"github.com/janelia-flyem/neuPrintHTTP/storage"
-	_ "github.com/janelia-flyem/neuPrintHTTP/storage/neuprintneo4j"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	_ "github.com/connectome-neuprint/neuPrintHTTP/storage/neuprintneo4j"
 )
 
 // LoadStore creates a datastore from the engine specified by the configuration

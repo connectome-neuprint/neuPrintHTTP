@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/blang/semver"
-	"github.com/janelia-flyem/neuPrintHTTP/storage"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"io/ioutil"
 	"net/http"
 	"time"

@@ -2,7 +2,7 @@ package neuprintneo4j
 
 import (
 	"fmt"
-	"github.com/janelia-flyem/neuPrintHTTP/api/npexplorer"
+	"github.com/connectome-neuprint/neuPrintHTTP/api/npexplorer"
 	"strconv"
 	"strings"
 )

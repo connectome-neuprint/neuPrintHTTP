@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/janelia-flyem/neuPrintHTTP/storage"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo"
 	"net/http"
 )

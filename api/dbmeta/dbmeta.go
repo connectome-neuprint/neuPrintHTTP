@@ -2,7 +2,7 @@ package dbmeta
 
 import (
 	"fmt"
-	"github.com/janelia-flyem/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/labstack/echo"
 	"net/http"
 )
