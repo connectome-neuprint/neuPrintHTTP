@@ -8,6 +8,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -61,9 +62,10 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	/*if err != nil {
 	    return emptyStore, fmt.Errorf("could not connect to database")
 	}*/
-	url := "http://" + user + ":" + pass + "@" + server + "/db/data/transaction/commit"
+	preurl := "http://" + user + ":" + pass + "@"
+	url := preurl + server + "/db/data/transaction"
 
-	return Store{server, dbversion, url}, nil
+	return Store{server, dbversion, url, preurl}, nil
 }
 
 // neoResultProc contain the default response formatted from neo4j
@@ -81,8 +83,9 @@ type neoRow struct {
 
 // neoResult is the response for a given neo4j statement
 type neoResult struct {
-	Columns []string `json:"columns"`
-	Data    []neoRow `json:"data"`
+	Columns []string               `json:"columns"`
+	Data    []neoRow               `json:"data"`
+	Stats   map[string]interface{} `json:"stats"`
 }
 
 // neoError is the error information returned for a given statement
@@ -99,7 +102,8 @@ type neoResults struct {
 
 // neoStatement is a single query statement
 type neoStatement struct {
-	Statement string `json:"statement"`
+	Statement    string `json:"statement"`
+	IncludeStats bool   `json:"includeStats"`
 }
 
 // neoStatements is a set of query statements
@@ -113,7 +117,7 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 		Timeout: time.Second * 60,
 	}
 
-	transaction := neoStatements{[]neoStatement{neoStatement{cypher}}}
+	transaction := neoStatements{[]neoStatement{neoStatement{cypher, true}}}
 
 	b := new(bytes.Buffer)
 	json.NewEncoder(b).Encode(transaction)
@@ -139,6 +143,23 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 		return nil, fmt.Errorf("error decoding json")
 	}
 
+	// if database was modified, rollback the transaction (only allow readonly)
+	if result.Results[0].Stats["contains_updates"].(bool) {
+		locationURL, _ := res.Location()
+		commitLocation := strings.Replace(locationURL.String(), "http://", store.preurl, -1)
+
+		bempty := new(bytes.Buffer)
+		newreq, err := http.NewRequest(http.MethodDelete, commitLocation, bempty)
+		if err != nil {
+			return nil, fmt.Errorf("request failed")
+		}
+		_, err = neoClient.Do(newreq)
+		if err != nil {
+			return nil, fmt.Errorf("request failed")
+		}
+		return nil, fmt.Errorf("not authorized to modify the database")
+	}
+
 	if len(result.Errors) > 0 {
 		return nil, fmt.Errorf("%s: %s", result.Errors[0].Code, result.Errors[0].Message)
 	}
@@ -160,6 +181,7 @@ type Store struct {
 	server  string
 	version semver.Version
 	url     string
+	preurl  string
 }
 
 // GetDatabsae returns database information
