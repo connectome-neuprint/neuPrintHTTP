@@ -4,7 +4,7 @@ Implements a connectomics REST interface that leverages the [neuprint](https://g
 
 ## Installation
 
-    % go get github.com/janelia-flyem/neuPrintHTTP
+    % go get github.com/connectome-neuprint/neuPrintHTTP
 
 ## Running
 
