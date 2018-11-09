@@ -2,9 +2,10 @@ package neuprintneo4j
 
 import (
 	"fmt"
-	"github.com/connectome-neuprint/neuPrintHTTP/api/npexplorer"
 	"strconv"
 	"strings"
+
+	"github.com/connectome-neuprint/neuPrintHTTP/api/npexplorer"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 
 	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-Neuron`){connection}(c) WHERE (k.{idorname} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idorname})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.name, dynamicWeight, r.weight])) AS map"
 
-	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-Neuron`) {has_conditions} {hasneuron}{neuronid} {pre_cond} {post_cond} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.name AS bodyname, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois ORDER BY neuron.bodyId"
+	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-Neuron`) {has_conditions} {hasneuron}{neuronid} {pre_cond} {post_cond} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.name AS bodyname, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, exists((neuron)-[:Contains]->(:Skeleton)) AS hasSkeleton ORDER BY neuron.bodyId"
 )
 
 // ExplorerFindNeurons implements API to find neurons in a certain ROI
