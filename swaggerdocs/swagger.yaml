@@ -12,6 +12,8 @@ tags:
   description: "metadata endpoints for neuPrint model and datasets"
 - name: "custom"
   description: "custom endpoints for connectomics API"
+- name: "npexplorer"
+  description: "endpoints that implement neuprint explorer plugins"
 schemes:
 - "https"
 paths:
@@ -132,6 +134,215 @@ paths:
             $ref: "#/definitions/CustomResp"
       security:
       - Bearer: [] 
+  /api/npexploer/findneurons:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Find neurons in certain ROIs"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Filters to find neurons"
+        required: true
+        schema:
+          $ref: '#/definitions/FindNeuronsReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/FindNeuronsResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/neuronmetavals:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Extract different values for a given property"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Filter to a given property type"
+        required: true
+        schema:
+          $ref: '#/definitions/MetaValReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: '#/definitions/MetaValResp'
+      security:
+      - Bearer: []
+  /api/npexploer/neuronmeta:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Extract different property types stored for dataset"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Dataset filter"
+        required: true
+        schema:
+          $ref: '#/definitions/MetaReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/MetaResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/roiconnectivity:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Retrieve the data to compute a projectome connectivity matrix"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Dataset filter"
+        required: true
+        schema:
+          $ref: '#/definitions/ROIReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/ROIResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/rankedtable:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Supports ranked table plugin that shows connections colored by cell type"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Neuron name or id filter"
+        required: true
+        schema:
+          $ref: '#/definitions/RankedTableReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/RankedTableResp"
+      security:
+      - Bearer: []
+  /api/npexploer/simpleconnections:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Show inputs or outputs for specified neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Neuron name or id filter"
+        required: true
+        schema:
+          $ref: '#/definitions/SimpleConnectionsReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/SimpleConnectionsResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/roisinneuron:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Show ROIs that intersect given neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Neuron name or id filter"
+        required: true
+        schema:
+          $ref: '#/definitions/ROIsInNeuronReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/ROIsInNeuronResp"
+      security:
+      - Bearer: []
+  /api/npexploer/commonconnectivity:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Find inputs or outputs shared between provided set of neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Various neuron filters"
+        required: true
+        schema:
+          $ref: '#/definitions/CommonConnectivityReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/CommonConnectivityResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/autapses:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Find inputs or outputs shared between provided set of neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Various neuron filters"
+        required: true
+        schema:
+          $ref: '#/definitions/AutapseReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/AutapseResp"
+      security:
+      - Bearer: []
+  /api/npexploer/distribution:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Find inputs or outputs shared between provided set of neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "ROI and synapse direction filter"
+        required: true
+        schema:
+          $ref: '#/definitions/DistributionReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/DistributionResp"
+      security:
+      - Bearer: [] 
+  /api/npexploer/completeness:
+    get:
+      tags:
+      - "npexplorer"
+      summary: "Find inputs or outputs shared between provided set of neurons"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Neuron filter"
+        required: true
+        schema:
+          $ref: '#/definitions/CompletenessReq'
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/CompletenessResp"
+      security:
+      - Bearer: [] 
 definitions:
   CustomReq:
     type: "object"
@@ -156,6 +367,132 @@ definitions:
           description: "Table row"
         example: [["t4", 323131], ["mi1", 232323]]
         description: "Table of results"
+  FindNeuronsReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      neuron_name:
+        type: "string"
+        example: "PB-1"
+      neuron_id:
+        type: "number"
+        example: "32415"
+      statuses:
+        type: "array"
+        items:
+          type: "string"
+          example: ["Roughly traced"]
+      pre_threshold:
+        type: "number"
+        example: 2
+      post_threshold:
+        type: "number"
+        example: 10
+      input_ROIs:
+        type: "array"
+        items:
+          type: "string"
+          example: ["AB"]
+      output_ROIs:
+        type: "array"
+        items:
+          type: "string"
+          example: ["AB"]
+  FindNeuronsResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["bodyid", "bodyname", "neuronStatus", "roiInfo", "size", "npre", "npost", "rois"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  MetaValReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      key_name:
+        type: "string"
+        example: "name"
+  MetaValResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["val"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  MetaReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+  MetaResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["pname"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  ROIReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+  ROIResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["bodyid", "roiInfo"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
   DatasetsResp:
     type: "object"
     properties:
@@ -176,6 +513,233 @@ definitions:
             items:
               type: "string"
             example: ["alpha1", "alpha2", "alpha3"]
+  RankedTableReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      neuron_name:
+        type: "string"
+        example: "PB-1"
+      neuron_id:
+        type: "number"
+        example: "32415"
+  RankedTableResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["Neuron1", "Neuron2", "Weight", "Body2", "Neuron1Type", "Neuron2Type", "m_id", "n_id", "pre_id", "Body1"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  SimpleConnectionsReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      neuron_name:
+        type: "string"
+        example: "PB-1"
+      neuron_id:
+        type: "number"
+        example: "32415"
+      find_inputs:
+        type: "boolean"
+        example: true
+  SimpleConnectionsResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["Neuron1", "Neuron2", "Neuron2Id", "Weight", "Neuron1Id"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  ROIsInNeuronReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      neuron_name:
+        type: "string"
+        example: "PB-1"
+      neuron_id:
+        type: "number"
+        example: "32415"
+  ROIsInNeuronResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["bodyid", "bodyname", "roiInfo"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  CommonConnectivityReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      statuses:
+        type: "array"
+        items:
+          type: "string"
+          example: ["Roughly traced"]
+      pre_threshold:
+        type: "number"
+        example: 2
+      post_threshold:
+        type: "number"
+        example: 10
+      neuron_ids:
+        type: "array"
+        items:
+          type: "number"
+          example: [5,2342,13,7]
+      neuron_names:
+        type: "array"
+        items:
+          type: "string"
+          example: ["PB-1", "PB-2", "PB-X"]
+  CommonConnectivityResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["map"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  AutapseReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+  AutapseResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["id", "weight", "name"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  DistributionReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      ROI:
+        type: "string"
+        example: "AB"
+      is_pre:
+        type: "boolean"
+        example: true
+  DistributionResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["id", "size", "total"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
+  CompletenessReq:
+    type: "object"
+    properties:
+      dataset:
+        type: "string"
+        example: "hemibrain"
+      statuses:
+        type: "array"
+        items:
+          type: "string"
+          example: ["Roughly traced"]
+      pre_threshold:
+        type: "number"
+        example: 2
+      post_threshold:
+        type: "number"
+        example: 10
+  CompletenessResp:
+    type: "object"
+    properties:
+      columns:
+        type: "array"
+        items:
+          type: "string"
+        example: ["unlabelres", "roipre", "roipost", "totalpre", "totalpost"]
+        description: "Name of each result column"
+      data:
+        type: "array"
+        items:
+          type: "array"
+          items:
+            type: "null"
+            description: "Cell value"
+          description: "Table row"
+        description: "Table of results"
 securityDefinitions:
   Bearer:
     type: "apiKey"

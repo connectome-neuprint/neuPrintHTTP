@@ -213,6 +213,20 @@ font-style: italic;
   <li><a href="#apiDbmetaDatasetsGet"><code><span class="http-method">get</span> /api/dbmeta/datasets</code></a></li>
   <li><a href="#apiDbmetaVersionGet"><code><span class="http-method">get</span> /api/dbmeta/version</code></a></li>
   </ul>
+  <h4><a href="#Npexplorer">Npexplorer</a></h4>
+  <ul>
+  <li><a href="#apiNpexploerAutapsesGet"><code><span class="http-method">get</span> /api/npexploer/autapses</code></a></li>
+  <li><a href="#apiNpexploerCommonconnectivityGet"><code><span class="http-method">get</span> /api/npexploer/commonconnectivity</code></a></li>
+  <li><a href="#apiNpexploerCompletenessGet"><code><span class="http-method">get</span> /api/npexploer/completeness</code></a></li>
+  <li><a href="#apiNpexploerDistributionGet"><code><span class="http-method">get</span> /api/npexploer/distribution</code></a></li>
+  <li><a href="#apiNpexploerFindneuronsGet"><code><span class="http-method">get</span> /api/npexploer/findneurons</code></a></li>
+  <li><a href="#apiNpexploerNeuronmetaGet"><code><span class="http-method">get</span> /api/npexploer/neuronmeta</code></a></li>
+  <li><a href="#apiNpexploerNeuronmetavalsGet"><code><span class="http-method">get</span> /api/npexploer/neuronmetavals</code></a></li>
+  <li><a href="#apiNpexploerRankedtableGet"><code><span class="http-method">get</span> /api/npexploer/rankedtable</code></a></li>
+  <li><a href="#apiNpexploerRoiconnectivityGet"><code><span class="http-method">get</span> /api/npexploer/roiconnectivity</code></a></li>
+  <li><a href="#apiNpexploerRoisinneuronGet"><code><span class="http-method">get</span> /api/npexploer/roisinneuron</code></a></li>
+  <li><a href="#apiNpexploerSimpleconnectionsGet"><code><span class="http-method">get</span> /api/npexploer/simpleconnections</code></a></li>
+  </ul>
   <h4><a href="#User">User</a></h4>
   <ul>
   <li><a href="#loginGet"><code><span class="http-method">get</span> /login</code></a></li>
@@ -424,6 +438,469 @@ font-style: italic;
         <a href="#"></a>
   </div> <!-- method -->
   <hr/>
+  <h1><a name="Npexplorer">Npexplorer</a></h1>
+  <div class="method"><a name="apiNpexploerAutapsesGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/autapses</code></pre></div>
+    <div class="method-summary">Find inputs or outputs shared between provided set of neurons (<span class="nickname">apiNpexploerAutapsesGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#AutapseReq">AutapseReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Various neuron filters </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#AutapseResp">AutapseResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "id", "weight", "name" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#AutapseResp">AutapseResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerCommonconnectivityGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/commonconnectivity</code></pre></div>
+    <div class="method-summary">Find inputs or outputs shared between provided set of neurons (<span class="nickname">apiNpexploerCommonconnectivityGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#CommonConnectivityReq">CommonConnectivityReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Various neuron filters </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#CommonConnectivityResp">CommonConnectivityResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "map" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#CommonConnectivityResp">CommonConnectivityResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerCompletenessGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/completeness</code></pre></div>
+    <div class="method-summary">Find inputs or outputs shared between provided set of neurons (<span class="nickname">apiNpexploerCompletenessGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#CompletenessReq">CompletenessReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Neuron filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#CompletenessResp">CompletenessResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "unlabelres", "roipre", "roipost", "totalpre", "totalpost" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#CompletenessResp">CompletenessResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerDistributionGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/distribution</code></pre></div>
+    <div class="method-summary">Find inputs or outputs shared between provided set of neurons (<span class="nickname">apiNpexploerDistributionGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#DistributionReq">DistributionReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; ROI and synapse direction filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#DistributionResp">DistributionResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "id", "size", "total" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#DistributionResp">DistributionResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerFindneuronsGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/findneurons</code></pre></div>
+    <div class="method-summary">Find neurons in certain ROIs (<span class="nickname">apiNpexploerFindneuronsGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#FindNeuronsReq">FindNeuronsReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Filters to find neurons </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#FindNeuronsResp">FindNeuronsResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "bodyid", "bodyname", "neuronStatus", "roiInfo", "size", "npre", "npost", "rois" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#FindNeuronsResp">FindNeuronsResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerNeuronmetaGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/neuronmeta</code></pre></div>
+    <div class="method-summary">Extract different property types stored for dataset (<span class="nickname">apiNpexploerNeuronmetaGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#MetaReq">MetaReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Dataset filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#MetaResp">MetaResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "pname" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#MetaResp">MetaResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerNeuronmetavalsGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/neuronmetavals</code></pre></div>
+    <div class="method-summary">Extract different values for a given property (<span class="nickname">apiNpexploerNeuronmetavalsGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#MetaValReq">MetaValReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Filter to a given property type </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#MetaValResp">MetaValResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "val" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#MetaValResp">MetaValResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerRankedtableGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/rankedtable</code></pre></div>
+    <div class="method-summary">Supports ranked table plugin that shows connections colored by cell type (<span class="nickname">apiNpexploerRankedtableGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#RankedTableReq">RankedTableReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Neuron name or id filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#RankedTableResp">RankedTableResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "Neuron1", "Neuron2", "Weight", "Body2", "Neuron1Type", "Neuron2Type", "m_id", "n_id", "pre_id", "Body1" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#RankedTableResp">RankedTableResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerRoiconnectivityGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/roiconnectivity</code></pre></div>
+    <div class="method-summary">Retrieve the data to compute a projectome connectivity matrix (<span class="nickname">apiNpexploerRoiconnectivityGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#ROIReq">ROIReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Dataset filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#ROIResp">ROIResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "bodyid", "roiInfo" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#ROIResp">ROIResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerRoisinneuronGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/roisinneuron</code></pre></div>
+    <div class="method-summary">Show ROIs that intersect given neurons (<span class="nickname">apiNpexploerRoisinneuronGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#ROIsInNeuronReq">ROIsInNeuronReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Neuron name or id filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#ROIsInNeuronResp">ROIsInNeuronResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "bodyid", "bodyname", "roiInfo" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#ROIsInNeuronResp">ROIsInNeuronResp</a>
+  </div> <!-- method -->
+  <hr/>
+  <div class="method"><a name="apiNpexploerSimpleconnectionsGet"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="get"><code class="huge"><span class="http-method">get</span> /api/npexploer/simpleconnections</code></pre></div>
+    <div class="method-summary">Show inputs or outputs for specified neurons (<span class="nickname">apiNpexploerSimpleconnectionsGet</span>)</div>
+    <div class="method-notes"></div>
+
+
+
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      <div class="param">body <a href="#SimpleConnectionsReq">SimpleConnectionsReq</a> (required)</div>
+
+      <div class="param-desc"><span class="param-type">Body Parameter</span> &mdash; Neuron name or id filter </div>
+
+    </div>  <!-- field-items -->
+
+
+
+
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      <a href="#SimpleConnectionsResp">SimpleConnectionsResp</a>
+      
+    </div>
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: application/json</div>
+    <pre class="example"><code>{
+  "data" : [ "", "" ],
+  "columns" : [ "Neuron1", "Neuron2", "Neuron2Id", "Weight", "Neuron1Id" ]
+}</code></pre>
+
+
+    <h3 class="field-label">Responses</h3>
+    <h4 class="field-label">200</h4>
+    successful operation
+        <a href="#SimpleConnectionsResp">SimpleConnectionsResp</a>
+  </div> <!-- method -->
+  <hr/>
   <h1><a name="User">User</a></h1>
   <div class="method"><a name="loginGet"/>
     <div class="method-path">
@@ -527,12 +1004,87 @@ font-style: italic;
 
   <h3>Table of Contents</h3>
   <ol>
+    <li><a href="#AutapseReq"><code>AutapseReq</code> - </a></li>
+    <li><a href="#AutapseResp"><code>AutapseResp</code> - </a></li>
+    <li><a href="#CommonConnectivityReq"><code>CommonConnectivityReq</code> - </a></li>
+    <li><a href="#CommonConnectivityResp"><code>CommonConnectivityResp</code> - </a></li>
+    <li><a href="#CompletenessReq"><code>CompletenessReq</code> - </a></li>
+    <li><a href="#CompletenessResp"><code>CompletenessResp</code> - </a></li>
     <li><a href="#CustomReq"><code>CustomReq</code> - </a></li>
     <li><a href="#CustomResp"><code>CustomResp</code> - </a></li>
     <li><a href="#DatasetsResp"><code>DatasetsResp</code> - </a></li>
     <li><a href="#DatasetsResp_mb6"><code>DatasetsResp_mb6</code> - </a></li>
+    <li><a href="#DistributionReq"><code>DistributionReq</code> - </a></li>
+    <li><a href="#DistributionResp"><code>DistributionResp</code> - </a></li>
+    <li><a href="#FindNeuronsReq"><code>FindNeuronsReq</code> - </a></li>
+    <li><a href="#FindNeuronsResp"><code>FindNeuronsResp</code> - </a></li>
+    <li><a href="#MetaReq"><code>MetaReq</code> - </a></li>
+    <li><a href="#MetaResp"><code>MetaResp</code> - </a></li>
+    <li><a href="#MetaValReq"><code>MetaValReq</code> - </a></li>
+    <li><a href="#MetaValResp"><code>MetaValResp</code> - </a></li>
+    <li><a href="#ROIReq"><code>ROIReq</code> - </a></li>
+    <li><a href="#ROIResp"><code>ROIResp</code> - </a></li>
+    <li><a href="#ROIsInNeuronReq"><code>ROIsInNeuronReq</code> - </a></li>
+    <li><a href="#ROIsInNeuronResp"><code>ROIsInNeuronResp</code> - </a></li>
+    <li><a href="#RankedTableReq"><code>RankedTableReq</code> - </a></li>
+    <li><a href="#RankedTableResp"><code>RankedTableResp</code> - </a></li>
+    <li><a href="#SimpleConnectionsReq"><code>SimpleConnectionsReq</code> - </a></li>
+    <li><a href="#SimpleConnectionsResp"><code>SimpleConnectionsResp</code> - </a></li>
   </ol>
 
+  <div class="model">
+    <h3><a name="AutapseReq"><code>AutapseReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="AutapseResp"><code>AutapseResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="CommonConnectivityReq"><code>CommonConnectivityReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">statuses (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+<div class="param">pre_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">post_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">neuron_ids (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">array[BigDecimal]</a></span>  </div>
+<div class="param">neuron_names (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="CommonConnectivityResp"><code>CommonConnectivityResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="CompletenessReq"><code>CompletenessReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">statuses (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+<div class="param">pre_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">post_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="CompletenessResp"><code>CompletenessResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
   <div class="model">
     <h3><a name="CustomReq"><code>CustomReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
     <div class='model-description'>Arbitrary map that depends on backend</div>
@@ -561,6 +1113,143 @@ font-style: italic;
       <div class="param">last-mod (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span> Last modification date for dataset </div>
 <div class="param">uuid (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span> last DVID UUID that dataset corresponds to </div>
 <div class="param">ROIs (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="DistributionReq"><code>DistributionReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">ROI (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">is_pre (optional)</div><div class="param-desc"><span class="param-type"><a href="#boolean">Boolean</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="DistributionResp"><code>DistributionResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="FindNeuronsReq"><code>FindNeuronsReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_id (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">statuses (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+<div class="param">pre_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">post_threshold (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">input_ROIs (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+<div class="param">output_ROIs (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="FindNeuronsResp"><code>FindNeuronsResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="MetaReq"><code>MetaReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="MetaResp"><code>MetaResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="MetaValReq"><code>MetaValReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">key_name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="MetaValResp"><code>MetaValResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="ROIReq"><code>ROIReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="ROIResp"><code>ROIResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="ROIsInNeuronReq"><code>ROIsInNeuronReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_id (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="ROIsInNeuronResp"><code>ROIsInNeuronResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="RankedTableReq"><code>RankedTableReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_id (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="RankedTableResp"><code>RankedTableResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="SimpleConnectionsReq"><code>SimpleConnectionsReq</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">dataset (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_name (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">String</a></span>  </div>
+<div class="param">neuron_id (optional)</div><div class="param-desc"><span class="param-type"><a href="#number">BigDecimal</a></span>  </div>
+<div class="param">find_inputs (optional)</div><div class="param-desc"><span class="param-type"><a href="#boolean">Boolean</a></span>  </div>
+    </div>  <!-- field-items -->
+  </div>
+  <div class="model">
+    <h3><a name="SimpleConnectionsResp"><code>SimpleConnectionsResp</code> - </a> <a class="up" href="#__Models">Up</a></h3>
+    <div class='model-description'></div>
+    <div class="field-items">
+      <div class="param">columns (optional)</div><div class="param-desc"><span class="param-type"><a href="#string">array[String]</a></span> Name of each result column </div>
+<div class="param">data (optional)</div><div class="param-desc"><span class="param-type"><a href="#array">array[array[null]]</a></span> Table of results </div>
     </div>  <!-- field-items -->
   </div>
   </body>
