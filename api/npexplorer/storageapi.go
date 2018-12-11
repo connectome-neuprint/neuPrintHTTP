@@ -16,6 +16,7 @@ type FilterParams struct {
 	Statuses      []string `json:"statuses"`
 	PreThreshold  int      `json:"pre_threshold"`
 	PostThreshold int      `json:"post_threshold"`
+	AllSegments   bool     `json:"all_segments,omitempty"`
 }
 
 type FindNeuronsParams struct {

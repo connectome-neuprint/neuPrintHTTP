@@ -384,6 +384,9 @@ definitions:
         items:
           type: "string"
           example: ["Roughly traced"]
+      all_segments:
+          type: "boolean"
+          example: false
       pre_threshold:
         type: "number"
         example: 2
@@ -617,6 +620,9 @@ definitions:
         items:
           type: "string"
           example: ["Roughly traced"]
+      all_segments:
+          type: "boolean"
+          example: false
       pre_threshold:
         type: "number"
         example: 2
@@ -716,6 +722,9 @@ definitions:
         items:
           type: "string"
           example: ["Roughly traced"]
+      all_segments:
+          type: "boolean"
+          example: false
       pre_threshold:
         type: "number"
         example: 2
