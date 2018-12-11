@@ -158,6 +158,21 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 			return nil, fmt.Errorf("request failed")
 		}
 		return nil, fmt.Errorf("not authorized to modify the database")
+	} else {
+		// commit transaction
+		locationURL, _ := res.Location()
+		commitLocation := strings.Replace(locationURL.String(), "http://", store.preurl, -1)
+		commitLocation += "/commit"
+
+		bempty := new(bytes.Buffer)
+		newreq, err := http.NewRequest(http.MethodPost, commitLocation, bempty)
+		if err != nil {
+			return nil, fmt.Errorf("request failed")
+		}
+		_, err = neoClient.Do(newreq)
+		if err != nil {
+			return nil, fmt.Errorf("request failed")
+		}
 	}
 
 	if len(result.Errors) > 0 {
