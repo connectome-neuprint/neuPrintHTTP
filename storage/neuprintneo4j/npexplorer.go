@@ -19,7 +19,7 @@ const (
 
 	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE neuron.{neuronid} RETURN neuron.bodyId AS bodyid, neuron.name AS bodyname, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
 
-	SimpleConnectionsQuery = "MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE m.{neuronid} RETURN m.name AS Neuron1, n.name AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id ORDER BY m.name, m.bodyId, e.weight DESC"
+	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE m.{neuronid} RETURN m.name AS Neuron1, n.name AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, exists((n)-[:Contains]->(:Skeleton)) AS Neuron2HasSkeleton, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois ORDER BY m.name, m.bodyId, e.weight DESC"
 
 	RankedTableQuery  = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE m.{neuronid} RETURN m.name AS Neuron1, n.name AS Neuron2, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1 ORDER BY m.bodyId, e.weight DESC"
 	DistributionQuery = "MATCH (n:`{dataset}-Segment` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
