@@ -1,7 +1,7 @@
 # neuPrintHTTP
 
 
-[![Waffle.io - Columns and their card count](https://badge.waffle.io/connectome-neuprint/neuPrintHTTP.svg?columns=all)](https://waffle.io/connectome-neuprint/neuPrintHTTP)
+[![GitHub issues](https://img.shields.io/github/issues/connectome-neuprint/neuPrintHTTP.svg)](https://GitHub.com/connectome-neuprint/neuPrintHTTP/issues/)
 
 Implements a connectomics REST interface that leverages the [neuprint](https://github.com/janelia-flyem/neuPrint) data model.
 
