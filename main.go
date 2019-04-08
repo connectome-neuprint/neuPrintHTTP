@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/janelia-flyem/echo-secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
+	"github.com/janelia-flyem/echo-secure"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"net/http"
@@ -21,8 +21,10 @@ func customUsage() {
 func main() {
 	// create command line argument for port
 	var port int = 11000
+	var publicRead bool = false
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
+	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -97,7 +99,18 @@ func main() {
 
 	// create read only group
 	readGrp := e.Group("/api")
-	readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
+	if publicRead {
+		readGrp.Use(secureAPI.AuthMiddleware(secure.NOAUTH))
+	} else {
+		readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
+	}
+	// setup server status message to show if it is public
+	e.GET("/api/serverinfo", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+		info := struct {
+			IsPublic bool
+		}{publicRead}
+		return c.JSON(http.StatusOK, info)
+	}))
 
 	// setup default page
 	// TODO: point to swagger documentation
