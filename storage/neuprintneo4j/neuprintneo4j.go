@@ -213,11 +213,12 @@ type databaseInfo struct {
 	LastEdit string   `json:"last-mod"`
 	UUID     string   `json:"uuid"`
 	ROIs     []string `json:"ROIs"`
+	Info     string   `json:"info"`
 }
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info"
 	metadata, err := store.makeRequest(cypher)
 	if err != nil {
 		return nil, err
@@ -233,13 +234,17 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 		}
 		edit := row[2].(string)
 		roistr := row[3].(string)
+		info := "N/A"
+		if row[4] != nil {
+			info = row[4].(string)
+		}
 		roibytes := []byte(roistr)
 		var roidata map[string]interface{}
 		err = json.Unmarshal(roibytes, &roidata)
 		if err != nil {
 			return nil, err
 		}
-		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata))}
+		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), info}
 
 		for roi := range roidata {
 			dbInfo.ROIs = append(dbInfo.ROIs, roi)
