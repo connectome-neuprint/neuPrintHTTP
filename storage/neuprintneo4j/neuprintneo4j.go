@@ -129,7 +129,7 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 	req.Header.Set("X-Stream", "true")
 	res, err := neoClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed")
+		return nil, err
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -141,6 +141,10 @@ func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
 	jsonErr := json.Unmarshal(body, &result)
 	if jsonErr != nil {
 		return nil, fmt.Errorf("error decoding json")
+	}
+
+	if len(result.Errors) > 0 {
+		return nil, fmt.Errorf(result.Errors[0].Message)
 	}
 
 	// if database was modified, rollback the transaction (only allow readonly)
