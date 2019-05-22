@@ -43,6 +43,9 @@ type errorInfo struct {
 func (cq *customQuery) getCustom(c echo.Context) error {
 	var reqObject map[string]interface{}
 	c.Bind(&reqObject)
+	if cypher, ok := reqObject["cypher"].(string); ok {
+		c.Set("debug", cypher)
+	}
 	if data, err := cq.engine.CustomRequest(reqObject); err != nil {
 		errJSON := errorInfo{err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
