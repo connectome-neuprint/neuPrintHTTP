@@ -22,6 +22,7 @@ type Config struct {
 	AuthDatastore string      `json:"auth-datastore,omitempty"` // location of authorization service
 	StaticDir     string      `json:"static-dir,omitempty"`     // static webpage
 	LoggerFile    string      `json:"log-file,omitempty"`       // location for log file
+	KafkaServers  []string    `json:"kafka-servers,omitempty"`  // kafka servers for logging
 }
 
 // LoadConfig parses json configuration and loads options

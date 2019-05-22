@@ -3,19 +3,46 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
 	"github.com/janelia-flyem/echo-secure"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
+	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func customUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] CONFIG.json\n", os.Args[0])
 	flag.PrintDefaults()
+}
+
+type KafkaLog struct {
+	Producer *kafka.Producer
+	Topic    string
+}
+
+func (k *KafkaLog) Write(p []byte) (int, error) {
+	kafkaMsg := &kafka.Message{
+
+		TopicPartition: kafka.TopicPartition{Topic: &k.Topic, Partition: kafka.PartitionAny},
+
+		Value: p,
+
+		Timestamp: time.Now(),
+	}
+
+	if err := k.Producer.Produce(kafkaMsg, nil); err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
+
 }
 
 func main() {
@@ -58,10 +85,20 @@ func main() {
 		}
 		defer logFile.Close()
 	}
+	logWriter := io.Writer(logFile)
+
+	// use kafka for logging if available
+	if len(options.KafkaServers) > 0 {
+		serverstr := strings.Join(options.KafkaServers, ",")
+		kp, _ := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": serverstr})
+
+		portstr := strconv.Itoa(port)
+		logWriter = &KafkaLog{kp, "neuprint_" + options.Hostname + "_" + portstr}
+	}
 
 	e.Use(LoggerWithConfig(LoggerConfig{
 		Format: "{\"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\"}\n",
-		Output: logFile,
+		Output: logWriter,
 	}))
 
 	e.Use(middleware.Recover())
