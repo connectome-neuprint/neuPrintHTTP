@@ -1,16 +1,17 @@
-package main
+package logging
 
 import (
 	"bytes"
-	"github.com/labstack/echo"
-	"github.com/labstack/gommon/color"
-	"github.com/valyala/fasttemplate"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/labstack/echo"
+	"github.com/labstack/gommon/color"
+	"github.com/valyala/fasttemplate"
 )
 
 type (

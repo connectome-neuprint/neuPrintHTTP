@@ -3,18 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/connectome-neuprint/neuPrintHTTP/api"
-	"github.com/connectome-neuprint/neuPrintHTTP/config"
-	"github.com/janelia-flyem/echo-secure"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
-	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"time"
+
+	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/config"
+	"github.com/connectome-neuprint/neuPrintHTTP/logging"
+	secure "github.com/janelia-flyem/echo-secure"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
 func customUsage() {
@@ -22,33 +20,10 @@ func customUsage() {
 	flag.PrintDefaults()
 }
 
-type KafkaLog struct {
-	Producer *kafka.Producer
-	Topic    string
-}
-
-func (k *KafkaLog) Write(p []byte) (int, error) {
-	kafkaMsg := &kafka.Message{
-
-		TopicPartition: kafka.TopicPartition{Topic: &k.Topic, Partition: kafka.PartitionAny},
-
-		Value: p,
-
-		Timestamp: time.Now(),
-	}
-
-	if err := k.Producer.Produce(kafkaMsg, nil); err != nil {
-		return 0, err
-	}
-
-	return len(p), nil
-
-}
-
 func main() {
 	// create command line argument for port
-	var port int = 11000
-	var publicRead bool = false
+	var port = 11000
+	var publicRead = false
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
@@ -76,29 +51,11 @@ func main() {
 	e := echo.New()
 
 	// setup logger
-	logFile := os.Stdout
+	logger, err := logging.GetLogger(port, options)
 
-	if options.LoggerFile != "" {
-		if logFile, err = os.OpenFile(options.LoggerFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer logFile.Close()
-	}
-	logWriter := io.Writer(logFile)
-
-	// use kafka for logging if available
-	if len(options.KafkaServers) > 0 {
-		serverstr := strings.Join(options.KafkaServers, ",")
-		kp, _ := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": serverstr})
-
-		portstr := strconv.Itoa(port)
-		logWriter = &KafkaLog{kp, "neuprint_" + options.Hostname + "_" + portstr}
-	}
-
-	e.Use(LoggerWithConfig(LoggerConfig{
+	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
 		Format: "{\"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
-		Output: logWriter,
+		Output: logger,
 	}))
 
 	e.Use(middleware.Recover())
