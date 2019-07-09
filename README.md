@@ -5,6 +5,9 @@
 
 Implements a connectomics REST interface that leverages the [neuprint](https://github.com/janelia-flyem/neuPrint) data model.
 
+## Dependencies
+Since neuPrint is written in [golang](https://golang.org), you will need to [download](https://golang.org/dl) and install golang before you can build and run neuPrintHTTP. The build tools for golang are opinionated about the file structure and location of golang projects, but by default the tools will autogenerate the required folders when you `go get` a project.
+
 ## Installation
 
     % go get github.com/connectome-neuprint/neuPrintHTTP
