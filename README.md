@@ -11,7 +11,7 @@ Implements a connectomics REST interface that leverages the [neuprint](https://g
 
 ## Running
 
-    % neuprintHTTP -p |PORTNUM| config.json
+    % neuPrintHTTP -port |PORTNUM| config.json
  
 The config file should contain information on the backend datastore that satisfies the connectomics REST API and the location for a file containing
 a list of authorized users.  To test https locally and generate the necessary certificates, run:
