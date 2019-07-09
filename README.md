@@ -9,6 +9,12 @@ Implements a connectomics REST interface that leverages the [neuprint](https://g
 
     % go get github.com/connectome-neuprint/neuPrintHTTP
 
+## Installing without kafka support
+
+If you are having trouble building the server, because librdkafka is missing and you don't need to send log messages to a kafka server, then try this build.
+
+    %  go get -tags nokafka github.com/connectome-neuprint/neuPrintHTTP
+
 ## Running
 
     % neuPrintHTTP -port |PORTNUM| config.json
@@ -18,8 +24,3 @@ a list of authorized users.  To test https locally and generate the necessary ce
 
     % go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
 
-## Installing without kafka support
-
-If you are having trouble building the server, because librdkafka is missing and you don't need to send log messages to a kafka server, then try this build.
-
-    %  go get -tags nokafka github.com/connectome-neuprint/neuPrintHTTP
