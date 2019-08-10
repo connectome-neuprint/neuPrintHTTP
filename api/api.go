@@ -2,9 +2,9 @@ package api
 
 import (
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/connectome-neuprint/neuPrintHTTP/utils"
 	"github.com/labstack/echo"
 	"net/http"
-	"strings"
 )
 
 const APIVERSION = "0.1"
@@ -48,22 +48,13 @@ func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		vals := c.ParamValues()
 		if len(vals) > 0 {
-			versionsplit := strings.Split(vals[0], ".")
-			curr_versionsplit := strings.Split(APIVERSION, ".")
-
-			for idx, part := range versionsplit {
-				if part != "" {
-					if idx >= len(curr_versionsplit) || part != curr_versionsplit[idx] {
-						return c.HTML(http.StatusBadRequest, "Incompatible API version")
-					}
-				}
-			}
-			/*version, _ := strconv.Atoi(versionsplit[0])
-			curr_version, _ := strconv.Atoi(curr_versionsplit[0])
-			if version != curr_version {
+			if !utils.CheckSubsetVersion(vals[0], APIVERSION) {
 				return c.HTML(http.StatusBadRequest, "Incompatible API version")
-			}*/
+			}
 		}
+		// hack to avoid binding issues
+		c.SetParamValues()
+		c.SetParamNames()
 		return next(c)
 	}
 }

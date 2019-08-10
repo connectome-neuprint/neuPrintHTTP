@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/blang/semver"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/connectome-neuprint/neuPrintHTTP/utils"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -20,7 +21,7 @@ func init() {
 
 const (
 	// VERSION of database that is supported
-	VERSION = "1.0"
+	VERSION = "0.5.0"
 	NAME    = "neuPrint-neo4j"
 )
 
@@ -263,6 +264,16 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 // CustomRequest implements API that allows users to specify exact query
 func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
 	// TODO: prevent modifications
+
+	// check version if provided
+	version, ok := req["version"].(string)
+	if ok {
+		if !utils.CheckSubsetVersion(version, store.version.String()) {
+			err = fmt.Errorf("neo4j data model version incompatible")
+			return
+		}
+	}
+
 	cypher, ok := req["cypher"].(string)
 	if !ok {
 		err = fmt.Errorf("cypher keyword not found in request JSON")
