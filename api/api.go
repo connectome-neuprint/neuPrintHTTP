@@ -34,6 +34,10 @@ const (
 	DELETE
 )
 
+type ErrorInfo struct {
+	Error string `json:"error"`
+}
+
 type ConnectomeAPI struct {
 	Store              storage.Store
 	SupportedEndpoints map[string]bool
@@ -49,7 +53,8 @@ func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
 		vals := c.ParamValues()
 		if len(vals) > 0 {
 			if !utils.CheckSubsetVersion(vals[0], APIVERSION) {
-				return c.HTML(http.StatusBadRequest, "Incompatible API version")
+				errJSON := ErrorInfo{"Incompatible API version"}
+				return c.JSON(http.StatusBadRequest, errJSON)
 			}
 		}
 		// hack to avoid binding issues

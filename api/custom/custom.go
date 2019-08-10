@@ -35,10 +35,6 @@ type customQuery struct {
 	engine StorageAPI
 }
 
-type errorInfo struct {
-	Error string `json:"error"`
-}
-
 // TODO: swagger document
 func (cq *customQuery) getCustom(c echo.Context) error {
 	var reqObject map[string]interface{}
@@ -47,7 +43,7 @@ func (cq *customQuery) getCustom(c echo.Context) error {
 		c.Set("debug", cypher)
 	}
 	if data, err := cq.engine.CustomRequest(reqObject); err != nil {
-		errJSON := errorInfo{err.Error()}
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {
 		return c.JSON(http.StatusOK, data)
