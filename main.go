@@ -1,3 +1,4 @@
+//go:generate swagger generate spec -o ./swagger.yaml
 package main
 
 import (
@@ -21,6 +22,7 @@ func customUsage() {
 }
 
 func main() {
+
 	// create command line argument for port
 	var port = 11000
 	var publicRead = false
@@ -107,7 +109,6 @@ func main() {
 	}))
 
 	// setup default page
-	// TODO: point to swagger documentation
 	if options.StaticDir != "" {
 		e.Static("/", options.StaticDir)
 		customHTTPErrorHandler := func(err error, c echo.Context) {

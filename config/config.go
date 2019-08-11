@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Engine        string      `json:"engine"`                   // name of backend
 	EngineConfig  interface{} `json:"engine-config"`            // config for backend
+	DataTypes     interface{} `joson:datatypes"`                // contains configuration for different datatypes
 	ClientID      string      `json:"oauthclient-id"`           // google oauth client id
 	ClientSecret  string      `json:"oauthclient-secret"`       // google oauth client secret
 	Secret        string      `json:"appsecret"`                // password for token and cookie generation

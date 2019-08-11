@@ -1,16 +1,10 @@
 package neuprintneo4j
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/blang/semver"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
-	"github.com/connectome-neuprint/neuPrintHTTP/utils"
-	"io/ioutil"
-	"net/http"
-	"strings"
-	"time"
 )
 
 func init() {
@@ -37,7 +31,7 @@ func (e Engine) GetName() string {
 // NewStore creates an store instance that works with neo4j.
 // The neo4j engine requires a user name and password to authenticate and
 // the location of the server.
-func (e Engine) NewStore(data interface{}) (storage.Store, error) {
+func (e Engine) NewStore(data interface{}, typename, instance string) (storage.SimpleStore, error) {
 	datamap, ok := data.(map[string]interface{})
 	var emptyStore storage.Store
 	if !ok {
@@ -56,7 +50,6 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 		return emptyStore, fmt.Errorf("server not specified for neo4j")
 	}
 
-	// TODO: check if code is compatible with DB version
 	dbversion, _ := semver.Make(VERSION)
 
 	// TODO: check connection to DB
@@ -66,142 +59,17 @@ func (e Engine) NewStore(data interface{}) (storage.Store, error) {
 	preurl := "http://" + user + ":" + pass + "@"
 	url := preurl + server + "/db/data/transaction"
 
-	return Store{server, dbversion, url, preurl}, nil
-}
-
-// neoResultProc contain the default response formatted from neo4j
-// as column names and rows of data
-type neoResultProc struct {
-	Columns []string        `json:"columns"`
-	Data    [][]interface{} `json:"data"`
-	Debug   string          `json:"debug"`
-}
-
-// neoRow is an array of rows that are returned from neo4j
-type neoRow struct {
-	Row []interface{} `json:"row"`
-}
-
-// neoResult is the response for a given neo4j statement
-type neoResult struct {
-	Columns []string               `json:"columns"`
-	Data    []neoRow               `json:"data"`
-	Stats   map[string]interface{} `json:"stats"`
-}
-
-// neoError is the error information returned for a given statement
-type neoError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// neoResults is the set of results for all statements
-type neoResults struct {
-	Results []neoResult `json:"results"`
-	Errors  []neoError  `json:"errors"`
-}
-
-// neoStatement is a single query statement
-type neoStatement struct {
-	Statement    string `json:"statement"`
-	IncludeStats bool   `json:"includeStats"`
-}
-
-// neoStatements is a set of query statements
-type neoStatements struct {
-	Statements []neoStatement `json:"statements"`
-}
-
-// makeRequest makes a simple cypher request to neo4j
-func (store Store) makeRequest(cypher string) (*neoResultProc, error) {
-	neoClient := http.Client{
-		Timeout: time.Second * 60,
-	}
-
-	transaction := neoStatements{[]neoStatement{neoStatement{cypher, true}}}
-
-	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(transaction)
-	req, err := http.NewRequest(http.MethodPost, store.url, b)
-	if err != nil {
-		return nil, fmt.Errorf("request failed")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Stream", "true")
-	res, err := neoClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("request failed")
-	}
-
-	result := neoResults{}
-	jsonErr := json.Unmarshal(body, &result)
-	if jsonErr != nil {
-		return nil, fmt.Errorf("error decoding json")
-	}
-
-	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf(result.Errors[0].Message)
-	}
-
-	// if database was modified, rollback the transaction (only allow readonly)
-	if result.Results[0].Stats["contains_updates"].(bool) {
-		locationURL, _ := res.Location()
-		commitLocation := strings.Replace(locationURL.String(), "http://", store.preurl, -1)
-
-		bempty := new(bytes.Buffer)
-		newreq, err := http.NewRequest(http.MethodDelete, commitLocation, bempty)
-		if err != nil {
-			return nil, fmt.Errorf("request failed")
-		}
-		_, err = neoClient.Do(newreq)
-		if err != nil {
-			return nil, fmt.Errorf("request failed")
-		}
-		return nil, fmt.Errorf("not authorized to modify the database")
-	} else {
-		// commit transaction
-		locationURL, _ := res.Location()
-		commitLocation := strings.Replace(locationURL.String(), "http://", store.preurl, -1)
-		commitLocation += "/commit"
-
-		bempty := new(bytes.Buffer)
-		newreq, err := http.NewRequest(http.MethodPost, commitLocation, bempty)
-		if err != nil {
-			return nil, fmt.Errorf("request failed")
-		}
-		_, err = neoClient.Do(newreq)
-		if err != nil {
-			return nil, fmt.Errorf("request failed")
-		}
-	}
-
-	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("%s: %s", result.Errors[0].Code, result.Errors[0].Message)
-	}
-
-	data := make([][]interface{}, len(result.Results[0].Data))
-	for row, val := range result.Results[0].Data {
-		arr := make([]interface{}, len(val.Row))
-		for col, val2 := range val.Row {
-			arr[col] = val2
-		}
-		data[row] = arr
-	}
-	procRes := neoResultProc{result.Results[0].Columns, data, cypher}
-	return &procRes, nil
+	return Store{server, dbversion, url, preurl, typename, instance}, nil
 }
 
 // Store is the neo4j storage instance
 type Store struct {
-	server  string
-	version semver.Version
-	url     string
-	preurl  string
+	server   string
+	version  semver.Version
+	url      string
+	preurl   string
+	typename string
+	instance string
 }
 
 // GetDatabsae returns database information
@@ -224,7 +92,7 @@ type databaseInfo struct {
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
 	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info"
-	metadata, err := store.makeRequest(cypher)
+	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
 	}
@@ -261,50 +129,35 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 	return res, nil
 }
 
-// CustomRequest implements API that allows users to specify exact query
-func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
-	// TODO: prevent modifications
-
-	// check version if provided
-	version, ok := req["version"].(string)
-	if ok {
-		if !utils.CheckSubsetVersion(version, store.version.String()) {
-			err = fmt.Errorf("neo4j data model version incompatible")
-			return
-		}
-	}
-
-	cypher, ok := req["cypher"].(string)
-	if !ok {
-		err = fmt.Errorf("cypher keyword not found in request JSON")
-		return
-	}
-	return store.makeRequest(cypher)
+func (store Store) GetInstance() string {
+	return store.instance
 }
 
-/*
-func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
-    cypher, ok := req["cypher"].(string)
-    if !ok {
-        err = fmt.Errorf("cypher keyword not found in request JSON")
-        return
-    }
-    res2 := []struct {
-        Pname interface{} `json:"pname"`
-    }{}
-    cq := neoism.CypherQuery{
-        Statement: cypher,
-        Result: &res2,
-    }
-    err = store.database.Cypher(&cq)
-    //fmt.Println(res2)
-    //fmt.Println(res2[1].pname)
-    if err != nil {
-        err = fmt.Errorf("cypher query error")
-        return
-    }
-    res = res2
-
-    return
+func (store Store) GetType() string {
+	return store.typename
 }
-*/
+
+// **** Cypher Specific Interface ****
+
+// CypherRequest makes a simple cypher request to neo4j
+func (store Store) CypherRequest(cypher string, readonly bool) (interface{}, error) {
+	trans = store.StartTrans()
+	res, err := trans.CypherRequest(cypher, readonly)
+	if err != nil {
+		return nil, err
+	}
+	if err = trans.Commit(); err != nil {
+		return nil, err
+	}
+	return res, nil
+
+	if err == nil {
+		err = trans.Commit()
+	}
+	return res, err
+}
+
+// StartTrans starts a graph DB transaction
+func (store Store) StartTrans() (storage.CypherTransaction, error) {
+	return Transaction{store.url, store.preurl}, nil
+}

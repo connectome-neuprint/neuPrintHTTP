@@ -2,6 +2,7 @@ package custom
 
 import (
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/utils"
 	"github.com/labstack/echo"
 	"net/http"
 )
@@ -35,7 +36,6 @@ type customQuery struct {
 	engine StorageAPI
 }
 
-// TODO: swagger document
 func (cq *customQuery) getCustom(c echo.Context) error {
 	var reqObject map[string]interface{}
 	c.Bind(&reqObject)
@@ -48,4 +48,23 @@ func (cq *customQuery) getCustom(c echo.Context) error {
 	} else {
 		return c.JSON(http.StatusOK, data)
 	}
+}
+
+// CustomRequest implements API that allows users to specify exact query
+func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
+	// check version if provided
+	version, ok := req["version"].(string)
+	if ok {
+		if !utils.CheckSubsetVersion(version, store.version.String()) {
+			err = fmt.Errorf("neo4j data model version incompatible")
+			return
+		}
+	}
+
+	cypher, ok := req["cypher"].(string)
+	if !ok {
+		err = fmt.Errorf("cypher keyword not found in request JSON")
+		return
+	}
+	return store.makeRequest(cypher)
 }

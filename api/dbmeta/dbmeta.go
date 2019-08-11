@@ -43,7 +43,6 @@ type metaQuery struct {
 	engine StorageAPI
 }
 
-// TODO: swagger document
 type dbVersion struct {
 	Version string
 }
