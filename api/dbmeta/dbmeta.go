@@ -3,6 +3,7 @@ package dbmeta
 import (
 	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo"
 	"net/http"
 )
@@ -11,26 +12,34 @@ func init() {
 	api.RegisterAPI(PREFIX, setupAPI)
 }
 
-// list of available endpoints
-var ENDPOINTS = [...]string{"datasets", "database", "version"}
-
 const PREFIX = "/dbmeta"
 
+// ?! add get datasets endpoint
+// ?! make swagger docs
+
+type storeAPI struct {
+	Store storage.SimpleStore
+}
+
 // setupAPI loads all the endpoints for dbmeta
-func setupAPI(c *api.ConnectomeAPI) error {
-	if _, ok := c.Store.(StorageAPI); ok {
-		q := &metaQuery{c.Store}
-		for _, endPoint := range ENDPOINTS {
-			c.SupportedEndpoints[endPoint] = true
-			switch endPoint {
-			case "version":
-				c.SetRoute(api.GET, PREFIX+"/version", q.getVersion)
-			case "database":
-				c.SetRoute(api.GET, PREFIX+"/database", q.getDatabase)
-			case "datasets":
-				c.SetRoute(api.GET, PREFIX+"/datasets", q.getDatasets)
-			}
-		}
+func setupAPI(mainapi *api.ConnectomeAPI) error {
+	if simpleEngine, ok := mainapi.Store.(storage.SimpleStore); ok {
+		q := &storeAPI{simpleEngine}
+
+		// version endpoint
+		endpoint := "version"
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getVersion)
+		mainapi.SupportedEndpoints[endpoint] = true
+
+		// database endpoint
+		endpoint = "database"
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatabase)
+		mainapi.SupportedEndpoints[endpoint] = true
+
+		// datasets endpoint
+		endpoint = "datasets"
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatasets)
+		mainapi.SupportedEndpoints[endpoint] = true
 	} else {
 		// meta interface is required by default
 		return fmt.Errorf("metadata interface is not available")
@@ -39,16 +48,12 @@ func setupAPI(c *api.ConnectomeAPI) error {
 	return nil
 }
 
-type metaQuery struct {
-	engine StorageAPI
-}
-
 type dbVersion struct {
 	Version string
 }
 
-func (m *metaQuery) getVersion(c echo.Context) error {
-	if data, err := m.engine.GetVersion(); err != nil {
+func (sa storeAPI) getVersion(c echo.Context) error {
+	if data, err := sa.Store.GetVersion(); err != nil {
 		return err
 	} else {
 		data := &dbVersion{data}
@@ -61,8 +66,8 @@ type dbDatabase struct {
 	Description string
 }
 
-func (m *metaQuery) getDatabase(c echo.Context) error {
-	if loc, desc, err := m.engine.GetDatabase(); err != nil {
+func (sa storeAPI) getDatabase(c echo.Context) error {
+	if loc, desc, err := sa.Store.GetDatabase(); err != nil {
 		return err
 	} else {
 		data := &dbDatabase{loc, desc}
@@ -70,8 +75,8 @@ func (m *metaQuery) getDatabase(c echo.Context) error {
 	}
 }
 
-func (m *metaQuery) getDatasets(c echo.Context) error {
-	if data, err := m.engine.GetDatasets(); err != nil {
+func (sa storeAPI) getDatasets(c echo.Context) error {
+	if data, err := sa.Store.GetDatasets(); err != nil {
 		return err
 	} else {
 		return c.JSON(http.StatusOK, data)
