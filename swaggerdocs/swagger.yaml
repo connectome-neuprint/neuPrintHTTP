@@ -9,6 +9,18 @@ info:
   title: neuprint API
   version: 0.1.0
 paths:
+  /api/available:
+    get:
+      description: list of all routes in /api
+      operationId: routes
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: list of available REST api routes
+      tags:
+      - apimeta
   /api/custom/custom:
     get:
       description: Endpoint expects valid cypher and returns rows of data.
@@ -164,6 +176,84 @@ paths:
       summary: Gets version of the database
       tags:
       - dbmeta
+  /api/help/swagger.yaml:
+    get:
+      description: YAML file containing swagger API documentation
+      operationId: helpyaml
+      responses:
+        "200":
+          description: successful operation
+      summary: swagger REST documentation
+      tags:
+      - apimeta
+  /api/serverinfo:
+    get:
+      description: If it is public,  no authorization is required
+      operationId: serverinfo
+      responses:
+        "200":
+          description: successful operation
+      summary: Returns whether the server is public
+      tags:
+      - apimeta
+  /api/version:
+    get:
+      description: version number
+      operationId: getAPIVersion
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: version of the connectomics API
+      tags:
+      - apimeta
+  /login:
+    get:
+      description: Login user redirecting to profile
+      operationId: loginHandler
+      responses:
+        "302":
+          description: Redirect to /profile
+      summary: Login user
+      tags:
+      - user
+  /logout:
+    post:
+      description: Clears session cookie for the user
+      operationId: logoutHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Logout user
+      tags:
+      - user
+  /profile:
+    get:
+      description: Returns user information
+      operationId: profileHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Returns user information
+      tags:
+      - user
+  /token:
+    get:
+      description: JWT token should be passed in header for authentication
+      operationId: tokenHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Returns JWT user bearer token
+      tags:
+      - user
 security:
 - Bearer: []
 securityDefinitions:

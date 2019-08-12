@@ -106,7 +106,32 @@ func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store, admincheck e
 		}
 	}
 
+	// swagger:operation GET /api/version apimeta getAPIVersion
+	//
+	// version of the connectomics API
+	//
+	// version number
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	// security:
+	// - Bearer: []
 	eg.GET("/version", apiObj.getAPIVersion)
+
+	// swagger:operation GET /api/available apimeta routes
+	//
+	// list of available REST api routes
+	//
+	// list of all routes in /api
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	// security:
+	// - Bearer: []
 	eg.GET("/available", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, e.Routes())
 	})

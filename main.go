@@ -122,6 +122,17 @@ func main() {
 		readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
 	}
 	// setup server status message to show if it is public
+
+	// swagger:operation GET /api/serverinfo apimeta serverinfo
+	//
+	// Returns whether the server is public
+	//
+	// If it is public,  no authorization is required
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
 	e.GET("/api/serverinfo", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			IsPublic bool
@@ -149,6 +160,17 @@ func main() {
 			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" -H \"Authorization: Bearer YOURTOKEN\" https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
 		}))
 	}
+
+	// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
+	//
+	// swagger REST documentation
+	//
+	// YAML file containing swagger API documentation
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
 
 	if options.SwaggerDir != "" {
 		e.Static("/api/help", options.SwaggerDir)
