@@ -16,7 +16,7 @@
 //         in: header
 //
 // swagger:meta
-//go:generate swagger generate spec -o ./swagger.yaml
+//go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
 package main
 
 import (

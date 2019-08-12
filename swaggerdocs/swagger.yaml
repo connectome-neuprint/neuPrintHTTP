@@ -63,6 +63,77 @@ paths:
       summary: Make custom cypher query against the database (read only)
       tags:
       - custom
+  /api/dbmeta/database:
+    get:
+      description: Returns JSON information about the database.
+      operationId: getDatabase
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              Description:
+                description: Information about the backend
+                type: string
+              Location:
+                description: Server location
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Database information
+      tags:
+      - dbmeta
+  /api/dbmeta/datasets:
+    get:
+      description: Metadata associated with each dataset is also retrievedR
+      operationId: getDatasets
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              ROIs:
+                description: regions of interest available for the dataset
+                example:
+                - alpha1
+                - alpha2
+                - alpha3
+                items:
+                  type: string
+                type: array
+              last-mod:
+                description: Last modification date for dataset
+                type: string
+              uuid:
+                description: last version id for dataset (UUID for DVID)
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets datasets in the graph database
+      tags:
+      - dbmeta
+  /api/dbmeta/version:
+    get:
+      description: |-
+        Returns the version of the underlying neuprint data model.
+        Changes to the minor version not invalidate previous cypher
+        queries.
+      operationId: getVersion
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              Version:
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets version of the database
+      tags:
+      - dbmeta
 securityDefinitions:
   Bearer:
     in: header
