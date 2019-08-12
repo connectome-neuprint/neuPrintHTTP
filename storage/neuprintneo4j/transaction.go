@@ -34,6 +34,7 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.Cypher
 	if err != nil {
 		return cres, err
 	}
+	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
@@ -78,10 +79,11 @@ func (t Transaction) Kill() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	_, err = t.neoClient.Do(newreq)
+	res, err := t.neoClient.Do(newreq)
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
+	res.Body.Close()
 
 	return nil
 }

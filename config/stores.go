@@ -5,6 +5,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	_ "github.com/connectome-neuprint/neuPrintHTTP/storage/badger"
 	_ "github.com/connectome-neuprint/neuPrintHTTP/storage/dvid"
+	_ "github.com/connectome-neuprint/neuPrintHTTP/storage/dvidkv"
 	_ "github.com/connectome-neuprint/neuPrintHTTP/storage/neuprintneo4j"
 )
 
