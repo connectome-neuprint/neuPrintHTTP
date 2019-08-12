@@ -129,7 +129,7 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	//
 	// Gets datasets in the graph database
 	//
-	// Metadata associated with each dataset is also retrievedR
+	// Metadata associated with each dataset is also retrieved
 	//
 	// ---
 	// responses:

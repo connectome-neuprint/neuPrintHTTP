@@ -6,14 +6,17 @@
 //
 //     Version: 0.1.0
 //     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
-//     Security:
-//     - Bearer
 //
 //     SecurityDefinitions:
 //     Bearer:
 //         type: apiKey
 //         name: Authorization
 //         in: header
+//         scopes:
+//           admin: Admin scope
+//           user: User scope
+//     Security:
+//     - Bearer:
 //
 // swagger:meta
 //go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
@@ -151,8 +154,8 @@ func main() {
 		e.Static("/api/help", options.SwaggerDir)
 	}
 
-	// load connectomic READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, store); err != nil {
+	// load connectomic default READ-ONLY API
+	if err = api.SetupRoutes(e, readGrp, store, secureAPI.AuthMiddleware(secure.ADMIN)); err != nil {
 		fmt.Print(err)
 		return
 	}

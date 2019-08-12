@@ -50,10 +50,11 @@ type ConnectomeAPI struct {
 	Store              storage.Store
 	SupportedEndpoints map[string]bool
 	e                  *echo.Group
+	adminMiddleware    echo.MiddlewareFunc
 }
 
-func newConnectomeAPI(store storage.Store, e *echo.Group) *ConnectomeAPI {
-	return &ConnectomeAPI{store, make(map[string]bool), e}
+func newConnectomeAPI(store storage.Store, e *echo.Group, admincheck echo.MiddlewareFunc) *ConnectomeAPI {
+	return &ConnectomeAPI{store, make(map[string]bool), e, admincheck}
 }
 
 func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
@@ -91,9 +92,14 @@ func (c *ConnectomeAPI) SetRoute(connType ConnectionType, prefix string, route e
 	}
 }
 
+// SetAdminRoute sets a handler function to a given prefix with admin privileges.
+func (c *ConnectomeAPI) SetAdminRoute(connType ConnectionType, prefix string, route echo.HandlerFunc) {
+	c.SetRoute(connType, prefix, c.adminMiddleware(route))
+}
+
 // SetupRoutes intializes all the loaded API.
-func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store) error {
-	apiObj := newConnectomeAPI(store, eg)
+func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store, admincheck echo.MiddlewareFunc) error {
+	apiObj := newConnectomeAPI(store, eg, admincheck)
 
 	for _, f := range availAPIs {
 		if err := f(apiObj); err != nil {

@@ -86,7 +86,7 @@ paths:
       - dbmeta
   /api/dbmeta/datasets:
     get:
-      description: Metadata associated with each dataset is also retrievedR
+      description: Metadata associated with each dataset is also retrieved
       operationId: getDatasets
       responses:
         "200":
@@ -164,9 +164,14 @@ paths:
       summary: Gets version of the database
       tags:
       - dbmeta
+security:
+- Bearer: []
 securityDefinitions:
   Bearer:
     in: header
     name: Authorization
+    scopes:
+      admin: Admin scope
+      user: User scope
     type: apiKey
 swagger: "2.0"
