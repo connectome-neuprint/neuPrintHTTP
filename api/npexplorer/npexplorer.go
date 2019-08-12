@@ -1,6 +1,7 @@
 package npexplorer
 
 import (
+	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo"
@@ -19,7 +20,7 @@ type cypherAPI struct {
 
 // setupAPI sets up the optionally supported explorer endpoints
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if cypherEngine, ok := mainapi.Store.(storage.Cypher); ok {
+	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
 		q := &cypherAPI{cypherEngine}
 
 		endPoint := "findneurons"
@@ -55,6 +56,8 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 		endPoint = "completeness"
 		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCompleteness)
 		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCompleteness)
+	} else {
+		return fmt.Errorf("Cypher interface not supported")
 	}
 	return nil
 }

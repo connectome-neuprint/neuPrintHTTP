@@ -14,8 +14,6 @@ func init() {
 
 const PREFIX = "/dbmeta"
 
-// ?! add get datasets endpoint
-
 type storeAPI struct {
 	Store storage.Store
 }

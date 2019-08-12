@@ -66,9 +66,8 @@ func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
 				return c.JSON(http.StatusBadRequest, errJSON)
 			}
 		}
-		// hack to avoid binding issues (TODO: remove this hack)
-		c.SetParamValues()
-		c.SetParamNames()
+		//c.SetParamValues()
+		//c.SetParamNames()
 		return next(c)
 	}
 }

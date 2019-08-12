@@ -1,6 +1,7 @@
 package custom
 
 import (
+	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
@@ -20,7 +21,7 @@ type cypherAPI struct {
 
 // setupAPI sets up the optionally supported custom endpoints
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if cypherEngine, ok := mainapi.Store.(storage.Cypher); ok {
+	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
 		q := &cypherAPI{cypherEngine}
 
 		// custom endpoint
@@ -29,6 +30,8 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom)
 		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom)
+	} else {
+		return fmt.Errorf("Cypher interface not supported")
 	}
 	return nil
 }

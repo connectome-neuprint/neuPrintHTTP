@@ -5,6 +5,11 @@ type MasterDB struct {
 	Stores    []SimpleStore
 	Instances map[string]SimpleStore
 	Types     map[string][]SimpleStore
+	MainStore SimpleStore
+}
+
+func (db MasterDB) GetMain() SimpleStore {
+	return db.MainStore
 }
 
 func (db MasterDB) GetStores() []SimpleStore {

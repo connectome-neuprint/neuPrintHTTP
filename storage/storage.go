@@ -23,6 +23,7 @@ type SimpleStore interface {
 // Store provides the interface to access the database and all instances
 type Store interface {
 	SimpleStore
+	GetMain() SimpleStore
 	GetStores() []SimpleStore
 	GetInstances() map[string]SimpleStore
 	GetTypes() map[string][]SimpleStore
@@ -120,5 +121,5 @@ func ParseConfig(engineName string, data interface{}, datatypes_raw interface{})
 		types[tname] = append(types[tname], val)
 	}
 
-	return MasterDB{mainStore, stores, instances, types}, nil
+	return MasterDB{mainStore, stores, instances, types, mainStore}, nil
 }
