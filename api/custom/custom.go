@@ -2,6 +2,7 @@ package custom
 
 import (
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
 	"github.com/labstack/echo"
 	"net/http"
@@ -11,60 +12,105 @@ func init() {
 	api.RegisterAPI(PREFIX, setupAPI)
 }
 
-// list of available endpoints
-var ENDPOINTS = [...]string{"custom"}
-
 const PREFIX = "/custom"
 
+type cypherAPI struct {
+	Store storage.Cypher
+}
+
 // setupAPI sets up the optionally supported custom endpoints
-func setupAPI(c *api.ConnectomeAPI) error {
-	if customInt, ok := c.Store.(StorageAPI); ok {
-		q := &customQuery{customInt}
-		for _, endPoint := range ENDPOINTS {
-			c.SupportedEndpoints[endPoint] = true
-			switch endPoint {
-			case "custom":
-				c.SetRoute(api.GET, PREFIX+"/custom", q.getCustom)
-				c.SetRoute(api.POST, PREFIX+"/custom", q.getCustom)
-			}
-		}
+func setupAPI(mainapi *api.ConnectomeAPI) error {
+	if cypherEngine, ok := mainapi.Store.(storage.Cypher); ok {
+		q := &cypherAPI{cypherEngine}
+
+		// custom endpoint
+		endPoint := "custom"
+		mainapi.SupportedEndpoints[endPoint] = true
+
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom)
+		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom)
 	}
 	return nil
 }
 
-type customQuery struct {
-	engine StorageAPI
+// customReq defines the input for the custom endpoint
+// swagger:model customReq
+type customReq struct {
+	Cypher  string `json:"cypher"`
+	Version string `json:"version,omitempty"`
 }
 
-func (cq *customQuery) getCustom(c echo.Context) error {
-	var reqObject map[string]interface{}
-	c.Bind(&reqObject)
-	if cypher, ok := reqObject["cypher"].(string); ok {
-		c.Set("debug", cypher)
+// getCustom enables custom cypher queries
+func (ca cypherAPI) getCustom(c echo.Context) error {
+	// swagger:operation GET /api/custom/custom custom custom
+	//
+	// Make custom cypher query against the database (read only)
+	//
+	// Endpoint expects valid cypher and returns rows of data.
+	//
+	// ---
+	// parameters:
+	// - in: "body"
+	//   name: "body"
+	//   required: true
+	//   schema:
+	//     type: "object"
+	//     required: ["cypher"]
+	//     properties:
+	//       cypher:
+	//         type: "string"
+	//         description: "cypher statement (read only)"
+	//         example: "MATCH (n) RETURN n limit 1"
+	//       version:
+	//         type: "string"
+	//         description: "specify a neuprint model version for explicit check"
+	//         example: "0.5.0"
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	//     schema:
+	//       type: "object"
+	//       properties:
+	//         columns:
+	//           type: "array"
+	//           items:
+	//             type: "string"
+	//           example: ["name", "size"]
+	//           description: "Name of each result column"
+	//         data:
+	//           type: "array"
+	//           items:
+	//             type: "array"
+	//             items:
+	//               type: "null"
+	//               description: "Cell value"
+	//             description: "Table row"
+	//           example: [["t4", 323131], ["mi1", 232323]]
+	//           description: "Table of results"
+	// security:
+	// - Bearer: []
+	var req customReq
+	if err := c.Bind(&req); err != nil {
+		errJSON := api.ErrorInfo{Error: "request object not formatted correctly"}
+		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-	if data, err := cq.engine.CustomRequest(reqObject); err != nil {
+
+	// set cypher for debugging
+	c.Set("debug", req.Cypher)
+
+	if req.Version != "" {
+		sstore := ca.Store.(storage.SimpleStore)
+		sversion, _ := sstore.GetVersion()
+		if !utils.CheckSubsetVersion(req.Version, sversion) {
+			errJSON := api.ErrorInfo{Error: "neo4j data model version incompatible"}
+			return c.JSON(http.StatusBadRequest, errJSON)
+		}
+	}
+
+	if data, err := ca.Store.CypherRequest(req.Cypher, true); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {
 		return c.JSON(http.StatusOK, data)
 	}
-}
-
-// CustomRequest implements API that allows users to specify exact query
-func (store Store) CustomRequest(req map[string]interface{}) (res interface{}, err error) {
-	// check version if provided
-	version, ok := req["version"].(string)
-	if ok {
-		if !utils.CheckSubsetVersion(version, store.version.String()) {
-			err = fmt.Errorf("neo4j data model version incompatible")
-			return
-		}
-	}
-
-	cypher, ok := req["cypher"].(string)
-	if !ok {
-		err = fmt.Errorf("cypher keyword not found in request JSON")
-		return
-	}
-	return store.makeRequest(cypher)
 }

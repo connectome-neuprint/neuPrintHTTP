@@ -1,3 +1,21 @@
+// neuprint API
+//
+// REST interface for neuPrint.  To test out the interface, copy  your token
+// under your acocunt information. Then authorize Swagger by typing "Bearer " and
+// pasting the token.
+//
+//     Version: 0.1.0
+//     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//     Security:
+//     - Bearer
+//
+//     SecurityDefinitions:
+//     Bearer:
+//         type: apiKey
+//         name: Authorization
+//         in: header
+//
+// swagger:meta
 //go:generate swagger generate spec -o ./swagger.yaml
 package main
 

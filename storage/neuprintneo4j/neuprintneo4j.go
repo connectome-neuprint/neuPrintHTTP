@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/blang/semver"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"net/http"
+	"time"
 )
 
 func init() {
@@ -140,14 +142,15 @@ func (store Store) GetType() string {
 // **** Cypher Specific Interface ****
 
 // CypherRequest makes a simple cypher request to neo4j
-func (store Store) CypherRequest(cypher string, readonly bool) (interface{}, error) {
-	trans = store.StartTrans()
+func (store Store) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
+	trans, _ := store.StartTrans()
 	res, err := trans.CypherRequest(cypher, readonly)
+	var cres storage.CypherResult
 	if err != nil {
-		return nil, err
+		return cres, err
 	}
 	if err = trans.Commit(); err != nil {
-		return nil, err
+		return cres, err
 	}
 	return res, nil
 
@@ -159,5 +162,8 @@ func (store Store) CypherRequest(cypher string, readonly bool) (interface{}, err
 
 // StartTrans starts a graph DB transaction
 func (store Store) StartTrans() (storage.CypherTransaction, error) {
-	return Transaction{store.url, store.preurl}, nil
+	neoClient := http.Client{
+		Timeout: time.Second * 60,
+	}
+	return Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient}, nil
 }

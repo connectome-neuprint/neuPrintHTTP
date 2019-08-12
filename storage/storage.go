@@ -30,8 +30,7 @@ type Store interface {
 
 // **** Low-level interfaces that different backend can support ****
 
-// CypherResult contain the default response formatted from neo4j
-// as column names and rows of data
+// CypherResult contain the default response formatted from neo4j as column names and rows of data
 type CypherResult struct {
 	Columns []string        `json:"columns"`
 	Data    [][]interface{} `json:"data"`
@@ -40,7 +39,7 @@ type CypherResult struct {
 
 // CypherTransaction provides transaction access to a graph database
 type CypherTransaction interface {
-	CypherRequest(string, bool) (res interface{}, err error)
+	CypherRequest(string, bool) (CypherResult, error)
 	Kill() error
 	Commit() error
 }

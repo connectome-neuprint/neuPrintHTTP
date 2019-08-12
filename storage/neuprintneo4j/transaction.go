@@ -5,33 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 )
 
-// CypherTransaction provides transaction access to a graph database
-type CypherTransaction interface {
-	CypherRequest(string, bool) (res interface{}, err error)
-	Kill() error
-	Commit() error
-}
-
-// Cypher is the main interface for accessing graph databases
-type Cypher interface {
-	CypherRequest(string, bool) (res interface{}, err error)
-	StartTrans() (CypherTransaction, error)
-}
-
 type Transaction struct {
-	currURL string // curr tranaction URL
-	preURL  string // pre URL
+	currURL   string // curr tranaction URL
+	preURL    string // pre URL
+	neoClient http.Client
 }
 
-func (t Transaction) CypherRequest(cypher string, readonly bool) (CypherResult, error) {
-	neoClient := http.Client{
-		Timeout: time.Second * 60,
-	}
+func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
+	// empty result
+	var cres storage.CypherResult
 
 	transaction := neoStatements{[]neoStatement{neoStatement{cypher, true}}}
 
@@ -39,28 +26,28 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (CypherResult, 
 	json.NewEncoder(b).Encode(transaction)
 	req, err := http.NewRequest(http.MethodPost, t.currURL, b)
 	if err != nil {
-		return nil, fmt.Errorf("request failed")
+		return cres, fmt.Errorf("request failed")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Stream", "true")
-	res, err := neoClient.Do(req)
+	res, err := t.neoClient.Do(req)
 	if err != nil {
-		return nil, err
+		return cres, err
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("request failed")
+		return cres, fmt.Errorf("request failed")
 	}
 
 	result := neoResults{}
 	jsonErr := json.Unmarshal(body, &result)
 	if jsonErr != nil {
-		return nil, fmt.Errorf("error decoding json")
+		return cres, fmt.Errorf("error decoding json")
 	}
 
 	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf(result.Errors[0].Message)
+		return cres, fmt.Errorf(result.Errors[0].Message)
 	}
 
 	locationURL, _ := res.Location()
@@ -68,9 +55,9 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (CypherResult, 
 	// if database was modified and readonly, rollback the transaction (only allow readonly)
 	if readonly && result.Results[0].Stats["contains_updates"].(bool) {
 		if err := t.Kill(); err != nil {
-			return nil, err
+			return cres, err
 		}
-		return nil, fmt.Errorf("not authorized to modify the database")
+		return cres, fmt.Errorf("not authorized to modify the database")
 	}
 
 	data := make([][]interface{}, len(result.Results[0].Data))
@@ -82,7 +69,7 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (CypherResult, 
 		data[row] = arr
 	}
 	procRes := storage.CypherResult{result.Results[0].Columns, data, cypher}
-	return &procRes, nil
+	return procRes, nil
 }
 
 func (t Transaction) Kill() error {
@@ -91,7 +78,7 @@ func (t Transaction) Kill() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	_, err = neoClient.Do(newreq)
+	_, err = t.neoClient.Do(newreq)
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
@@ -107,7 +94,7 @@ func (t Transaction) Commit() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	_, err = neoClient.Do(newreq)
+	_, err = t.neoClient.Do(newreq)
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}

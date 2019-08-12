@@ -1,3 +1,11 @@
+// Package api neuprint API.
+//
+// REST interface for neuPrint.
+//
+// 	Version: 0.1.0
+//	Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//
+// swagger:meta
 package api
 
 import (
@@ -7,7 +15,7 @@ import (
 	"net/http"
 )
 
-const APIVERSION = "0.1"
+const APIVERSION = "0.1.0"
 const PREFIX = "/api"
 
 type setupAPI func(*ConnectomeAPI) error
@@ -57,7 +65,7 @@ func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
 				return c.JSON(http.StatusBadRequest, errJSON)
 			}
 		}
-		// hack to avoid binding issues
+		// hack to avoid binding issues (TODO: remove this hack)
 		c.SetParamValues()
 		c.SetParamNames()
 		return next(c)
@@ -84,7 +92,6 @@ func (c *ConnectomeAPI) SetRoute(connType ConnectionType, prefix string, route e
 }
 
 // SetupRoutes intializes all the loaded API.
-// TODO: middleware to check version number specified by each endpoint
 func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store) error {
 	apiObj := newConnectomeAPI(store, eg)
 
@@ -98,12 +105,10 @@ func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store) error {
 	eg.GET("/available", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, e.Routes())
 	})
-	// TODO: endpont to serve out swagger
 
 	return nil
 }
 
-// TODO: swagger document
 type apiVersion struct {
 	Version string
 }
