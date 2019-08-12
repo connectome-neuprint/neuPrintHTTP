@@ -1,7 +1,5 @@
 package npexplorer
 
-// ?! consider defining struct here and then storage can include this information
-
 type DatasetParams struct {
 	Dataset string `json:"dataset"`
 }
