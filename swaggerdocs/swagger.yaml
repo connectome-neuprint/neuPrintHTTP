@@ -114,6 +114,36 @@ paths:
       summary: Gets datasets in the graph database
       tags:
       - dbmeta
+  /api/dbmeta/instances:
+    get:
+      description: |-
+        Contains datatype and instance info for data not within the neuprint
+        data model.
+      operationId: getDataInstances
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            additionalProperties:
+              description: instance type name
+              items:
+                properties:
+                  datasets:
+                    items:
+                      description: dataset supported by instance
+                      type: string
+                    type: array
+                  instance:
+                    description: name of data instance
+                    type: string
+                type: object
+              type: array
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets secondary data instances avaiable through neupint http
+      tags:
+      - dbmeta
   /api/dbmeta/version:
     get:
       description: |-

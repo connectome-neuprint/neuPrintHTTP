@@ -17,12 +17,12 @@ const PREFIX = "/dbmeta"
 // ?! add get datasets endpoint
 
 type storeAPI struct {
-	Store storage.SimpleStore
+	Store storage.Store
 }
 
 // setupAPI loads all the endpoints for dbmeta
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if simpleEngine, ok := mainapi.Store.(storage.SimpleStore); ok {
+	if simpleEngine, ok := mainapi.Store.(storage.Store); ok {
 		q := &storeAPI{simpleEngine}
 
 		// version endpoint
@@ -38,6 +38,11 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 		// datasets endpoint
 		endpoint = "datasets"
 		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatasets)
+		mainapi.SupportedEndpoints[endpoint] = true
+
+		// instances endpoint
+		endpoint = "instances"
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDataInstances)
 		mainapi.SupportedEndpoints[endpoint] = true
 	} else {
 		// meta interface is required by default
@@ -153,4 +158,64 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	} else {
 		return c.JSON(http.StatusOK, data)
 	}
+}
+
+type instanceInfo struct {
+	Instance string   `json:"instance"`
+	Datasets []string `json:"datasets"`
+}
+
+// getDataInstances returns the secondary data instances available
+func (sa storeAPI) getDataInstances(c echo.Context) error {
+	// swagger:operation GET /api/dbmeta/instances dbmeta getDataInstances
+	//
+	// Gets secondary data instances avaiable through neupint http
+	//
+	// Contains datatype and instance info for data not within the neuprint
+	// data model.
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	//     schema:
+	//       type: "object"
+	//       additionalProperties:
+	//         type: "array"
+	//         description: "instance type name"
+	//         items:
+	//           type: "object"
+	//           properties:
+	//             instance:
+	//               type: "string"
+	//               description: "name of data instance"
+	//             datasets:
+	//               type: "array"
+	//               items:
+	//                 type: "string"
+	//                 description: "dataset supported by instance"
+	// security:
+	// - Bearer: []
+	allstores := sa.Store.GetStores()
+
+	var res map[string][]instanceInfo
+	for _, store := range allstores {
+		tname := store.GetType()
+		iname := store.GetInstance()
+		datasets, err := store.GetDatasets()
+		if err != nil {
+			return err
+		}
+
+		if _, ok := res[tname]; !ok {
+			res[tname] = make([]instanceInfo, 0)
+		}
+		dlist := make([]string, 0)
+		for dataset, _ := range datasets {
+			dlist = append(dlist, dataset)
+		}
+		res[tname] = append(res[tname], instanceInfo{Instance: iname, Datasets: dlist})
+	}
+
+	return c.JSON(http.StatusOK, res)
 }
