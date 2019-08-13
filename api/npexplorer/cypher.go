@@ -23,7 +23,7 @@ const (
 
 	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.type, m.bodyId, e.weight DESC"
 
-	RankedTableQuery = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
+	RankedTableQuery = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, e.weight AS Weight, n.bodyId AS Body2, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
 
 	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-{NeuronSegment}`) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.type AS bodytype, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois ORDER BY neuron.bodyId"
 
