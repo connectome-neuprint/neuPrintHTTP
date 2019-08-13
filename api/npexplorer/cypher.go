@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// ?! add option for everything with name for type name as well -- just add type and remove skeleton
-
 const (
 	NeuronMetaQuery = "MATCH (n :`{dataset}-Neuron`) UNWIND KEYS(n) AS x RETURN DISTINCT x AS pname"
 
@@ -15,21 +13,21 @@ const (
 
 	ROIQuery = "MATCH (neuron :`{dataset}-Neuron`) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
 
-	AutapsesQuery = "MATCH (n:`{dataset}-Neuron`)-[x:ConnectsTo]->(n) RETURN n.bodyId AS id, x.weight AS weight, n.instance AS name ORDER BY x.weight DESC"
+	AutapsesQuery = "MATCH (n:`{dataset}-Neuron`)-[x:ConnectsTo]->(n) RETURN n.bodyId AS id, x.weight AS weight, n.instance AS name, n.type AS type ORDER BY x.weight DESC"
 
 	CompletenessQuery = "MATCH (n:`{dataset}-{NeuronSegment}`) {has_conditions} {pre_cond} {post_cond} {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:{dataset}) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS unlabelres, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
 	DistributionQuery = "MATCH (n:`{dataset}-Segment` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
 
-	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE {neuronid} RETURN neuron.bodyId AS bodyid, neuron.instancee AS bodyname, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
+	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE {neuronid} RETURN neuron.bodyId AS bodyid, neuron.instancee AS bodyname, neuron.type AS bodytype, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
 
-	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE {neuronid} RETURN m.instance AS Neuron1, n.instance AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, exists((n)-[:Contains]->(:Skeleton)) AS Neuron2HasSkeleton, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.instance, m.bodyId, e.weight DESC"
+	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, exists((n)-[:Contains]->(:Skeleton)) AS Neuron2HasSkeleton, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.type, m.bodyId, e.weight DESC"
 
-	RankedTableQuery = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, n.instance AS Neuron2, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
+	RankedTableQuery = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
 
-	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-{NeuronSegment}`) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, exists((neuron)-[:Contains]->(:Skeleton)) AS hasSkeleton ORDER BY neuron.bodyId"
+	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-{NeuronSegment}`) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.type AS bodytype, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, exists((neuron)-[:Contains]->(:Skeleton)) AS hasSkeleton ORDER BY neuron.bodyId"
 
-	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-{NeuronSegment}`){connection}(c) WHERE (k.{idortype} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idortype})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.instance, dynamicWeight, r.weight])) AS map"
+	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-{NeuronSegment}`){connection}(c) WHERE (k.{idortype} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idortype})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.instance, \"type\", c.type, dynamicWeight, r.weight])) AS map"
 )
 
 // ExplorerFindNeurons implements API to find neurons in a certain ROI
