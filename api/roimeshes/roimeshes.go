@@ -67,32 +67,14 @@ func (ma masterAPI) getMesh(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	typestores, ok := ma.Store.GetTypes()["roimeshes"]
-	if !ok {
-		errJSON := api.ErrorInfo{Error: "no data of type roimeshes available"}
+	store, err := ma.Store.FindStore("roimeshes", dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// find the relevant instance
-	var kvstore storage.KeyValue
-	for _, store := range typestores {
-		datasets, err := store.GetDatasets()
-		if err != nil {
-			errJSON := api.ErrorInfo{Error: "error reading dataset information"}
-			return c.JSON(http.StatusBadRequest, errJSON)
-
-		}
-		if _, ok := datasets[dataset]; ok {
-			kvstore, ok = store.(storage.KeyValue)
-			if !ok {
-				errJSON := api.ErrorInfo{Error: "database does not support keyvalue"}
-				return c.JSON(http.StatusBadRequest, errJSON)
-			}
-		}
-	}
-
-	if kvstore == nil {
-		errJSON := api.ErrorInfo{Error: "no roimeshes database supports this dataset"}
+	kvstore, ok := store.(storage.KeyValue)
+	if !ok {
+		errJSON := api.ErrorInfo{Error: "database doesn't support keyvalue"}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
@@ -145,32 +127,14 @@ func (ma masterAPI) setMesh(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	typestores, ok := ma.Store.GetTypes()["roimeshes"]
-	if !ok {
-		errJSON := api.ErrorInfo{Error: "no data of type roimeshes available"}
+	store, err := ma.Store.FindStore("roimeshes", dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// find the relevant instance
-	var kvstore storage.KeyValue
-	for _, store := range typestores {
-		datasets, err := store.GetDatasets()
-		if err != nil {
-			errJSON := api.ErrorInfo{Error: "error reading dataset information"}
-			return c.JSON(http.StatusBadRequest, errJSON)
-
-		}
-		if _, ok := datasets[dataset]; ok {
-			kvstore, ok = store.(storage.KeyValue)
-			if !ok {
-				errJSON := api.ErrorInfo{Error: "database does not support keyvalue"}
-				return c.JSON(http.StatusBadRequest, errJSON)
-			}
-		}
-	}
-
-	if kvstore == nil {
-		errJSON := api.ErrorInfo{Error: "no roimeshes database supports this dataset"}
+	kvstore, ok := store.(storage.KeyValue)
+	if !ok {
+		errJSON := api.ErrorInfo{Error: "database doesn't support keyvalue"}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 

@@ -27,6 +27,7 @@ type Store interface {
 	GetStores() []SimpleStore
 	GetInstances() map[string]SimpleStore
 	GetTypes() map[string][]SimpleStore
+	FindStore(typename string, dataset string) (SimpleStore, error)
 }
 
 // **** Low-level interfaces that different backend can support ****

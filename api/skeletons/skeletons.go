@@ -101,32 +101,15 @@ func (ma masterAPI) getSkeleton(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	typestores, ok := ma.Store.GetTypes()["skeletons"]
-	if !ok {
-		errJSON := api.ErrorInfo{Error: "no data of type skeletons available"}
+	// get key value store
+	store, err := ma.Store.FindStore("skeletons", dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// find the relevant instance
-	var kvstore storage.KeyValue
-	for _, store := range typestores {
-		datasets, err := store.GetDatasets()
-		if err != nil {
-			errJSON := api.ErrorInfo{Error: "error reading dataset information"}
-			return c.JSON(http.StatusBadRequest, errJSON)
-
-		}
-		if _, ok := datasets[dataset]; ok {
-			kvstore, ok = store.(storage.KeyValue)
-			if !ok {
-				errJSON := api.ErrorInfo{Error: "database does not support keyvalue"}
-				return c.JSON(http.StatusBadRequest, errJSON)
-			}
-		}
-	}
-
-	if kvstore == nil {
-		errJSON := api.ErrorInfo{Error: "no skeletons database supports this dataset"}
+	kvstore, ok := store.(storage.KeyValue)
+	if !ok {
+		errJSON := api.ErrorInfo{Error: "database doesn't support keyvalue"}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
@@ -226,35 +209,17 @@ func (ma masterAPI) setSkeleton(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	typestores, ok := ma.Store.GetTypes()["skeletons"]
+	// get key value store
+	store, err := ma.Store.FindStore("skeletons", dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
+		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+	kvstore, ok := store.(storage.KeyValue)
 	if !ok {
-		errJSON := api.ErrorInfo{Error: "no data of type skeletons available"}
+		errJSON := api.ErrorInfo{Error: "database doesn't support keyvalue"}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// find the relevant instance
-	var kvstore storage.KeyValue
-	for _, store := range typestores {
-		datasets, err := store.GetDatasets()
-		if err != nil {
-			errJSON := api.ErrorInfo{Error: "error reading dataset information"}
-			return c.JSON(http.StatusBadRequest, errJSON)
-
-		}
-		if _, ok := datasets[dataset]; ok {
-			kvstore, ok = store.(storage.KeyValue)
-			if !ok {
-				errJSON := api.ErrorInfo{Error: "database does not support keyvalue"}
-				return c.JSON(http.StatusBadRequest, errJSON)
-			}
-		}
-	}
-
-	if kvstore == nil {
-		errJSON := api.ErrorInfo{Error: "no skeletons database supports this dataset"}
-		return c.JSON(http.StatusBadRequest, errJSON)
-	}
-
 	// post the value
 	keystr := bodyid + "_swc"
 	body, err := ioutil.ReadAll(c.Request().Body)
