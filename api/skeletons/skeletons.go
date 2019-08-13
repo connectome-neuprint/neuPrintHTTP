@@ -129,7 +129,7 @@ func (ma masterAPI) getSkeleton(c echo.Context) error {
 	keystr := bodyid + "_swc"
 	res, err := kvstore.Get([]byte(keystr))
 	if err != nil {
-		errJSON := api.ErrorInfo{Error: "failed to retrieve result"}
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
@@ -254,7 +254,7 @@ func (ma masterAPI) setSkeleton(c echo.Context) error {
 	}
 	err = kvstore.Set([]byte(keystr), body)
 	if err != nil {
-		errJSON := api.ErrorInfo{Error: "failed to post result"}
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 	return c.String(http.StatusOK, "")

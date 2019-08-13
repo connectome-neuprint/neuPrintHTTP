@@ -123,7 +123,10 @@ func (s Store) Set(key, val []byte) error {
 	if err != nil {
 		return err
 	}
-	res.Body.Close()
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("request failed")
+	}
 	return nil
 }
 
@@ -142,8 +145,14 @@ func (s Store) Get(key []byte) ([]byte, error) {
 		return nil, fmt.Errorf("request failed")
 	}
 	defer res.Body.Close()
-
 	body, err := ioutil.ReadAll(res.Body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		if len(body) > 0 {
+			return nil, fmt.Errorf("%s", body)
+		}
+		return nil, fmt.Errorf("request failed")
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("request failed")
 	}
