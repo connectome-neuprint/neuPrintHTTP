@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-// ?! common connectivity name => instance return
-// ?! add option for everything with name for type name as well
-// ?! whereever 'instance' is used in WHERE, check for type as well -- or maybe check for it as input instead?
+// ?! add option for everything with name for type name as well -- just add type and remove skeleton
 
 const (
 	NeuronMetaQuery = "MATCH (n :`{dataset}-Neuron`) UNWIND KEYS(n) AS x RETURN DISTINCT x AS pname"
@@ -19,18 +17,19 @@ const (
 
 	AutapsesQuery = "MATCH (n:`{dataset}-Neuron`)-[x:ConnectsTo]->(n) RETURN n.bodyId AS id, x.weight AS weight, n.instance AS name ORDER BY x.weight DESC"
 
-	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE neuron.{neuronid} RETURN neuron.bodyId AS bodyid, neuron.instancee AS bodyname, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
-
-	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE m.{neuronid} RETURN m.instance AS Neuron1, n.name AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, exists((n)-[:Contains]->(:Skeleton)) AS Neuron2HasSkeleton, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.instance, m.bodyId, e.weight DESC"
-
-	RankedTableQuery  = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE m.{neuronid} RETURN m.instance AS Neuron1, n.instance AS Neuron2, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
-	DistributionQuery = "MATCH (n:`{dataset}-Segment` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
-
 	CompletenessQuery = "MATCH (n:`{dataset}-{NeuronSegment}`) {has_conditions} {pre_cond} {post_cond} {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:{dataset}) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS unlabelres, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
-	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-{NeuronSegment}`){connection}(c) WHERE (k.{idorname} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idorname})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.name, dynamicWeight, r.weight])) AS map"
+	DistributionQuery = "MATCH (n:`{dataset}-Segment` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
 
-	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-{NeuronSegment}`) {has_conditions} {hasneuron}{neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, exists((neuron)-[:Contains]->(:Skeleton)) AS hasSkeleton ORDER BY neuron.bodyId"
+	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE {neuronid} RETURN neuron.bodyId AS bodyid, neuron.instancee AS bodyname, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
+
+	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE {neuronid} RETURN m.instance AS Neuron1, n.instance AS Neuron2, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, exists((n)-[:Contains]->(:Skeleton)) AS Neuron2HasSkeleton, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.instance, m.bodyId, e.weight DESC"
+
+	RankedTableQuery = "MATCH (m:`{dataset}-Neuron`)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, n.instance AS Neuron2, e.weight AS Weight, n.bodyId AS Body2, m.neuronType AS Neuron1Type, n.type AS Neuron2Type, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
+
+	FindNeuronsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (neuron :`{dataset}-{NeuronSegment}`) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, exists((neuron)-[:Contains]->(:Skeleton)) AS hasSkeleton ORDER BY neuron.bodyId"
+
+	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:`{dataset}-{NeuronSegment}`){connection}(c) WHERE (k.{idortype} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idortype})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.instance, dynamicWeight, r.weight])) AS map"
 )
 
 // ExplorerFindNeurons implements API to find neurons in a certain ROI
@@ -38,13 +37,10 @@ func (store cypherAPI) ExplorerFindNeurons(params FindNeuronsParams) (res interf
 	cypher := strings.Replace(FindNeuronsQuery, "{dataset}", params.Dataset, -1)
 
 	initcond := false
-	cypher, err2 := subName(params.NeuronName, params.NeuronId, cypher)
+	cypher, err2 := subName(params.NeuronName, params.NeuronId, "neuron", cypher)
 	// if name exists, then add where statement
 	if err2 == nil {
 		initcond = true
-		cypher = strings.Replace(cypher, "{hasneuron}", "neuron.", -1)
-	} else {
-		cypher = strings.Replace(cypher, "{hasneuron}", "", -1)
 	}
 
 	if params.AllSegments {
@@ -149,7 +145,7 @@ func (store cypherAPI) ExplorerROIConnectivity(params DatasetParams) (res interf
 // ExplorerRankedTable implements API to show connectivity broken down by cell type
 func (store cypherAPI) ExplorerRankedTable(params ConnectionsParams) (res interface{}, err error) {
 	cypher := strings.Replace(RankedTableQuery, "{dataset}", params.Dataset, -1)
-	cypher, err = subName(params.NeuronName, params.NeuronId, cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher)
 	if err != nil {
 		return
 	}
@@ -160,7 +156,7 @@ func (store cypherAPI) ExplorerRankedTable(params ConnectionsParams) (res interf
 func (store cypherAPI) ExplorerSimpleConnections(params ConnectionsParams) (res interface{}, err error) {
 
 	cypher := strings.Replace(SimpleConnectionsQuery, "{dataset}", params.Dataset, -1)
-	cypher, err = subName(params.NeuronName, params.NeuronId, cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher)
 	if err != nil {
 		return
 	}
@@ -174,11 +170,11 @@ func (store cypherAPI) ExplorerSimpleConnections(params ConnectionsParams) (res 
 	return store.Store.CypherRequest(cypher, true)
 }
 
-func subName(neuronName string, neuronId int64, cypher string) (string, error) {
+func subName(neuronName string, neuronId int64, matchvar string, cypher string) (string, error) {
 	if neuronName != "" {
-		cypher = strings.Replace(cypher, "{neuronid}", "instance =~\""+neuronName+"\"", -1)
+		cypher = strings.Replace(cypher, "{neuronid}", "("+matchvar+".type =~\""+neuronName+"\" OR "+matchvar+".instance =~\""+neuronName+"\")", -1)
 	} else if neuronId != 0 {
-		cypher = strings.Replace(cypher, "{neuronid}", "bodyId = "+strconv.FormatInt(neuronId, 10), -1)
+		cypher = strings.Replace(cypher, "{neuronid}", matchvar+".bodyId = "+strconv.FormatInt(neuronId, 10), -1)
 	} else {
 		cypher = strings.Replace(cypher, "{neuronid}", "", -1)
 		return cypher, fmt.Errorf("no neuron name specified")
@@ -190,7 +186,7 @@ func subName(neuronName string, neuronId int64, cypher string) (string, error) {
 // ExplorerROIsInNeuron implements API to show ROIs intersecting given neuron
 func (store cypherAPI) ExplorerROIsInNeuron(params NeuronNameParams) (res interface{}, err error) {
 	cypher := strings.Replace(IntersectingROIQuery, "{dataset}", params.Dataset, -1)
-	cypher, err = subName(params.NeuronName, params.NeuronId, cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "neuron", cypher)
 	if err != nil {
 		return
 	}
@@ -216,7 +212,7 @@ func (store cypherAPI) ExplorerCommonConnectivity(params CommonConnectivityParam
 	}
 
 	if params.NeuronIds != nil && len(params.NeuronIds) > 0 {
-		cypher = strings.Replace(cypher, "{idorname}", "bodyId", -1)
+		cypher = strings.Replace(cypher, "{idortype}", "bodyId", -1)
 		bodystr := ""
 		for index, bodyid := range params.NeuronIds {
 			if index != 0 {
@@ -226,7 +222,7 @@ func (store cypherAPI) ExplorerCommonConnectivity(params CommonConnectivityParam
 		}
 		cypher = strings.Replace(cypher, "{neuron_list}", bodystr, -1)
 	} else if params.NeuronNames != nil && len(params.NeuronNames) > 0 {
-		cypher = strings.Replace(cypher, "{idorname}", "instance", -1)
+		cypher = strings.Replace(cypher, "{idortype}", "type", -1)
 		bodystr := ""
 		for index, bodyname := range params.NeuronNames {
 			if index != 0 {
