@@ -241,6 +241,58 @@ paths:
       summary: Execute cypher against the main database
       tags:
       - raw-cypher
+  /api/raw/keyvalue/key/{instance}/{key}:
+    get:
+      description: The data address is given by both the instance name and key.
+      operationId: getKV
+      parameters:
+      - description: database instance name
+        in: path
+        name: instance
+        required: true
+        schema:
+          type: string
+      - description: location of the data
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: blob data
+      security:
+      - Bearer: []
+      summary: Get data stored at the key.
+      tags:
+      - raw-keyvalue
+    post:
+      description: The data address is given by both the instance name and key.
+      operationId: postKV
+      parameters:
+      - description: database instance name
+        in: path
+        name: instance
+        required: true
+        schema:
+          type: string
+      - description: location of the data
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      - description: binary blob
+        in: body
+        name: blob
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post data stored at the key.
+      tags:
+      - raw-keyvalue
   /api/roimeshes/mesh/{dataset}/{roi}:
     get:
       description: The meshes are stored in OBJ format
