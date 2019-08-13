@@ -136,6 +136,7 @@ func (s Store) Get(key []byte) ([]byte, error) {
 		Timeout: time.Second * 60,
 	}
 
+	fmt.Println(s.endPoint + string(key))
 	req, err := http.NewRequest(http.MethodGet, s.endPoint+string(key), nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed")

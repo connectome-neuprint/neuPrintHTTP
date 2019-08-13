@@ -186,6 +186,58 @@ paths:
       summary: swagger REST documentation
       tags:
       - apimeta
+  /api/roimeshes/mesh/{dataset}/{roi}:
+    get:
+      description: The meshes are stored in OBJ format
+      operationId: getMesh
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: roi name
+        in: path
+        name: roi
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: binary OBJ file
+      security:
+      - Bearer: []
+      summary: Get mesh for given ROI
+      tags:
+      - roimeshes
+    post:
+      description: The mesh are stored as OBJ files
+      operationId: setMesh
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: roi name
+        in: path
+        name: roi
+        required: true
+        schema:
+          type: string
+      - description: mesh in OBJ format
+        in: body
+        name: obj
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post mesh for the given ROI
+      tags:
+      - roimeshes
   /api/serverinfo:
     get:
       description: If it is public,  no authorization is required

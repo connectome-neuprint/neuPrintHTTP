@@ -1,4 +1,4 @@
-package custom
+package skeletons
 
 import (
 	"bytes"
@@ -125,6 +125,11 @@ func (ma masterAPI) getSkeleton(c echo.Context) error {
 		}
 	}
 
+	if kvstore == nil {
+		errJSON := api.ErrorInfo{Error: "no skeletons database supports this dataset"}
+		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+
 	// fetch the value
 	keystr := bodyid + "_swc"
 	res, err := kvstore.Get([]byte(keystr))
@@ -177,7 +182,7 @@ func (ma masterAPI) getSkeleton(c echo.Context) error {
 	return c.JSON(http.StatusOK, jsonresp)
 }
 
-// getSkeleton fetches the skeleton at the given body id
+// setSkeleton posts the skeleton at the given body id
 func (ma masterAPI) setSkeleton(c echo.Context) error {
 	// swagger:operation POST /api/skeletons/skeleton/{dataset}/{id} skeletons setSkeleton
 	//
@@ -243,6 +248,11 @@ func (ma masterAPI) setSkeleton(c echo.Context) error {
 				return c.JSON(http.StatusBadRequest, errJSON)
 			}
 		}
+	}
+
+	if kvstore == nil {
+		errJSON := api.ErrorInfo{Error: "no skeletons database supports this dataset"}
+		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
 	// post the value
