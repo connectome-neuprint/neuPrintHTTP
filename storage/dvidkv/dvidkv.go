@@ -42,12 +42,26 @@ type dvidConfig struct {
 // DVID requires  data instance name, server, branch, and dataset
 func (e Engine) NewStore(data interface{}, typename, instance string) (storage.SimpleStore, error) {
 	dbversion, _ := semver.Make(VERSION)
+	datamap, ok := data.(map[string]interface{})
 
-	config, ok := data.(dvidConfig)
+	cdataset, ok := datamap["dataset"].(string)
+	if !ok {
+		return nil, fmt.Errorf("incorrect configuration for neo4j")
+	}
+	cserver, ok := datamap["server"].(string)
+	if !ok {
+		return nil, fmt.Errorf("incorrect configuration for neo4j")
+	}
+	cbranch, ok := datamap["branch"].(string)
+	if !ok {
+		return nil, fmt.Errorf("incorrect configuration for neo4j")
+	}
+	cinstance, ok := datamap["instance"].(string)
 	if !ok {
 		return nil, fmt.Errorf("incorrect configuration for neo4j")
 	}
 
+	config := dvidConfig{cdataset, cserver, cbranch, cinstance}
 	endPoint := "http://" + config.Server + "/api/" + config.Branch + "/" + config.Instance + "/key/"
 	return Store{dbversion, typename, instance, config, endPoint}, nil
 }

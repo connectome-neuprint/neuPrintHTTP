@@ -39,11 +39,17 @@ type badgerConfig struct {
 // DVID requires  data instance name, server, branch, and dataset
 func (e Engine) NewStore(data interface{}, typename, instance string) (storage.SimpleStore, error) {
 	dbversion, _ := semver.Make(VERSION)
+	datamap, ok := data.(map[string]interface{})
 
-	config, ok := data.(badgerConfig)
+	cdataset, ok := datamap["dataset"].(string)
 	if !ok {
 		return nil, fmt.Errorf("incorrect configuration for neo4j")
 	}
+	clocation, ok := datamap["location"].(string)
+	if !ok {
+		return nil, fmt.Errorf("incorrect configuration for neo4j")
+	}
+	config := badgerConfig{cdataset, clocation}
 
 	// initialize or open badger DB
 	// Open the Badger database located location.

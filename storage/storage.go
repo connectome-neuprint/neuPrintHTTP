@@ -90,26 +90,43 @@ func ParseConfig(engineName string, data interface{}, datatypes_raw interface{})
 
 	stores := make([]SimpleStore, 0)
 	for key, val := range datatypes {
-		instance_config := val.(DataInstance)
-
-		if engine, found := availEngines[instance_config.Engine]; !found {
-			return nil, fmt.Errorf("Engine %s not found", instance_config.Engine)
-		} else {
-			store, err := engine.NewStore(instance_config.Config, key, instance_config.Instance)
-			if err != nil {
-				return nil, err
+		instance_configs := val.([]interface{})
+		for _, iconfig_int := range instance_configs {
+			iconfig, ok := iconfig_int.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("data instance not formatted properly")
 			}
-			stores = append(stores, store)
+			instance, ok := iconfig["instance"].(string)
+			if !ok {
+				return nil, fmt.Errorf("data instance not formatted properly")
+			}
+			engine, ok := iconfig["engine"].(string)
+			if !ok {
+				return nil, fmt.Errorf("data instance not formatted properly")
+			}
+			config, ok := iconfig["engine-config"].(interface{})
+			if !ok {
+				return nil, fmt.Errorf("data instance not formatted properly")
+			}
+			if engine, found := availEngines[engine]; !found {
+				return nil, fmt.Errorf("Engine %s not found", engine)
+			} else {
+				store, err := engine.NewStore(config, key, instance)
+				if err != nil {
+					return nil, err
+				}
+				stores = append(stores, store)
+			}
 		}
 	}
 
 	// load MasterDB
-	var instances map[string]SimpleStore
-	var types map[string][]SimpleStore
+	instances := make(map[string]SimpleStore)
+	types := make(map[string][]SimpleStore)
 
 	for _, val := range stores {
 		name := val.GetInstance()
-		if _, ok = instances[name]; !ok {
+		if _, exists := instances[name]; exists {
 			return nil, fmt.Errorf("Non-unique instance given %s", name)
 		}
 		instances[name] = val
