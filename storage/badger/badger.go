@@ -87,7 +87,7 @@ type databaseInfo struct {
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	var datasetmap map[string]interface{}
+	datasetmap := make(map[string]interface{})
 	datasetmap[store.config.Dataset] = databaseInfo{store.config.Location}
 	return datasetmap, nil
 }

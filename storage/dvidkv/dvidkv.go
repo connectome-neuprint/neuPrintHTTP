@@ -62,7 +62,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	}
 
 	config := dvidConfig{cdataset, cserver, cbranch, cinstance}
-	endPoint := "http://" + config.Server + "/api/" + config.Branch + "/" + config.Instance + "/key/"
+	endPoint := "http://" + config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
 	return Store{dbversion, typename, instance, config, endPoint}, nil
 }
 
@@ -92,7 +92,7 @@ type databaseInfo struct {
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	var datasetmap map[string]interface{}
+	datasetmap := make(map[string]interface{})
 	datasetmap[store.config.Dataset] = databaseInfo{store.config.Branch, store.config.Instance}
 
 	return datasetmap, nil
@@ -114,7 +114,7 @@ func (s Store) Set(key, val []byte) error {
 		Timeout: time.Second * 60,
 	}
 
-	req, err := http.NewRequest(http.MethodPost, s.endPoint, bytes.NewBuffer(val))
+	req, err := http.NewRequest(http.MethodPost, s.endPoint+string(key), bytes.NewBuffer(val))
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
@@ -133,7 +133,7 @@ func (s Store) Get(key []byte) ([]byte, error) {
 		Timeout: time.Second * 60,
 	}
 
-	req, err := http.NewRequest(http.MethodGet, s.endPoint, nil)
+	req, err := http.NewRequest(http.MethodGet, s.endPoint+string(key), nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed")
 	}
