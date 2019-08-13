@@ -196,6 +196,80 @@ paths:
       summary: Returns whether the server is public
       tags:
       - apimeta
+  /api/skeletons/skeleton/{dataset}/{id}:
+    get:
+      description: |-
+        The skeletons are stored as swc but the default response is a table
+        of skeleton nodes.
+      operationId: getSkeleton
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: body id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - description: specify response format ("swc" or nothing)
+        in: query
+        name: format
+      responses:
+        "200":
+          description: binary swc file if "format=swc" specified or JSON
+          schema:
+            properties:
+              columns:
+                description: Name of each result column
+                items:
+                  type: string
+                type: array
+              data:
+                description: Table of skeleton nodes
+                items:
+                  description: Table row
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
+      security:
+      - Bearer: []
+      summary: Get skeleton for given body id
+      tags:
+      - skeletons
+    post:
+      description: The skeletons are stored as swc.
+      operationId: setSkeleton
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: body id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - description: skeleton in SWC format
+        in: body
+        name: swc
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post skeleton for the given body id
+      tags:
+      - skeletons
   /api/version:
     get:
       description: version number
