@@ -108,7 +108,7 @@ func main() {
 		AuthorizeChecker: authorizer,
 		Hostname:         options.Hostname,
 	}
-	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret))
+	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
 	if err != nil {
 		fmt.Println(err)
 		return
