@@ -19,7 +19,7 @@ const (
 
 	DistributionQuery = "MATCH (n:`{dataset}-Segment` {`{ROI}`: true}) {preorpost_filter} WITH n.bodyId as bodyId, apoc.convert.fromJsonMap(n.roiInfo)[\"{ROI}\"].{preorpost} AS {preorpost}size WHERE {preorpost}size > 0 WITH collect({id: bodyId, {preorpost}: {preorpost}size}) as bodyinfoarr, sum({preorpost}size) AS tot UNWIND bodyinfoarr AS bodyinfo RETURN bodyinfo.id AS id, bodyinfo.{preorpost} AS size, tot AS total ORDER BY bodyinfo.{preorpost} DESC"
 
-	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE {neuronid} RETURN neuron.bodyId AS bodyid, neuron.instancee AS bodyname, neuron.type AS bodytype, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
+	IntersectingROIQuery = "MATCH (neuron :`{dataset}-Neuron`) WHERE {neuronid} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.type AS bodytype, neuron.roiInfo AS roiInfo ORDER BY neuron.bodyId"
 
 	SimpleConnectionsQuery = " MATCH (m:Meta{dataset:'{dataset}'}) WITH m.superLevelRois AS rois MATCH (m:`{dataset}-Neuron`){connection}(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, n.bodyId AS Neuron2Id, e.weight AS Weight, m.bodyId AS Neuron1Id, n.status AS Neuron2Status, n.roiInfo AS Neuron2RoiInfo, n.size AS Neuron2Size, n.pre AS Neuron2Pre, n.post AS Neuron2Post, rois, e.weightHP AS WeightHP ORDER BY m.type, m.bodyId, e.weight DESC"
 
