@@ -21,6 +21,43 @@ paths:
       summary: list of available REST api routes
       tags:
       - apimeta
+  /api/cached/roiconnectivity:
+    get:
+      description: The program caches the region connections for each neuron updating
+        everyday.
+      operationId: getROIConnectivity
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              columns:
+                description: body and roi info
+                example:
+                - bodyid
+                - roiInfo
+                items:
+                  type: string
+                type: array
+              data:
+                items:
+                  description: Table row (integer body id and json string for roi
+                    info)
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets cached synapse connection projections for all neurons.
+      tags:
+      - cached
   /api/custom/custom:
     get:
       description: Endpoint expects valid cypher and returns rows of data.

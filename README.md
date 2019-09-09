@@ -16,6 +16,10 @@ After installing librdfkafka, install neuprint http:
 
     % go get github.com/connectome-neuprint/neuPrintHTTP
 
+For developers: if modifying the swagger inline comments, update the documentation with:
+
+    % go generate
+
 ## Running
 
     % neuprintHTTP -p |PORTNUM| config.json
