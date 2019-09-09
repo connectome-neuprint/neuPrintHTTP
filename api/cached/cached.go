@@ -135,11 +135,30 @@ type CountWeight struct {
 // ExplorerROIConnectivity implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (neuron :`" + dataset + "-Neuron`) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
-	// ?! restrict the query to the super level ROIs
-
 	res, err := ca.Store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
+	}
+
+	// restrict the query to the super level ROIs
+	cypher2 := "MATCH (m :Meta) WHERE m.dataset=\"" + dataset + "\" RETURN m.superLevelRois AS rois"
+	res2, err := ca.Store.CypherRequest(cypher2, true)
+	if err != nil {
+		return nil, err
+	}
+
+	superrois := make(map[string]interface{})
+	if len(res2.Data) > 0 {
+		roiarr := res2.Data[0][0].([]interface{})
+		/*var roiarr []string
+		err := json.Unmarshal([]byte(roistr), &roiarr)
+		if err != nil {
+			return nil, err
+		}*/
+		for _, roib := range roiarr {
+			roi := roib.(string)
+			superrois[roi] = nil
+		}
 	}
 
 	roitable := make(map[string]*CountWeight)
@@ -157,17 +176,26 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		}
 
 		for roi, prepost := range roidata {
+			if _, ok := superrois[roi]; !ok {
+				continue
+			}
 			numout := prepost.Pre
 			if numout > 0 {
 				// grab total inputs
 				totalin := 0
-				for _, prepost2 := range roidata {
+				for roi2, prepost2 := range roidata {
+					if _, ok := superrois[roi2]; !ok {
+						continue
+					}
 					totalin += prepost2.Post
 				}
 
 				if totalin > 0 {
 					// weight connection by input percentage for each ROI
 					for roi2, prepost2 := range roidata {
+						if _, ok := superrois[roi2]; !ok {
+							continue
+						}
 						key := roi2 + "=>" + roi
 						perout := float32(numout*prepost2.Post) / float32(totalin)
 						if _, ok := roitable[key]; !ok {
