@@ -35,23 +35,15 @@ paths:
           description: successful operation
           schema:
             properties:
-              columns:
-                description: body and roi info
-                example:
-                - bodyid
-                - roiInfo
-                items:
-                  type: string
-                type: array
-              data:
-                items:
-                  description: Table row (integer body id and json string for roi
-                    info)
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
+              roi2roi:
+                properties:
+                  count:
+                    description: number of bodies between two ROIs
+                    type: integer
+                  weight:
+                    description: weighted connection strength between two ROIs
+                    type: number
+                type: object
             type: object
       security:
       - Bearer: []

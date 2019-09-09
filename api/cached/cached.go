@@ -1,6 +1,7 @@
 package cached
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
@@ -87,20 +88,15 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	//     schema:
 	//       type: "object"
 	//       properties:
-	//         columns:
-	//           type: "array"
-	//           items:
-	//             type: "string"
-	//           example: ["bodyid", "roiInfo"]
-	//           description: "body and roi info"
-	//         data:
-	//           type: "array"
-	//           items:
-	//             type: "array"
-	//             items:
-	//               type: "null"
-	//               description: "Cell value"
-	//             description: "Table row (integer body id and json string for roi info)"
+	//         roi2roi:
+	//           type: "object"
+	//           properties:
+	//             count:
+	//               type: "integer"
+	//               description: "number of bodies between two ROIs"
+	//             weight:
+	//               type: "number"
+	//               description: "weighted connection strength between two ROIs"
 	// security:
 	// - Bearer: []
 
@@ -126,8 +122,67 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+type prePost struct {
+	Pre  int `json:"pre"`
+	Post int `json:"post"`
+}
+
+type CountWeight struct {
+	Count  int     `json:"count"`  // number of neurons in this roi connection
+	Weight float32 `json:"weight"` // connection weight
+}
+
 // ExplorerROIConnectivity implements API to find how ROIs are connected
-func (ca cypherAPI) getROIConnectivity_int(dataset string) (res interface{}, err error) {
+func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (neuron :`" + dataset + "-Neuron`) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
-	return ca.Store.CypherRequest(cypher, true)
+	// ?! restrict the query to the super level ROIs
+
+	res, err := ca.Store.CypherRequest(cypher, true)
+	if err != nil {
+		return nil, err
+	}
+
+	roitable := make(map[string]*CountWeight)
+
+	// grab input distribution
+	for _, row := range res.Data {
+		var roidata map[string]prePost
+		roistr, ok := row[1].(string)
+		if !ok {
+			continue
+		}
+		err := json.Unmarshal([]byte(roistr), &roidata)
+		if err != nil {
+			continue
+		}
+
+		for roi, prepost := range roidata {
+			numout := prepost.Pre
+			if numout > 0 {
+				// grab total inputs
+				totalin := 0
+				for _, prepost2 := range roidata {
+					totalin += prepost2.Post
+				}
+
+				if totalin > 0 {
+					// weight connection by input percentage for each ROI
+					for roi2, prepost2 := range roidata {
+						key := roi2 + "=>" + roi
+						perout := float32(numout*prepost2.Post) / float32(totalin)
+						if _, ok := roitable[key]; !ok {
+							roitable[key] = &CountWeight{Count: 1, Weight: perout}
+						} else {
+							countweight := roitable[key]
+							countweight.Count += 1
+							countweight.Weight += perout
+						}
+					}
+				}
+			}
+		}
+
+	}
+
+	return roitable, err
 }
