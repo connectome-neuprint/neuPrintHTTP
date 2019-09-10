@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/knightjdr/hclust"
 	"github.com/labstack/echo"
+	//"math"
 	"net/http"
 	"sync"
 	"time"
@@ -88,15 +90,24 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	//     schema:
 	//       type: "object"
 	//       properties:
-	//         roi2roi:
+	//         roi_names:
+	//           type: "array"
+	//           items:
+	//             type: "string"
+	//           description: "sorted roi names based on clustering"
+	//         weights:
 	//           type: "object"
+	//           description: "adjacency list between rois"
 	//           properties:
-	//             count:
-	//               type: "integer"
-	//               description: "number of bodies between two ROIs"
-	//             weight:
-	//               type: "number"
-	//               description: "weighted connection strength between two ROIs"
+	//             "roiin=>roiout":
+	//               type: "object"
+	//               properties:
+	//                 count:
+	//                   type: "integer"
+	//                   description: "number of bodies between two ROIs"
+	//                 weight:
+	//                   type: "number"
+	//                   description: "weighted connection strength between two ROIs"
 	// security:
 	// - Bearer: []
 
@@ -129,8 +140,15 @@ type prePost struct {
 
 type CountWeight struct {
 	Count  int     `json:"count"`  // number of neurons in this roi connection
-	Weight float32 `json:"weight"` // connection weight
+	Weight float64 `json:"weight"` // connection weight
 }
+
+type SortedROI struct {
+	Names   []string                `json:"roi_names"` // names in sorted order based on clustering
+	Weights map[string]*CountWeight `json:"weights"`
+}
+
+const MAXVAL = 10000000000
 
 // ExplorerROIConnectivity implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
@@ -147,7 +165,8 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		return nil, err
 	}
 
-	superrois := make(map[string]interface{})
+	superrois := make(map[string]int)
+	roinames := make([]string, 0, 0)
 	if len(res2.Data) > 0 {
 		roiarr := res2.Data[0][0].([]interface{})
 		/*var roiarr []string
@@ -155,9 +174,17 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		if err != nil {
 			return nil, err
 		}*/
-		for _, roib := range roiarr {
+		for idx, roib := range roiarr {
 			roi := roib.(string)
-			superrois[roi] = nil
+			roinames = append(roinames, roi)
+			superrois[roi] = idx
+		}
+	}
+	distmatrix := make([][]float64, len(superrois), len(superrois))
+	for idx, _ := range distmatrix {
+		distmatrix[idx] = make([]float64, len(superrois), len(superrois))
+		for idx2, _ := range distmatrix[idx] {
+			distmatrix[idx][idx2] = MAXVAL
 		}
 	}
 
@@ -197,7 +224,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 							continue
 						}
 						key := roi2 + "=>" + roi
-						perout := float32(numout*prepost2.Post) / float32(totalin)
+						perout := float64(numout*prepost2.Post) / float64(totalin)
 						if _, ok := roitable[key]; !ok {
 							roitable[key] = &CountWeight{Count: 1, Weight: perout}
 						} else {
@@ -205,12 +232,30 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 							countweight.Count += 1
 							countweight.Weight += perout
 						}
+						idx1 := superrois[roi2]
+						idx2 := superrois[roi]
+						if roitable[key].Weight < 0.001 {
+							distmatrix[idx1][idx2] = MAXVAL
+						} else {
+							distmatrix[idx1][idx2] = MAXVAL - roitable[key].Weight
+						}
 					}
 				}
 			}
 		}
-
 	}
 
-	return roitable, err
+	// sort roi names by clustering
+	subcluster, err := hclust.Cluster(distmatrix, "single")
+	if err != nil {
+		return nil, err
+	}
+	//optcluster := subcluster
+	optcluster := hclust.Optimize(subcluster, distmatrix, 0)
+	tree, err := hclust.Tree(optcluster, roinames)
+	if err != nil {
+		return nil, err
+	}
+
+	return SortedROI{Names: tree.Order, Weights: roitable}, err
 }

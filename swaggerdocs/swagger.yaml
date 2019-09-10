@@ -35,14 +35,23 @@ paths:
           description: successful operation
           schema:
             properties:
-              roi2roi:
+              roi_names:
+                description: sorted roi names based on clustering
+                items:
+                  type: string
+                type: array
+              weights:
+                description: adjacency list between rois
                 properties:
-                  count:
-                    description: number of bodies between two ROIs
-                    type: integer
-                  weight:
-                    description: weighted connection strength between two ROIs
-                    type: number
+                  roiin=>roiout:
+                    properties:
+                      count:
+                        description: number of bodies between two ROIs
+                        type: integer
+                      weight:
+                        description: weighted connection strength between two ROIs
+                        type: number
+                    type: object
                 type: object
             type: object
       security:
