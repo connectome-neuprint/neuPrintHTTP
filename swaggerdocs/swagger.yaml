@@ -21,6 +21,47 @@ paths:
       summary: list of available REST api routes
       tags:
       - apimeta
+  /api/cached/roicompleteness:
+    get:
+      description: |-
+        The program updates the completeness numbers each day.  Completeness is defined
+        as "Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized".
+      operationId: getROICompleteness
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              columns:
+                description: ROI stat breakdown
+                example:
+                - roi
+                - roipre
+                - roipost
+                - totalpre
+                - totalpost
+                items:
+                  type: string
+                type: array
+              data:
+                description: ROI completenss results
+                items:
+                  description: Completeness for a given ROI
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets tracing completeness for each ROI.
+      tags:
+      - cached
   /api/cached/roiconnectivity:
     get:
       description: The program caches the region connections for each neuron updating

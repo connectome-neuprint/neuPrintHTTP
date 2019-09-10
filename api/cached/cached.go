@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo"
 	//"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,21 +26,34 @@ type cypherAPI struct {
 
 var mux sync.Mutex
 
-var cachedResults map[string]interface{}
+type CacheType int
+
+var cachedResults map[CacheType]map[string]interface{}
+
+const (
+	ROIConn CacheType = 1
+	ROIComp CacheType = 2
+)
 
 // setupAPI loads all the endpoints for cached
 func setupAPI(mainapi *api.ConnectomeAPI) error {
 	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
 		// setup cache
-		cachedResults = make(map[string]interface{})
+		cachedResults = make(map[CacheType]map[string]interface{})
 
 		q := &cypherAPI{cypherEngine}
 
 		// roi conenctivity cache
-
 		endpoint := "roiconnectivity"
 		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROIConnectivity)
 		mainapi.SupportedEndpoints[endpoint] = true
+		cachedResults[ROIConn] = make(map[string]interface{})
+
+		// roi completeness cache (TODO: connection completeness)
+		endpoint = "roicompleteness"
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROICompleteness)
+		mainapi.SupportedEndpoints[endpoint] = true
+		cachedResults[ROIComp] = make(map[string]interface{})
 
 		go func() {
 			for {
@@ -47,9 +61,17 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 				if err == nil {
 					// load connections
 					for dataset, _ := range data {
+						// cache roi connectivity
 						if res, err := q.getROIConnectivity_int(dataset); err == nil {
 							mux.Lock()
-							cachedResults[dataset] = res
+							cachedResults[ROIConn][dataset] = res
+							mux.Unlock()
+						}
+
+						// cache roi completeness
+						if res, err := q.getROICompleteness_int(dataset); err == nil {
+							mux.Lock()
+							cachedResults[ROIComp][dataset] = res
 							mux.Unlock()
 						}
 					}
@@ -71,7 +93,7 @@ type dbVersion struct {
 	Version string
 }
 
-// getVersion returns the version of the database
+// getROI connectivity returns how the ROIs connect to each other
 func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	// swagger:operation GET /api/cached/roiconnectivity cached getROIConnectivity
 	//
@@ -114,7 +136,7 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	dataset := c.QueryParam("dataset")
 
 	mux.Lock()
-	if res, ok := cachedResults[dataset]; ok {
+	if res, ok := cachedResults[ROIConn][dataset]; ok {
 		mux.Unlock()
 		return c.JSON(http.StatusOK, res)
 	}
@@ -123,7 +145,7 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	res, err := ca.getROIConnectivity_int(dataset)
 	if err != nil {
 		mux.Lock()
-		cachedResults[dataset] = res
+		cachedResults[ROIConn][dataset] = res
 		mux.Unlock()
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
@@ -150,7 +172,7 @@ type SortedROI struct {
 
 const MAXVAL = 10000000000
 
-// ExplorerROIConnectivity implements API to find how ROIs are connected
+// getROIConnectivity_int implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (neuron :`" + dataset + "-Neuron`) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
 	res, err := ca.Store.CypherRequest(cypher, true)
@@ -258,4 +280,87 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	}
 
 	return SortedROI{Names: tree.Order, Weights: roitable}, err
+}
+
+// getROICompleteness returns the tracing completeness of each ROI
+func (ca cypherAPI) getROICompleteness(c echo.Context) error {
+	// swagger:operation GET /api/cached/roicompleteness cached getROICompleteness
+	//
+	// Gets tracing completeness for each ROI.
+	//
+	// The program updates the completeness numbers each day.  Completeness is defined
+	// as "Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized".
+	//
+	// ---
+	// parameters:
+	// - in: "query"
+	//   name: "dataset"
+	//   description: "specify dataset name"
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	//     schema:
+	//       type: "object"
+	//       properties:
+	//         columns:
+	//           type: "array"
+	//           items:
+	//             type: "string"
+	//           example: ["roi", "roipre", "roipost", "totalpre", "totalpost"]
+	//           description: "ROI stat breakdown"
+	//         data:
+	//           type: "array"
+	//           items:
+	//             type: "array"
+	//             items:
+	//               type: "null"
+	//               description: "Cell value"
+	//             description: "Completeness for a given ROI"
+	//           description: "ROI completenss results"
+	// security:
+	// - Bearer: []
+
+	dataset := c.QueryParam("dataset")
+
+	mux.Lock()
+	if res, ok := cachedResults[ROIComp][dataset]; ok {
+		mux.Unlock()
+		return c.JSON(http.StatusOK, res)
+	}
+	mux.Unlock()
+
+	res, err := ca.getROICompleteness_int(dataset)
+	if err != nil {
+		mux.Lock()
+		cachedResults[ROIComp][dataset] = res
+		mux.Unlock()
+		errJSON := api.ErrorInfo{Error: err.Error()}
+		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+
+	// load result
+	return c.JSON(http.StatusOK, res)
+}
+
+var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized"}
+
+//getROICompleteness_int fetches roi completeness from database
+func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
+	cypher := "MATCH (n:`" + dataset + "-Neuron`) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:" + dataset + ") WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
+
+	statusarr := ""
+	for index, status := range completeStatuses {
+		if index == 0 {
+			statusarr = statusarr + "("
+		} else {
+			statusarr = statusarr + " OR "
+		}
+		statusarr = statusarr + "n.status = \"" + status + "\""
+	}
+	if statusarr != "" {
+		statusarr = statusarr + ")"
+	}
+	cypher = strings.Replace(cypher, "{status_conds}", statusarr, -1)
+
+	return ca.Store.CypherRequest(cypher, true)
 }
