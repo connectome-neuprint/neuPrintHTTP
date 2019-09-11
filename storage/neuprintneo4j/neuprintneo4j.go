@@ -85,15 +85,16 @@ func (store Store) GetVersion() (string, error) {
 }
 
 type databaseInfo struct {
-	LastEdit string   `json:"last-mod"`
-	UUID     string   `json:"uuid"`
-	ROIs     []string `json:"ROIs"`
-	Info     string   `json:"info"`
+	LastEdit       string   `json:"last-mod"`
+	UUID           string   `json:"uuid"`
+	ROIs           []string `json:"ROIs"`
+	SuperLevelROIs []string `json:"superLevelROIs"`
+	Info           string   `json:"info"`
 }
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
@@ -119,10 +120,17 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), info}
+
+		superROIs := row[5].([]interface{})
+		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), make([]string, 0, len(superROIs)), info}
 
 		for roi := range roidata {
 			dbInfo.ROIs = append(dbInfo.ROIs, roi)
+		}
+
+		for _, superROI := range superROIs {
+			sroi := superROI.(string)
+			dbInfo.SuperLevelROIs = append(dbInfo.SuperLevelROIs, sroi)
 		}
 
 		res[dataset] = dbInfo
