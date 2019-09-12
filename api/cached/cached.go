@@ -342,7 +342,7 @@ func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
-var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized"}
+var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized", "Leaves"}
 
 //getROICompleteness_int fetches roi completeness from database
 func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
