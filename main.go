@@ -1,3 +1,25 @@
+// neuprint API
+//
+// REST interface for neuPrint.  To test out the interface, copy  your token
+// under your acocunt information. Then authorize Swagger by typing "Bearer " and
+// pasting the token.
+//
+//     Version: 0.1.0
+//     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//
+//     SecurityDefinitions:
+//     Bearer:
+//         type: apiKey
+//         name: Authorization
+//         in: header
+//         scopes:
+//           admin: Admin scope
+//           user: User scope
+//     Security:
+//     - Bearer:
+//
+// swagger:meta
+//go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
 package main
 
 import (
@@ -21,6 +43,7 @@ func customUsage() {
 }
 
 func main() {
+
 	// create command line argument for port
 	var port = 11000
 	var publicRead = false
@@ -85,7 +108,7 @@ func main() {
 		AuthorizeChecker: authorizer,
 		Hostname:         options.Hostname,
 	}
-	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret))
+	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -99,6 +122,17 @@ func main() {
 		readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
 	}
 	// setup server status message to show if it is public
+
+	// swagger:operation GET /api/serverinfo apimeta serverinfo
+	//
+	// Returns whether the server is public
+	//
+	// If it is public,  no authorization is required
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
 	e.GET("/api/serverinfo", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			IsPublic bool
@@ -107,7 +141,6 @@ func main() {
 	}))
 
 	// setup default page
-	// TODO: point to swagger documentation
 	if options.StaticDir != "" {
 		e.Static("/", options.StaticDir)
 		customHTTPErrorHandler := func(err error, c echo.Context) {
@@ -128,12 +161,23 @@ func main() {
 		}))
 	}
 
+	// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
+	//
+	// swagger REST documentation
+	//
+	// YAML file containing swagger API documentation
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+
 	if options.SwaggerDir != "" {
 		e.Static("/api/help", options.SwaggerDir)
 	}
 
-	// load connectomic READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, store); err != nil {
+	// load connectomic default READ-ONLY API
+	if err = api.SetupRoutes(e, readGrp, store, secureAPI.AuthMiddleware(secure.ADMIN)); err != nil {
 		fmt.Print(err)
 		return
 	}

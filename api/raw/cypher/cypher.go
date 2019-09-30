@@ -1,4 +1,4 @@
-package custom
+package cypuer
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ func init() {
 	api.RegisterAPI(PREFIX, setupAPI)
 }
 
-const PREFIX = "/custom"
+const PREFIX = "/raw/cypher"
 
 type cypherAPI struct {
 	Store storage.Cypher
@@ -25,11 +25,10 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 		q := &cypherAPI{cypherEngine}
 
 		// custom endpoint
-		endPoint := "custom"
+		endPoint := "cypher"
 		mainapi.SupportedEndpoints[endPoint] = true
 
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom)
+		mainapi.SetAdminRoute(api.POST, PREFIX+"/"+endPoint, q.execCypher)
 	} else {
 		return fmt.Errorf("Cypher interface not supported")
 	}
@@ -43,13 +42,13 @@ type customReq struct {
 	Version string `json:"version,omitempty"`
 }
 
-// getCustom enables custom cypher queries
-func (ca cypherAPI) getCustom(c echo.Context) error {
-	// swagger:operation GET /api/custom/custom custom custom
+// execCypher enables custom cypher queries
+func (ca cypherAPI) execCypher(c echo.Context) error {
+	// swagger:operation POST /api/raw/cypher/cypher raw-cypher execCypher
 	//
-	// Make custom cypher query against the database (read only)
+	// Execute cypher against the main database
 	//
-	// Endpoint expects valid cypher and returns rows of data.
+	// This query allows for reads and writes (admin only).
 	//
 	// ---
 	// parameters:
@@ -91,7 +90,7 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 	//           example: [["t4", 323131], ["mi1", 232323]]
 	//           description: "Table of results"
 	// security:
-	// - Bearer: []
+	// - Bearer: [admin]
 	var req customReq
 	if err := c.Bind(&req); err != nil {
 		errJSON := api.ErrorInfo{Error: "request object not formatted correctly"}

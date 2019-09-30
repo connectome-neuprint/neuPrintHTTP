@@ -1,760 +1,579 @@
-swagger: "2.0"
 info:
-  description: "REST interface for neuPrint"
-  version: "1.0.0"
-  title: "neuPrint API"
-tags:
-- name: "user"
-  description: "application level API"
-- name: "api meta"
-  description: "meta information on connectomics API"
-- name: "metadata"
-  description: "metadata endpoints for neuPrint model and datasets"
-- name: "custom"
-  description: "custom endpoints for connectomics API"
-- name: "npexplorer"
-  description: "endpoints that implement neuprint explorer plugins"
-schemes:
-- "https"
+  contact:
+    email: plazas@janelia.hhmi.org
+    name: Stephen Plaza
+  description: |-
+    REST interface for neuPrint.  To test out the interface, copy  your token
+    under your acocunt information. Then authorize Swagger by typing "Bearer " and
+    pasting the token.
+  title: neuprint API
+  version: 0.1.0
 paths:
-  /login:
-    get:
-      tags:
-      - "user"
-      summary: "Login User"
-      responses:
-        302:
-          description: "Redirect to /profile"
-  /token:
-    get:
-      tags:
-      - "user"
-      summary: "Get JWT"
-      responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /profile:
-    get:
-      tags:
-      - "user"
-      summary: "Returns information on logged in user"
-      responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /logout:
-    post:
-      tags:
-      - "user"
-      summary: "Clears session cookie for user"
-      responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /api/help:
-    get:
-      tags:
-      - "api meta"
-      summary: "Swagger documentation for supported endpoints"
-      responses:
-        200:
-          description: "successful operation"
   /api/available:
     get:
-      tags:
-      - "api meta"
-      summary: "List of endpoints supported by server"
+      description: list of all routes in /api
+      operationId: routes
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
       security:
-      - Bearer: [] 
-  /api/version:
-    get:
+      - Bearer: []
+      summary: list of available REST api routes
       tags:
-      - "api meta"
-      summary: "version of the connectomics API"
-      responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /api/dbmeta/version:
+      - apimeta
+  /api/cached/roicompleteness:
     get:
-      tags:
-      - "metadata"
-      summary: "Version of underlying data model"
+      description: |-
+        The program updates the completeness numbers each day.  Completeness is defined
+        as "Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized".
+      operationId: getROICompleteness
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
       responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /api/dbmeta/database:
-    get:
-      tags:
-      - "metadata"
-      summary: "Database information"
-      responses:
-        200:
-          description: "successful operation"
-      security:
-      - Bearer: [] 
-  /api/dbmeta/datasets:
-    get:
-      tags:
-      - "metadata"
-      summary: "Datasets stored in the database"
-      responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: '#/definitions/DatasetsResp'
+            properties:
+              columns:
+                description: ROI stat breakdown
+                example:
+                - roi
+                - roipre
+                - roipost
+                - totalpre
+                - totalpost
+                items:
+                  type: string
+                type: array
+              data:
+                description: ROI completenss results
+                items:
+                  description: Completeness for a given ROI
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
       security:
-      - Bearer: [] 
+      - Bearer: []
+      summary: Gets tracing completeness for each ROI.
+      tags:
+      - cached
+  /api/cached/roiconnectivity:
+    get:
+      description: The program caches the region connections for each neuron updating
+        everyday.
+      operationId: getROIConnectivity
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              roi_names:
+                description: sorted roi names based on clustering
+                items:
+                  type: string
+                type: array
+              weights:
+                description: adjacency list between rois
+                properties:
+                  roiin=>roiout:
+                    properties:
+                      count:
+                        description: number of bodies between two ROIs
+                        type: integer
+                      weight:
+                        description: weighted connection strength between two ROIs
+                        type: number
+                    type: object
+                type: object
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets cached synapse connection projections for all neurons.
+      tags:
+      - cached
   /api/custom/custom:
     get:
-      tags:
-      - "custom"
-      summary: "Make custom query against the database"
+      description: Endpoint expects valid cypher and returns rows of data.
+      operationId: custom
       parameters:
-      - in: "body"
-        name: "body"
-        description: "Custom query request"
+      - in: body
+        name: body
         required: true
         schema:
-          $ref: "#/definitions/CustomReq"
+          properties:
+            cypher:
+              description: cypher statement (read only)
+              example: MATCH (n) RETURN n limit 1
+              type: string
+            version:
+              description: specify a neuprint model version for explicit check
+              example: 0.5.0
+              type: string
+          required:
+          - cypher
+          type: object
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: "#/definitions/CustomResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/findneurons:
-    get:
-      tags:
-      - "npexplorer"
-      summary: "Find neurons in certain ROIs"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Filters to find neurons"
-        required: true
-        schema:
-          $ref: '#/definitions/FindNeuronsReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/FindNeuronsResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/neuronmetavals:
-    get:
-      tags:
-      - "npexplorer"
-      summary: "Extract different values for a given property"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Filter to a given property type"
-        required: true
-        schema:
-          $ref: '#/definitions/MetaValReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: '#/definitions/MetaValResp'
+            properties:
+              columns:
+                description: Name of each result column
+                example:
+                - name
+                - size
+                items:
+                  type: string
+                type: array
+              data:
+                description: Table of results
+                example:
+                - - t4
+                  - 323131
+                - - mi1
+                  - 232323
+                items:
+                  description: Table row
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
       security:
       - Bearer: []
-  /api/npexploer/neuronmeta:
-    get:
+      summary: Make custom cypher query against the database (read only)
       tags:
-      - "npexplorer"
-      summary: "Extract different property types stored for dataset"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Dataset filter"
-        required: true
-        schema:
-          $ref: '#/definitions/MetaReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/MetaResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/roiconnectivity:
+      - custom
+  /api/dbmeta/database:
     get:
-      tags:
-      - "npexplorer"
-      summary: "Retrieve the data to compute a projectome connectivity matrix"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Dataset filter"
-        required: true
-        schema:
-          $ref: '#/definitions/ROIReq'
+      description: Returns JSON information about the database.
+      operationId: getDatabase
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: "#/definitions/ROIResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/rankedtable:
-    get:
-      tags:
-      - "npexplorer"
-      summary: "Supports ranked table plugin that shows connections colored by cell type"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Neuron name or id filter"
-        required: true
-        schema:
-          $ref: '#/definitions/RankedTableReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/RankedTableResp"
+            properties:
+              Description:
+                description: Information about the backend
+                type: string
+              Location:
+                description: Server location
+                type: string
+            type: object
       security:
       - Bearer: []
-  /api/npexploer/simpleconnections:
-    get:
+      summary: Database information
       tags:
-      - "npexplorer"
-      summary: "Show inputs or outputs for specified neurons"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Neuron name or id filter"
-        required: true
-        schema:
-          $ref: '#/definitions/SimpleConnectionsReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/SimpleConnectionsResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/roisinneuron:
+      - dbmeta
+  /api/dbmeta/datasets:
     get:
-      tags:
-      - "npexplorer"
-      summary: "Show ROIs that intersect given neurons"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Neuron name or id filter"
-        required: true
-        schema:
-          $ref: '#/definitions/ROIsInNeuronReq'
+      description: Metadata associated with each dataset is also retrieved
+      operationId: getDatasets
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: "#/definitions/ROIsInNeuronResp"
+            properties:
+              ROIs:
+                description: regions of interest available for the dataset
+                example:
+                - alpha1
+                - alpha2
+                - alpha3
+                items:
+                  type: string
+                type: array
+              last-mod:
+                description: Last modification date for dataset
+                type: string
+              uuid:
+                description: last version id for dataset (UUID for DVID)
+                type: string
+            type: object
       security:
       - Bearer: []
-  /api/npexploer/commonconnectivity:
-    get:
+      summary: Gets datasets in the graph database
       tags:
-      - "npexplorer"
-      summary: "Find inputs or outputs shared between provided set of neurons"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Various neuron filters"
-        required: true
-        schema:
-          $ref: '#/definitions/CommonConnectivityReq'
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/CommonConnectivityResp"
-      security:
-      - Bearer: [] 
-  /api/npexploer/autapses:
+      - dbmeta
+  /api/dbmeta/instances:
     get:
-      tags:
-      - "npexplorer"
-      summary: "Find inputs or outputs shared between provided set of neurons"
-      parameters:
-      - in: "body"
-        name: "body"
-        description: "Various neuron filters"
-        required: true
-        schema:
-          $ref: '#/definitions/AutapseReq'
+      description: |-
+        Contains datatype and instance info for data not within the neuprint
+        data model.
+      operationId: getDataInstances
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: "#/definitions/AutapseResp"
+            additionalProperties:
+              description: instance type name
+              items:
+                properties:
+                  datasets:
+                    items:
+                      description: dataset supported by instance
+                      type: string
+                    type: array
+                  instance:
+                    description: name of data instance
+                    type: string
+                type: object
+              type: array
+            type: object
       security:
       - Bearer: []
-  /api/npexploer/distribution:
-    get:
+      summary: Gets secondary data instances avaiable through neupint http
       tags:
-      - "npexplorer"
-      summary: "Find inputs or outputs shared between provided set of neurons"
+      - dbmeta
+  /api/dbmeta/version:
+    get:
+      description: |-
+        Returns the version of the underlying neuprint data model.
+        Changes to the minor version not invalidate previous cypher
+        queries.
+      operationId: getVersion
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              Version:
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets version of the database
+      tags:
+      - dbmeta
+  /api/help/swagger.yaml:
+    get:
+      description: YAML file containing swagger API documentation
+      operationId: helpyaml
+      responses:
+        "200":
+          description: successful operation
+      summary: swagger REST documentation
+      tags:
+      - apimeta
+  /api/raw/cypher/cypher:
+    post:
+      description: This query allows for reads and writes (admin only).
+      operationId: execCypher
       parameters:
-      - in: "body"
-        name: "body"
-        description: "ROI and synapse direction filter"
+      - in: body
+        name: body
         required: true
         schema:
-          $ref: '#/definitions/DistributionReq'
+          properties:
+            cypher:
+              description: cypher statement (read only)
+              example: MATCH (n) RETURN n limit 1
+              type: string
+            version:
+              description: specify a neuprint model version for explicit check
+              example: 0.5.0
+              type: string
+          required:
+          - cypher
+          type: object
       responses:
-        200:
-          description: "successful operation"
+        "200":
+          description: successful operation
           schema:
-            $ref: "#/definitions/DistributionResp"
+            properties:
+              columns:
+                description: Name of each result column
+                example:
+                - name
+                - size
+                items:
+                  type: string
+                type: array
+              data:
+                description: Table of results
+                example:
+                - - t4
+                  - 323131
+                - - mi1
+                  - 232323
+                items:
+                  description: Table row
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
       security:
-      - Bearer: [] 
-  /api/npexploer/completeness:
-    get:
+      - Bearer:
+        - admin
+      summary: Execute cypher against the main database
       tags:
-      - "npexplorer"
-      summary: "Find inputs or outputs shared between provided set of neurons"
+      - raw-cypher
+  /api/raw/keyvalue/key/{instance}/{key}:
+    get:
+      description: The data address is given by both the instance name and key.
+      operationId: getKV
       parameters:
-      - in: "body"
-        name: "body"
-        description: "Neuron filter"
+      - description: database instance name
+        in: path
+        name: instance
         required: true
         schema:
-          $ref: '#/definitions/CompletenessReq'
+          type: string
+      - description: location of the data
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
       responses:
-        200:
-          description: "successful operation"
-          schema:
-            $ref: "#/definitions/CompletenessResp"
+        "200":
+          description: blob data
       security:
-      - Bearer: [] 
-definitions:
-  CustomReq:
-    type: "object"
-    description: "Arbitrary map that depends on backend"
-    example: {cypher: "MATCH (n :Neuron) return n.bodyId"}
-  CustomResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["name", "size"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        example: [["t4", 323131], ["mi1", 232323]]
-        description: "Table of results"
-  FindNeuronsReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      neuron_name:
-        type: "string"
-        example: "PB-1"
-      neuron_id:
-        type: "number"
-        example: "32415"
-      statuses:
-        type: "array"
-        items:
-          type: "string"
-          example: ["Roughly traced"]
-      all_segments:
-          type: "boolean"
-          example: false
-      pre_threshold:
-        type: "number"
-        example: 2
-      post_threshold:
-        type: "number"
-        example: 10
-      input_ROIs:
-        type: "array"
-        items:
-          type: "string"
-          example: ["AB"]
-      output_ROIs:
-        type: "array"
-        items:
-          type: "string"
-          example: ["AB"]
-  FindNeuronsResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["bodyid", "bodyname", "neuronStatus", "roiInfo", "size", "npre", "npost", "rois"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  MetaValReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      key_name:
-        type: "string"
-        example: "name"
-  MetaValResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["val"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  MetaReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-  MetaResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["pname"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  ROIReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-  ROIResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["bodyid", "roiInfo"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  DatasetsResp:
-    type: "object"
-    properties:
-      "mb6":
-        type: "object"
-        description: "dataset information"
-        properties:
-          "last-mod":
-            type: "string"
-            description: "Last modification date for dataset"
-            example: "2018-08-31"
-          uuid:
-            type: "string"
-            description: "last DVID UUID that dataset corresponds to"
-            example: "23af3"
-          ROIs:
-            type: "array"
-            items:
-              type: "string"
-            example: ["alpha1", "alpha2", "alpha3"]
-  RankedTableReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      neuron_name:
-        type: "string"
-        example: "PB-1"
-      neuron_id:
-        type: "number"
-        example: "32415"
-  RankedTableResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["Neuron1", "Neuron2", "Weight", "Body2", "Neuron1Type", "Neuron2Type", "m_id", "n_id", "pre_id", "Body1"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  SimpleConnectionsReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      neuron_name:
-        type: "string"
-        example: "PB-1"
-      neuron_id:
-        type: "number"
-        example: "32415"
-      find_inputs:
-        type: "boolean"
-        example: true
-  SimpleConnectionsResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["Neuron1", "Neuron2", "Neuron2Id", "Weight", "Neuron1Id"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  ROIsInNeuronReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      neuron_name:
-        type: "string"
-        example: "PB-1"
-      neuron_id:
-        type: "number"
-        example: "32415"
-  ROIsInNeuronResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["bodyid", "bodyname", "roiInfo"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  CommonConnectivityReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      statuses:
-        type: "array"
-        items:
-          type: "string"
-          example: ["Roughly traced"]
-      all_segments:
-          type: "boolean"
-          example: false
-      pre_threshold:
-        type: "number"
-        example: 2
-      post_threshold:
-        type: "number"
-        example: 10
-      neuron_ids:
-        type: "array"
-        items:
-          type: "number"
-          example: [5,2342,13,7]
-      neuron_names:
-        type: "array"
-        items:
-          type: "string"
-          example: ["PB-1", "PB-2", "PB-X"]
-  CommonConnectivityResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["map"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  AutapseReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-  AutapseResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["id", "weight", "name"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  DistributionReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      ROI:
-        type: "string"
-        example: "AB"
-      is_pre:
-        type: "boolean"
-        example: true
-  DistributionResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["id", "size", "total"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
-  CompletenessReq:
-    type: "object"
-    properties:
-      dataset:
-        type: "string"
-        example: "hemibrain"
-      statuses:
-        type: "array"
-        items:
-          type: "string"
-          example: ["Roughly traced"]
-      all_segments:
-          type: "boolean"
-          example: false
-      pre_threshold:
-        type: "number"
-        example: 2
-      post_threshold:
-        type: "number"
-        example: 10
-  CompletenessResp:
-    type: "object"
-    properties:
-      columns:
-        type: "array"
-        items:
-          type: "string"
-        example: ["unlabelres", "roipre", "roipost", "totalpre", "totalpost"]
-        description: "Name of each result column"
-      data:
-        type: "array"
-        items:
-          type: "array"
-          items:
-            type: "null"
-            description: "Cell value"
-          description: "Table row"
-        description: "Table of results"
+      - Bearer: []
+      summary: Get data stored at the key.
+      tags:
+      - raw-keyvalue
+    post:
+      description: The data address is given by both the instance name and key.
+      operationId: postKV
+      parameters:
+      - description: database instance name
+        in: path
+        name: instance
+        required: true
+        schema:
+          type: string
+      - description: location of the data
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      - description: binary blob
+        in: body
+        name: blob
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post data stored at the key.
+      tags:
+      - raw-keyvalue
+  /api/roimeshes/mesh/{dataset}/{roi}:
+    get:
+      description: The meshes are stored in OBJ format
+      operationId: getMesh
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: roi name
+        in: path
+        name: roi
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: binary OBJ file
+      security:
+      - Bearer: []
+      summary: Get mesh for given ROI
+      tags:
+      - roimeshes
+    post:
+      description: The mesh are stored as OBJ files
+      operationId: setMesh
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: roi name
+        in: path
+        name: roi
+        required: true
+        schema:
+          type: string
+      - description: mesh in OBJ format
+        in: body
+        name: obj
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post mesh for the given ROI
+      tags:
+      - roimeshes
+  /api/serverinfo:
+    get:
+      description: If it is public,  no authorization is required
+      operationId: serverinfo
+      responses:
+        "200":
+          description: successful operation
+      summary: Returns whether the server is public
+      tags:
+      - apimeta
+  /api/skeletons/skeleton/{dataset}/{id}:
+    get:
+      description: |-
+        The skeletons are stored as swc but the default response is a table
+        of skeleton nodes.
+      operationId: getSkeleton
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: body id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - description: specify response format ("swc" or nothing)
+        in: query
+        name: format
+      responses:
+        "200":
+          description: binary swc file if "format=swc" specified or JSON
+          schema:
+            properties:
+              columns:
+                description: Name of each result column
+                items:
+                  type: string
+                type: array
+              data:
+                description: Table of skeleton nodes
+                items:
+                  description: Table row
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
+      security:
+      - Bearer: []
+      summary: Get skeleton for given body id
+      tags:
+      - skeletons
+    post:
+      description: The skeletons are stored as swc.
+      operationId: setSkeleton
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: body id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - description: skeleton in SWC format
+        in: body
+        name: swc
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Post skeleton for the given body id
+      tags:
+      - skeletons
+  /api/version:
+    get:
+      description: version number
+      operationId: getAPIVersion
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: version of the connectomics API
+      tags:
+      - apimeta
+  /login:
+    get:
+      description: Login user redirecting to profile
+      operationId: loginHandler
+      responses:
+        "302":
+          description: Redirect to /profile
+      summary: Login user
+      tags:
+      - user
+  /logout:
+    post:
+      description: Clears session cookie for the user
+      operationId: logoutHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Logout user
+      tags:
+      - user
+  /profile:
+    get:
+      description: Returns user information
+      operationId: profileHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Returns user information
+      tags:
+      - user
+  /token:
+    get:
+      description: JWT token should be passed in header for authentication
+      operationId: tokenHandler
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer: []
+      summary: Returns JWT user bearer token
+      tags:
+      - user
+security:
+- Bearer: []
 securityDefinitions:
   Bearer:
-    type: "apiKey"
-    name: "Bearer"
-    in: "header"
-externalDocs:
-  description: "Find out more about neuPrint"
-  url: "https://github.com/janelia-flyem/neuPrint"
-
+    in: header
+    name: Authorization
+    scopes:
+      admin: Admin scope
+      user: User scope
+    type: apiKey
+swagger: "2.0"

@@ -1,7 +1,5 @@
 package npexplorer
 
-// ?! consider defining struct here and then storage can include this information
-
 type DatasetParams struct {
 	Dataset string `json:"dataset"`
 }
@@ -53,19 +51,4 @@ type DistributionParams struct {
 type CompletenessParams struct {
 	DatasetParams
 	FilterParams
-}
-
-// StorageAPI specifies the interface that backend engine needs to satisfy
-type StorageAPI interface {
-	ExplorerFindNeurons(FindNeuronsParams) (interface{}, error)
-	ExplorerNeuronMeta(DatasetParams) (interface{}, error)
-	ExplorerNeuronMetaVals(MetaValParams) (interface{}, error)
-	ExplorerROIConnectivity(DatasetParams) (interface{}, error)
-	ExplorerRankedTable(ConnectionsParams) (interface{}, error)
-	ExplorerSimpleConnections(ConnectionsParams) (interface{}, error)
-	ExplorerROIsInNeuron(NeuronNameParams) (interface{}, error)
-	ExplorerCommonConnectivity(CommonConnectivityParams) (interface{}, error)
-	ExplorerAutapses(DatasetParams) (interface{}, error)
-	ExplorerDistribution(DistributionParams) (interface{}, error)
-	ExplorerCompleteness(CompletenessParams) (interface{}, error)
 }
