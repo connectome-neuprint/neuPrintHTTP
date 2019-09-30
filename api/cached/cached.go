@@ -245,6 +245,10 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 						if _, ok := superrois[roi2]; !ok {
 							continue
 						}
+						// skip in=>out if there are no inputs from this ROI
+						if prepost2.Post == 0 {
+							continue
+						}
 						key := roi2 + "=>" + roi
 						perout := float64(numout*prepost2.Post) / float64(totalin)
 						if _, ok := roitable[key]; !ok {
