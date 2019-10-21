@@ -56,6 +56,10 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 	//     type: "object"
 	//     required: ["cypher"]
 	//     properties:
+	//       dataset:
+	//         type: "string"
+	//         description: "dataset name"
+	//         example: "hemibrain"
 	//       cypher:
 	//         type: "string"
 	//         description: "cypher statement (read only)"
