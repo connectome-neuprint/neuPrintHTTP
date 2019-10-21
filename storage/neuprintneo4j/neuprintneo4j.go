@@ -94,7 +94,7 @@ type databaseInfo struct {
 
 // GetDatasets returns information on the datasets supported
 func (store Store) GetDatasets() (map[string]interface{}, error) {
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
@@ -104,6 +104,13 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 
 	for _, row := range metadata.Data {
 		dataset := row[0].(string)
+
+		// add tag to the dataset name if it exists
+		if row[6] != nil {
+			tag := row[6].(string)
+			dataset += (":" + tag)
+		}
+
 		uuid := "latest"
 		if row[1] != nil {
 			uuid = row[1].(string)

@@ -1,7 +1,6 @@
 package cypuer
 
 import (
-	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
@@ -16,22 +15,18 @@ func init() {
 const PREFIX = "/raw/cypher"
 
 type cypherAPI struct {
-	Store storage.Cypher
+	Store storage.Store
 }
 
 // setupAPI sets up the optionally supported custom endpoints
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
-		q := &cypherAPI{cypherEngine}
+	q := &cypherAPI{mainapi.Store}
 
-		// custom endpoint
-		endPoint := "cypher"
-		mainapi.SupportedEndpoints[endPoint] = true
+	// custom endpoint
+	endPoint := "cypher"
+	mainapi.SupportedEndpoints[endPoint] = true
 
-		mainapi.SetAdminRoute(api.POST, PREFIX+"/"+endPoint, q.execCypher)
-	} else {
-		return fmt.Errorf("Cypher interface not supported")
-	}
+	mainapi.SetAdminRoute(api.POST, PREFIX+"/"+endPoint, q.execCypher)
 	return nil
 }
 
@@ -40,6 +35,7 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 type customReq struct {
 	Cypher  string `json:"cypher"`
 	Version string `json:"version,omitempty"`
+	Dataset string `json:"dataset,omitempty"`
 }
 
 // execCypher enables custom cypher queries
@@ -109,7 +105,7 @@ func (ca cypherAPI) execCypher(c echo.Context) error {
 		}
 	}
 
-	if data, err := ca.Store.CypherRequest(req.Cypher, true); err != nil {
+	if data, err := ca.Store.GetMain(req.Dataset).CypherRequest(req.Cypher, true); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {

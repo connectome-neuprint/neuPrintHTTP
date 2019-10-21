@@ -23,7 +23,7 @@ type SimpleStore interface {
 // Store provides the interface to access the database and all instances
 type Store interface {
 	SimpleStore
-	GetMain() SimpleStore
+	GetMain(datasets ...string) Cypher
 	GetStores() []SimpleStore
 	GetInstances() map[string]SimpleStore
 	GetTypes() map[string][]SimpleStore
@@ -67,20 +67,70 @@ type KeyValue interface {
 }
 
 // ParseConfig finds the appropriate storage engine from the configuration and initializes it
-func ParseConfig(engineName string, data interface{}, datatypes_raw interface{}) (Store, error) {
+func ParseConfig(engineName string, data interface{}, mainstores []interface{}, datatypes_raw interface{}) (Store, error) {
 	if availEngines == nil {
 		return nil, fmt.Errorf("No engines loaded")
 	}
 	var err error
-	var mainStore SimpleStore
+	mainStores := make([]SimpleStore, 0, 0)
+	datasetStores := make(map[string]SimpleStore)
 
+	var firstStore SimpleStore
 	if engine, found := availEngines[engineName]; !found {
 		return nil, fmt.Errorf("Engine %s not found", engineName)
 	} else {
-		mainStore, err = engine.NewStore(data, "", "")
+		firstStore, err = engine.NewStore(data, "", "")
 		if err != nil {
 			return nil, err
 		}
+	}
+	mainStores = append(mainStores, firstStore)
+
+	var mainStore SimpleStore
+	for _, engine_data_raw := range mainstores {
+		engine_data := engine_data_raw.(map[string]interface{})
+
+		engineName, ok := engine_data["engine"].(string)
+		if !ok {
+			return nil, fmt.Errorf("alternative engine not formatted correctly")
+		}
+		if engine, found := availEngines[engineName]; !found {
+			return nil, fmt.Errorf("Engine %s not found", engineName)
+		} else {
+			data = engine_data["engine-config"]
+
+			mainStore, err = engine.NewStore(data, "", "")
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// add to dataset stores
+		datasets, err := mainStore.GetDatasets()
+		if err != nil {
+			return nil, err
+		}
+		for dataset, _ := range datasets {
+			if _, ok = datasetStores[dataset]; ok {
+				return nil, fmt.Errorf("dataset exists multiple times")
+			}
+
+			datasetStores[dataset] = mainStore
+		}
+
+		mainStores = append(mainStores, mainStore)
+	}
+
+	// add default store to dataset stores
+	datasets, err := firstStore.GetDatasets()
+	if err != nil {
+		return nil, err
+	}
+	for dataset, _ := range datasets {
+		if _, ok := datasetStores[dataset]; ok {
+			return nil, fmt.Errorf("dataset exists multiple times")
+		}
+		datasetStores[dataset] = firstStore
 	}
 
 	// load all data instance databases for auxiliary data
@@ -139,5 +189,5 @@ func ParseConfig(engineName string, data interface{}, datatypes_raw interface{})
 		types[tname] = append(types[tname], val)
 	}
 
-	return MasterDB{mainStore, stores, instances, types, mainStore}, nil
+	return MasterDB{mainStores, datasetStores, stores, instances, types}, nil
 }

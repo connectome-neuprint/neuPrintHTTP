@@ -11,5 +11,5 @@ import (
 
 // CreateStore creates a datastore from the engine specified by the configuration
 func CreateStore(config Config) (storage.Store, error) {
-	return storage.ParseConfig(config.Engine, config.EngineConfig, config.DataTypes)
+	return storage.ParseConfig(config.Engine, config.EngineConfig, config.MainStores, config.DataTypes)
 }

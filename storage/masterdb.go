@@ -1,17 +1,107 @@
 package storage
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
+// MasterDB implements the Store interface
 type MasterDB struct {
-	SimpleStore
-	Stores    []SimpleStore
-	Instances map[string]SimpleStore
-	Types     map[string][]SimpleStore
-	MainStore SimpleStore
+	// MainStores contains all graph DBs
+	// (first store is the default)
+	MainStores    []SimpleStore
+	DatasetStores map[string]SimpleStore
+	Stores        []SimpleStore
+	Instances     map[string]SimpleStore
+	Types         map[string][]SimpleStore
 }
 
-func (db MasterDB) GetMain() SimpleStore {
-	return db.MainStore
+// MaiinStore implements the Cypher interfacee
+// and is responsible for automatically modifying cypher
+// TODO: support multiple databases (concatenation) and optional no cypher overwrite
+type CypherWrapper struct {
+	dataset   string // just store one for now
+	mainStore Cypher
+}
+
+func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult, error) {
+	// if a dataset is provided, add dataset keyword in queries
+	if cw.dataset != "" {
+		// extract root dataset name
+		vals := strings.Split(cw.dataset, ":")
+		dataset := vals[0]
+
+		// replace keywords with dataset info
+		query = strings.Replace(query, ":Neuron", ":`"+dataset+"-Neuron`", -1)
+		query = strings.Replace(query, ":Segment", ":`"+dataset+"-Segment`", -1)
+		query = strings.Replace(query, ":Meta", ":`"+dataset+"-Meta`", -1)
+		query = strings.Replace(query, ":Synapse", ":`"+dataset+"-Synapse`", -1)
+		query = strings.Replace(query, ":SynapseSet", ":`"+dataset+"-SynapseSet`", -1)
+		query = strings.Replace(query, ":ConnectionSet", ":`"+dataset+"-ConnectionSet`", -1)
+
+		query = strings.Replace(query, ":`Neuron`", ":`"+dataset+"-Neuron`", -1)
+		query = strings.Replace(query, ":`Segment`", ":`"+dataset+"-Segment`", -1)
+		query = strings.Replace(query, ":`Meta`", ":`"+dataset+"-Meta`", -1)
+		query = strings.Replace(query, ":`Synapse`", ":`"+dataset+"-Synapse`", -1)
+		query = strings.Replace(query, ":`SynapseSet`", ":`"+dataset+"-SynapseSet`", -1)
+		query = strings.Replace(query, ":`ConnectionSet`", ":`"+dataset+"-ConnectionSet`", -1)
+	}
+
+	return cw.mainStore.CypherRequest(query, readonly)
+}
+
+func (cw CypherWrapper) StartTrans() (CypherTransaction, error) {
+
+	return cw.mainStore.StartTrans()
+}
+
+func (db MasterDB) GetMain(datasets ...string) Cypher {
+	// just consider the first store for now
+	// default to the primary main store
+	if len(datasets) > 0 {
+		if store, ok := db.DatasetStores[datasets[0]]; ok {
+			return &CypherWrapper{datasets[0], store.(Cypher)}
+		} else {
+			return &CypherWrapper{datasets[0], db.MainStores[0].(Cypher)}
+		}
+	}
+
+	return &CypherWrapper{"", db.MainStores[0].(Cypher)}
+}
+
+// **** Re-implement SimpleStore interface (since we could have multiple main stores) ****
+// TODO: change the outward facing store interface to return an array of versions, datatbases, etc
+
+func (db MasterDB) GetVersion() (string, error) {
+	// just return the default value
+	return db.MainStores[0].GetVersion()
+}
+
+func (db MasterDB) GetDatabase() (string, string, error) {
+	// just return the default value
+	return db.MainStores[0].GetDatabase()
+}
+
+func (db MasterDB) GetType() string {
+	return ""
+}
+
+func (db MasterDB) GetInstance() string {
+	return ""
+}
+
+func (db MasterDB) GetDatasets() (map[string]interface{}, error) {
+	allDatasets := make(map[string]interface{})
+	for _, store := range db.MainStores {
+		datasets, err := store.GetDatasets()
+		if err != nil {
+			return nil, err
+		}
+		for key, val := range datasets {
+			allDatasets[key] = val
+		}
+	}
+	return allDatasets, nil
 }
 
 func (db MasterDB) GetStores() []SimpleStore {

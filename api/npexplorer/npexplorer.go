@@ -1,7 +1,6 @@
 package npexplorer
 
 import (
-	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo"
@@ -15,50 +14,46 @@ func init() {
 const PREFIX = "/npexplorer"
 
 type cypherAPI struct {
-	Store storage.Cypher
+	Store storage.Store
 }
 
 // setupAPI sets up the optionally supported explorer endpoints
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
-		q := &cypherAPI{cypherEngine}
+	q := &cypherAPI{mainapi.Store}
 
-		endPoint := "findneurons"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getFindNeurons)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getFindNeurons)
-		endPoint = "neuronmetavals"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
-		endPoint = "neuronmeta"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMeta)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMeta)
-		endPoint = "roiconnectivity"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIConnectivity)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIConnectivity)
-		endPoint = "rankedtable"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getRankedTable)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getRankedTable)
-		endPoint = "simpleconnections"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getSimpleConnections)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getSimpleConnections)
-		endPoint = "roisinneuron"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIsInNeuron)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIsInNeuron)
-		endPoint = "commonconnectivity"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCommonConnectivity)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCommonConnectivity)
-		endPoint = "autapses"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getAutapses)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getAutapses)
-		endPoint = "distribution"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getDistribution)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getDistribution)
-		endPoint = "completeness"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCompleteness)
-		mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCompleteness)
-	} else {
-		return fmt.Errorf("Cypher interface not supported")
-	}
+	endPoint := "findneurons"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getFindNeurons)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getFindNeurons)
+	endPoint = "neuronmetavals"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
+	endPoint = "neuronmeta"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMeta)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMeta)
+	endPoint = "roiconnectivity"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIConnectivity)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIConnectivity)
+	endPoint = "rankedtable"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getRankedTable)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getRankedTable)
+	endPoint = "simpleconnections"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getSimpleConnections)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getSimpleConnections)
+	endPoint = "roisinneuron"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIsInNeuron)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIsInNeuron)
+	endPoint = "commonconnectivity"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCommonConnectivity)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCommonConnectivity)
+	endPoint = "autapses"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getAutapses)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getAutapses)
+	endPoint = "distribution"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getDistribution)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getDistribution)
+	endPoint = "completeness"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCompleteness)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCompleteness)
 	return nil
 }
 

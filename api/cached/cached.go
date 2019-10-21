@@ -2,7 +2,6 @@ package cached
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/knightjdr/hclust"
@@ -21,7 +20,7 @@ func init() {
 const PREFIX = "/cached"
 
 type cypherAPI struct {
-	Store storage.Cypher
+	Store storage.Store
 }
 
 var mux sync.Mutex
@@ -37,54 +36,48 @@ const (
 
 // setupAPI loads all the endpoints for cached
 func setupAPI(mainapi *api.ConnectomeAPI) error {
-	if cypherEngine, ok := mainapi.Store.GetMain().(storage.Cypher); ok {
-		// setup cache
-		cachedResults = make(map[CacheType]map[string]interface{})
+	// setup cache
+	cachedResults = make(map[CacheType]map[string]interface{})
 
-		q := &cypherAPI{cypherEngine}
+	q := &cypherAPI{mainapi.Store}
 
-		// roi conenctivity cache
-		endpoint := "roiconnectivity"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROIConnectivity)
-		mainapi.SupportedEndpoints[endpoint] = true
-		cachedResults[ROIConn] = make(map[string]interface{})
+	// roi conenctivity cache
+	endpoint := "roiconnectivity"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROIConnectivity)
+	mainapi.SupportedEndpoints[endpoint] = true
+	cachedResults[ROIConn] = make(map[string]interface{})
 
-		// roi completeness cache (TODO: connection completeness)
-		endpoint = "roicompleteness"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROICompleteness)
-		mainapi.SupportedEndpoints[endpoint] = true
-		cachedResults[ROIComp] = make(map[string]interface{})
+	// roi completeness cache (TODO: connection completeness)
+	endpoint = "roicompleteness"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROICompleteness)
+	mainapi.SupportedEndpoints[endpoint] = true
+	cachedResults[ROIComp] = make(map[string]interface{})
 
-		go func() {
-			for {
-				data, err := mainapi.Store.GetDatasets()
-				if err == nil {
-					// load connections
-					for dataset, _ := range data {
-						// cache roi connectivity
-						if res, err := q.getROIConnectivity_int(dataset); err == nil {
-							mux.Lock()
-							cachedResults[ROIConn][dataset] = res
-							mux.Unlock()
-						}
+	go func() {
+		for {
+			data, err := mainapi.Store.GetDatasets()
+			if err == nil {
+				// load connections
+				for dataset, _ := range data {
+					// cache roi connectivity
+					if res, err := q.getROIConnectivity_int(dataset); err == nil {
+						mux.Lock()
+						cachedResults[ROIConn][dataset] = res
+						mux.Unlock()
+					}
 
-						// cache roi completeness
-						if res, err := q.getROICompleteness_int(dataset); err == nil {
-							mux.Lock()
-							cachedResults[ROIComp][dataset] = res
-							mux.Unlock()
-						}
+					// cache roi completeness
+					if res, err := q.getROICompleteness_int(dataset); err == nil {
+						mux.Lock()
+						cachedResults[ROIComp][dataset] = res
+						mux.Unlock()
 					}
 				}
-				// reset cache every day
-				time.Sleep(24 * time.Hour)
 			}
-		}()
-
-	} else {
-		// cypher interface is required by default
-		return fmt.Errorf("Cypher interface is not available")
-	}
+			// reset cache every day
+			time.Sleep(24 * time.Hour)
+		}
+	}()
 
 	return nil
 }
@@ -174,15 +167,15 @@ const MAXVAL = 10000000000
 
 // getROIConnectivity_int implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
-	cypher := "MATCH (neuron :`" + dataset + "-Neuron`) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
-	res, err := ca.Store.CypherRequest(cypher, true)
+	cypher := "MATCH (neuron :Neuron) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
+	res, err := ca.Store.GetMain(dataset).CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// restrict the query to the super level ROIs
-	cypher2 := "MATCH (m :Meta) WHERE m.dataset=\"" + dataset + "\" RETURN m.superLevelRois AS rois"
-	res2, err := ca.Store.CypherRequest(cypher2, true)
+	cypher2 := "MATCH (m :Meta) RETURN m.superLevelRois AS rois"
+	res2, err := ca.Store.GetMain(dataset).CypherRequest(cypher2, true)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +343,7 @@ var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly trac
 
 //getROICompleteness_int fetches roi completeness from database
 func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
-	cypher := "MATCH (n:`" + dataset + "-Neuron`) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta:" + dataset + ") WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
+	cypher := "MATCH (n:Neuron) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
 	statusarr := ""
 	for index, status := range completeStatuses {
@@ -366,5 +359,5 @@ func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) 
 	}
 	cypher = strings.Replace(cypher, "{status_conds}", statusarr, -1)
 
-	return ca.Store.CypherRequest(cypher, true)
+	return ca.Store.GetMain(dataset).CypherRequest(cypher, true)
 }
