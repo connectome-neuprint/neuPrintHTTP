@@ -199,9 +199,11 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 						return buf.Write([]byte(c.FormValue(tag[5:])))
 					case strings.HasPrefix(tag, "custom:"):
 						if custval, ok := c.Get(tag[7:]).([]byte); ok {
-							return buf.Write([]byte(custval))
+							tempval := strings.Replace(string(custval), "\"", "\\\"", -1)
+							return buf.Write([]byte(tempval))
 						} else if custval, ok := c.Get(tag[7:]).(string); ok {
-							return buf.WriteString(custval)
+							tempval := strings.Replace(custval, "\"", "\\\"", -1)
+							return buf.WriteString(tempval)
 						} else {
 							return buf.WriteString("")
 						}
@@ -216,7 +218,6 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 			}); err != nil {
 				return
 			}
-
 			_, err = config.Output.Write(buf.Bytes())
 			return
 		}

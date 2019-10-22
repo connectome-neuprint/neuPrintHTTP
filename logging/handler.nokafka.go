@@ -21,7 +21,7 @@ func GetLogger(port int, options config.Config) (io.Writer, error) {
 			fmt.Println(err)
 			return nil, err
 		}
-		defer logFile.Close()
+		//defer logFile.Close()
 	}
 	logWriter := io.Writer(logFile)
 	return logWriter, nil
