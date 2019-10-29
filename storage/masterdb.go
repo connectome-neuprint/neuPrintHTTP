@@ -35,15 +35,15 @@ func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult
 		query = strings.Replace(query, ":Neuron", ":`"+dataset+"-Neuron`", -1)
 		query = strings.Replace(query, ":Segment", ":`"+dataset+"-Segment`", -1)
 		query = strings.Replace(query, ":Meta", ":`"+dataset+"-Meta`", -1)
-		query = strings.Replace(query, ":Synapse", ":`"+dataset+"-Synapse`", -1)
 		query = strings.Replace(query, ":SynapseSet", ":`"+dataset+"-SynapseSet`", -1)
+		query = strings.Replace(query, ":Synapse", ":`"+dataset+"-Synapse`", -1)
 		query = strings.Replace(query, ":ConnectionSet", ":`"+dataset+"-ConnectionSet`", -1)
 
 		query = strings.Replace(query, ":`Neuron`", ":`"+dataset+"-Neuron`", -1)
 		query = strings.Replace(query, ":`Segment`", ":`"+dataset+"-Segment`", -1)
 		query = strings.Replace(query, ":`Meta`", ":`"+dataset+"-Meta`", -1)
-		query = strings.Replace(query, ":`Synapse`", ":`"+dataset+"-Synapse`", -1)
 		query = strings.Replace(query, ":`SynapseSet`", ":`"+dataset+"-SynapseSet`", -1)
+		query = strings.Replace(query, ":`Synapse`", ":`"+dataset+"-Synapse`", -1)
 		query = strings.Replace(query, ":`ConnectionSet`", ":`"+dataset+"-ConnectionSet`", -1)
 	}
 
