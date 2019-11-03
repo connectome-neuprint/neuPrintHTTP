@@ -25,6 +25,8 @@ type Config struct {
 	StaticDir     string        `json:"static-dir,omitempty"`             // static webpage
 	LoggerFile    string        `json:"log-file,omitempty"`               // location for log file
 	KafkaServers  []string      `json:"kafka-servers,omitempty"`          // kafka servers for logging
+	ProxyAuth     string        `json:"proxy-auth,omitempty"`             // remote proxy for authentication
+	ProxyInsecure bool          `json:"proxy-insecure,omitempty"`         // if true, disable https secure check
 }
 
 // LoadConfig parses json configuration and loads options
