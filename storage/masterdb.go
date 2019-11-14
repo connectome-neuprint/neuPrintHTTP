@@ -31,6 +31,9 @@ func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult
 		vals := strings.Split(cw.dataset, ":")
 		dataset := vals[0]
 
+		// handle SynapsesTo exception
+		query = strings.Replace(query, ":SynapsesTo", ":XSynapsesTo", -1)
+
 		// replace keywords with dataset info
 		query = strings.Replace(query, ":Neuron", ":`"+dataset+"-Neuron`", -1)
 		query = strings.Replace(query, ":Segment", ":`"+dataset+"-Segment`", -1)
@@ -45,6 +48,9 @@ func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult
 		query = strings.Replace(query, ":`SynapseSet`", ":`"+dataset+"-SynapseSet`", -1)
 		query = strings.Replace(query, ":`Synapse`", ":`"+dataset+"-Synapse`", -1)
 		query = strings.Replace(query, ":`ConnectionSet`", ":`"+dataset+"-ConnectionSet`", -1)
+
+		// handle SynapsesTo exception
+		query = strings.Replace(query, ":XSynapsesTo", ":SynapsesTo", -1)
 	}
 
 	return cw.mainStore.CypherRequest(query, readonly)
