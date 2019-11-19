@@ -159,7 +159,7 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 	}
 
 	// call python function
-	cmd := exec.Command("python", "-W", "ignore", "/Users/plazas/development/godev2/src/github.com/connectome-neuprint/neuPrintHTTP/canonical_celltype.py", dataset, celltype)
+	cmd := exec.Command("python", "-W", "ignore", "canonical_celltype.py", dataset, celltype)
 	//cmd := exec.Command("which", "python")
 	res, err := cmd.CombinedOutput()
 	if err != nil {
