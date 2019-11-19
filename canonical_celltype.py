@@ -408,6 +408,8 @@ get_matches(celltype_lists_outputs, feature_outputs_med, celltypes_outputs, cell
 results = {}
 
 def dictdf_to_json(val):
+    if val is None:
+        return None
     newdict = {}
     for key, df in val.items():
         newdict[key] = df.to_json(orient='split')
