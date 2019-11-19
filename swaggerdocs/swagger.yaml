@@ -269,6 +269,35 @@ paths:
       summary: swagger REST documentation
       tags:
       - apimeta
+  /api/npexplorer/celltype/{dataset}/{type}:
+    get:
+      description: |-
+        Examines connectivity for every neuron instance of this type and tries
+        to determine a canonical connectivity.
+      operationId: getCellType
+      parameters:
+      - description: dataset name
+        in: path
+        name: dataset
+        required: true
+        schema:
+          type: string
+      - description: cell type
+        in: path
+        name: type
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: JSON results for neurons that make up the given cell type
+          schema:
+            type: object
+      security:
+      - Bearer: []
+      summary: Get cell type connectivity information
+      tags:
+      - npexplorer
   /api/raw/cypher/cypher:
     post:
       description: This query allows for reads and writes (admin only).
