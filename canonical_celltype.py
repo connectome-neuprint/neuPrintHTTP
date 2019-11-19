@@ -423,7 +423,10 @@ results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
 results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
 results["common-inputs"] = features_inputs.to_json(orient='split')
 results["common-outputs"] = features_outputs.to_json(orient='split')
-results["scatter2D-cluster"] = feature_matrix.to_json(orient='split')
+if feature_matrix is None:
+    results["scatter2D-cluster"] = None 
+else:
+    results["scatter2D-cluster"] = feature_matrix.to_json(orient='split')
 results["dist-matrix"] = dist_matrix.to_json(orient='split')
 results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
 results["common-inputs-med"] = feature_inputs_med.to_json(orient='split')
