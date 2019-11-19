@@ -17,7 +17,7 @@ import neuprint as neu
 client = neu.Client(server)
 
 # fetch all connections from this cell type
-query = f"MATCH (n :`{dataset}-Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status"
+query = f"MATCH (n :`{dataset}_Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status"
 connections = neu.fetch_custom(query)
 
 import re
