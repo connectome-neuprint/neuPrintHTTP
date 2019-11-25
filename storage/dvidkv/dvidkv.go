@@ -35,8 +35,8 @@ type dvidConfig struct {
 	Dataset  string `json:"dataset"`
 	Server   string `json:"server"`
 	Branch   string `json:"branch"`
-	Token    string `json:"token,omitempty"`
 	Instance string `json:"instance"`
+	Token    string `json:"token,omitempty"`
 }
 
 // NewStore creates an store instance that works with dvid.
@@ -67,7 +67,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	}
 
 	config := dvidConfig{cdataset, cserver, cbranch, cinstance, token}
-	endPoint := "http://" + config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
+	endPoint := config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
 	return Store{dbversion, typename, instance, config, endPoint}, nil
 }
 
