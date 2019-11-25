@@ -35,6 +35,7 @@ type dvidConfig struct {
 	Dataset  string `json:"dataset"`
 	Server   string `json:"server"`
 	Branch   string `json:"branch"`
+	Token    string `json:"token,omitempty"`
 	Instance string `json:"instance"`
 }
 
@@ -60,8 +61,12 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	if !ok {
 		return nil, fmt.Errorf("incorrect configuration for neo4j")
 	}
+	token, ok := datamap["token"].(string)
+	if !ok {
+		token = ""
+	}
 
-	config := dvidConfig{cdataset, cserver, cbranch, cinstance}
+	config := dvidConfig{cdataset, cserver, cbranch, cinstance, token}
 	endPoint := "http://" + config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
 	return Store{dbversion, typename, instance, config, endPoint}, nil
 }
@@ -141,6 +146,11 @@ func (s Store) Get(key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed")
 	}
+
+	if s.config.Token != "" {
+		req.Header.Add("Authorization", "Bearer "+s.config.Token)
+	}
+
 	res, err := dvidClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed")
