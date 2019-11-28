@@ -109,7 +109,7 @@ func (ca cypherAPI) execCypher(c echo.Context) error {
 		}
 	}
 
-	if data, err := ca.Store.GetMain(req.Dataset).CypherRequest(req.Cypher, true); err != nil {
+	if data, err := ca.Store.GetMain(req.Dataset).CypherRequest(req.Cypher, false); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {
