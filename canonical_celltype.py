@@ -17,7 +17,7 @@ import neuprint as neu
 client = neu.Client(server)
 
 # fetch all connections from this cell type
-query = f"MATCH (n :`{dataset}_Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status"
+query = f"MATCH (n :`{dataset}_Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status, m.cropped AS iscropped2, n.cropped AS iscropped1"
 connections = neu.fetch_custom(query)
 
 import re
@@ -56,7 +56,9 @@ for idx, row in connections.iterrows():
     type_status2 = row["body2status"] 
     is_output = row["isOutput"]
     neuron_instance[bodyid] = row["instance"]
-    
+    is_cropped1 = row["iscropped1"]
+    is_cropped2 = row["iscropped2"]
+
     # do not consider untraced neurons
     if type_status not in primary_status:
         continue
@@ -93,14 +95,15 @@ for idx, row in connections.iterrows():
         hastype = False
 
     # don't consider the edge for something that is leaves and has not type
-    if not hastype and type_status2 not in connection_status:
+    if not hastype and is_cropped2:
         continue
         
     # don't consider a weak edge
     if row["weight"] < minweight:
         continue
         
-    if type_status in connection_status:
+    #if type_status in connection_status:
+    if is_cropped1 != True:
         # make sure name exclusions are not in the instance name
         if re.search(name_exclusions, row["instance"]) is None:
             good_neurons.add(bodyid)
@@ -412,7 +415,7 @@ def dictdf_to_json(val):
         return None
     newdict = {}
     for key, df in val.items():
-        newdict[key] = df.to_json(orient='split')
+        newdict[key] = df.to_dict('split')
     return newdict
 
 results["neuroninfo"] = neuroninfo
@@ -421,16 +424,19 @@ results["neuron-inputs"] = dictdf_to_json(celltypes_inputs)
 results["neuron-outputs"] = dictdf_to_json(celltypes_outputs)
 results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
 results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
-results["common-inputs"] = features_inputs.to_json(orient='split')
-results["common-outputs"] = features_outputs.to_json(orient='split')
+results["common-inputs"] = features_inputs.to_dict('split')
+results["common-outputs"] = features_outputs.to_dict('split')
 if feature_matrix is None:
     results["scatter2D-cluster"] = None 
 else:
-    results["scatter2D-cluster"] = feature_matrix.to_json(orient='split')
-results["dist-matrix"] = dist_matrix.to_json(orient='split')
+    results["scatter2D-cluster"] = feature_matrix.to_dict('split')
+results["dist-matrix"] = dist_matrix.to_dict('split')
 results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
-results["common-inputs-med"] = feature_inputs_med.to_json(orient='split')
-results["common-outputs-med"] = feature_outputs_med.to_json(orient='split')
+
+medin_df = pd.DataFrame({'median': feature_inputs_med})
+medout_df = pd.DataFrame({'median': feature_outputs_med})
+results["common-inputs-med"] = medin_df.to_dict('split')
+results["common-outputs-med"] = medout_df.to_dict('split')
 
 
 print(json.dumps(results, indent=2))
