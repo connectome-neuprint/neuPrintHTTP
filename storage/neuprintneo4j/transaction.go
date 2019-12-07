@@ -14,6 +14,7 @@ type Transaction struct {
 	currURL   string // curr tranaction URL
 	preURL    string // pre URL
 	neoClient http.Client
+	isStarted bool
 }
 
 func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
@@ -51,8 +52,12 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		return cres, fmt.Errorf(result.Errors[0].Message)
 	}
 
-	locationURL, _ := res.Location()
-	t.currURL = strings.Replace(locationURL.String(), "http://", t.preURL, -1)
+	if !t.isStarted {
+		locationURL, _ := res.Location()
+		t.currURL = strings.Replace(locationURL.String(), "http://", t.preURL, -1)
+		t.isStarted = true
+	}
+
 	// if database was modified and readonly, rollback the transaction (only allow readonly)
 	if readonly && result.Results[0].Stats["contains_updates"].(bool) {
 		if err := t.Kill(); err != nil {
@@ -69,11 +74,19 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		}
 		data[row] = arr
 	}
-	procRes := storage.CypherResult{result.Results[0].Columns, data, cypher}
+	procRes := storage.CypherResult{Columns: result.Results[0].Columns, Data: data, Debug: cypher}
 	return procRes, nil
 }
 
 func (t *Transaction) Kill() error {
+	if !t.isStarted {
+		// nothing to kill
+		return nil
+	}
+
+	// technically allow reuse of transaction
+	t.isStarted = false
+
 	bempty := new(bytes.Buffer)
 	newreq, err := http.NewRequest(http.MethodDelete, t.currURL, bempty)
 	if err != nil {
@@ -103,6 +116,9 @@ func (t *Transaction) Kill() error {
 }
 
 func (t *Transaction) Commit() error {
+	// technically allow reuse of transaction
+	t.isStarted = false
+
 	commitLocation := t.currURL + "/commit"
 
 	bempty := new(bytes.Buffer)

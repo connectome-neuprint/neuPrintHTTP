@@ -175,5 +175,5 @@ func (store *Store) StartTrans() (storage.CypherTransaction, error) {
 	neoClient := http.Client{
 		Timeout: time.Second * 60,
 	}
-	return &Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient}, nil
+	return &Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient, isStarted: false}, nil
 }
