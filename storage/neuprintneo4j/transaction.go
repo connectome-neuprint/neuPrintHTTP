@@ -83,7 +83,21 @@ func (t *Transaction) Kill() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	res.Body.Close()
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("request failed")
+	}
+
+	result := neoResults{}
+	jsonErr := json.Unmarshal(body, &result)
+	if jsonErr != nil {
+		return fmt.Errorf("error decoding json")
+	}
+
+	if len(result.Errors) > 0 {
+		return fmt.Errorf(result.Errors[0].Message)
+	}
 
 	return nil
 }
@@ -96,9 +110,25 @@ func (t *Transaction) Commit() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	_, err = t.neoClient.Do(newreq)
+	res, err := t.neoClient.Do(newreq)
 	if err != nil {
 		return fmt.Errorf("request failed")
+	}
+
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("request failed")
+	}
+
+	result := neoResults{}
+	jsonErr := json.Unmarshal(body, &result)
+	if jsonErr != nil {
+		return fmt.Errorf("error decoding json")
+	}
+
+	if len(result.Errors) > 0 {
+		return fmt.Errorf(result.Errors[0].Message)
 	}
 
 	return nil

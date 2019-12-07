@@ -189,5 +189,5 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 		types[tname] = append(types[tname], val)
 	}
 
-	return MasterDB{mainStores, datasetStores, stores, instances, types}, nil
+	return &MasterDB{mainStores, datasetStores, stores, instances, types}, nil
 }

@@ -152,7 +152,7 @@ func (ca cypherAPI) commitTrans(c echo.Context) error {
 	//
 	// Commits transaction.
 	//
-	// Commits and removes transaction.
+	// Commits and removes transaction.  If there is an error, the transaction will still be deleted.
 	//
 	// ---
 	// parameters:
@@ -183,7 +183,7 @@ func (ca cypherAPI) commitTrans(c echo.Context) error {
 
 	defer deleteTransaction(tid)
 	if err := trans.Commit(); err != nil {
-		errJSON := api.ErrorInfo{Error: "failed to commit transaction; transaction deleted"}
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
@@ -197,7 +197,7 @@ func (ca cypherAPI) killTrans(c echo.Context) error {
 	//
 	// Kill transaction.
 	//
-	// This will rollback the specified transaction.
+	// This will rollback the specified transaction.  If there is an error, the transaction will still be deleted.
 	//
 	// ---
 	// parameters:
@@ -228,7 +228,7 @@ func (ca cypherAPI) killTrans(c echo.Context) error {
 
 	defer deleteTransaction(tid)
 	if err := trans.Kill(); err != nil {
-		errJSON := api.ErrorInfo{Error: "error deleteing transaction"}
+		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 

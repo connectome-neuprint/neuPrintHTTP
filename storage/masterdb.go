@@ -24,7 +24,7 @@ type CypherWrapper struct {
 	mainStore Cypher
 }
 
-func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult, error) {
+func (cw *CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult, error) {
 	// if a dataset is provided, add dataset keyword in queries
 	if cw.dataset != "" {
 		// extract root dataset name
@@ -54,12 +54,12 @@ func (cw CypherWrapper) CypherRequest(query string, readonly bool) (CypherResult
 	return cw.mainStore.CypherRequest(query, readonly)
 }
 
-func (cw CypherWrapper) StartTrans() (CypherTransaction, error) {
+func (cw *CypherWrapper) StartTrans() (CypherTransaction, error) {
 
 	return cw.mainStore.StartTrans()
 }
 
-func (db MasterDB) GetMain(datasets ...string) Cypher {
+func (db *MasterDB) GetMain(datasets ...string) Cypher {
 	// just consider the first store for now
 	// default to the primary main store
 	if len(datasets) > 0 {
@@ -76,25 +76,25 @@ func (db MasterDB) GetMain(datasets ...string) Cypher {
 // **** Re-implement SimpleStore interface (since we could have multiple main stores) ****
 // TODO: change the outward facing store interface to return an array of versions, datatbases, etc
 
-func (db MasterDB) GetVersion() (string, error) {
+func (db *MasterDB) GetVersion() (string, error) {
 	// just return the default value
 	return db.MainStores[0].GetVersion()
 }
 
-func (db MasterDB) GetDatabase() (string, string, error) {
+func (db *MasterDB) GetDatabase() (string, string, error) {
 	// just return the default value
 	return db.MainStores[0].GetDatabase()
 }
 
-func (db MasterDB) GetType() string {
+func (db *MasterDB) GetType() string {
 	return ""
 }
 
-func (db MasterDB) GetInstance() string {
+func (db *MasterDB) GetInstance() string {
 	return ""
 }
 
-func (db MasterDB) GetDatasets() (map[string]interface{}, error) {
+func (db *MasterDB) GetDatasets() (map[string]interface{}, error) {
 	allDatasets := make(map[string]interface{})
 	for _, store := range db.MainStores {
 		datasets, err := store.GetDatasets()
@@ -108,19 +108,19 @@ func (db MasterDB) GetDatasets() (map[string]interface{}, error) {
 	return allDatasets, nil
 }
 
-func (db MasterDB) GetStores() []SimpleStore {
+func (db *MasterDB) GetStores() []SimpleStore {
 	return db.Stores
 }
 
-func (db MasterDB) GetInstances() map[string]SimpleStore {
+func (db *MasterDB) GetInstances() map[string]SimpleStore {
 	return db.Instances
 }
 
-func (db MasterDB) GetTypes() map[string][]SimpleStore {
+func (db *MasterDB) GetTypes() map[string][]SimpleStore {
 	return db.Types
 }
 
-func (db MasterDB) FindStore(typename string, dataset string) (SimpleStore, error) {
+func (db *MasterDB) FindStore(typename string, dataset string) (SimpleStore, error) {
 	typestores, ok := db.GetTypes()[typename]
 	if !ok {
 		return nil, fmt.Errorf("no store for the given datatype available")

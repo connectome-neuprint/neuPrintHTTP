@@ -391,7 +391,8 @@ paths:
       - raw-cypher
   /api/raw/cypher/transaction/:id/commit:
     post:
-      description: Commits and removes transaction.
+      description: Commits and removes transaction.  If there is an error, the transaction
+        will still be deleted.
       operationId: commitTrans
       parameters:
       - description: transaction id
@@ -476,7 +477,8 @@ paths:
       - raw-cypher
   /api/raw/cypher/transaction/:id/kill:
     post:
-      description: This will rollback the specified transaction.
+      description: This will rollback the specified transaction.  If there is an error,
+        the transaction will still be deleted.
       operationId: killTrans
       parameters:
       - description: transaction id

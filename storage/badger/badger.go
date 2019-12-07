@@ -59,7 +59,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 		return nil, err
 	}
 
-	return Store{db, dbversion, typename, instance, config}, nil
+	return &Store{db, dbversion, typename, instance, config}, nil
 }
 
 // Store is the neo4j storage instance
@@ -72,12 +72,12 @@ type Store struct {
 }
 
 // GetDatabsae returns database information
-func (store Store) GetDatabase() (loc string, desc string, err error) {
+func (store *Store) GetDatabase() (loc string, desc string, err error) {
 	return store.config.Location, NAME, nil
 }
 
 // GetVersion returns the version of the driver
-func (store Store) GetVersion() (string, error) {
+func (store *Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
@@ -86,35 +86,35 @@ type databaseInfo struct {
 }
 
 // GetDatasets returns information on the datasets supported
-func (store Store) GetDatasets() (map[string]interface{}, error) {
+func (store *Store) GetDatasets() (map[string]interface{}, error) {
 	datasetmap := make(map[string]interface{})
 	datasetmap[store.config.Dataset] = databaseInfo{store.config.Location}
 	return datasetmap, nil
 }
 
-func (store Store) GetInstance() string {
+func (store *Store) GetInstance() string {
 	return store.instance
 }
 
-func (store Store) GetType() string {
+func (store *Store) GetType() string {
 	return store.typename
 }
 
 // **** Implements KeyValue Interface ****
 
-func (s Store) Close() {
+func (s *Store) Close() {
 	s.db.Close()
 }
 
 // Set wraps a transactionally safe key value write
-func (s Store) Set(key, val []byte) error {
+func (s *Store) Set(key, val []byte) error {
 	return s.db.Update(func(txn *badgerdb.Txn) error {
 		return txn.Set(key, val)
 	})
 }
 
 // Get wraps a transactionally safe key value get
-func (s Store) Get(key []byte) ([]byte, error) {
+func (s *Store) Get(key []byte) ([]byte, error) {
 	var valCopy []byte
 	err := s.db.View(func(txn *badgerdb.Txn) error {
 		item, err := txn.Get(key)
