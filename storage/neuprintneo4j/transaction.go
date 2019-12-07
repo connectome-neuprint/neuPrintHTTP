@@ -16,7 +16,7 @@ type Transaction struct {
 	neoClient http.Client
 }
 
-func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
+func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
 	// empty result
 	var cres storage.CypherResult
 
@@ -73,7 +73,7 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.Cypher
 	return procRes, nil
 }
 
-func (t Transaction) Kill() error {
+func (t *Transaction) Kill() error {
 	bempty := new(bytes.Buffer)
 	newreq, err := http.NewRequest(http.MethodDelete, t.currURL, bempty)
 	if err != nil {
@@ -88,7 +88,7 @@ func (t Transaction) Kill() error {
 	return nil
 }
 
-func (t Transaction) Commit() error {
+func (t *Transaction) Commit() error {
 	commitLocation := t.currURL + "/commit"
 
 	bempty := new(bytes.Buffer)

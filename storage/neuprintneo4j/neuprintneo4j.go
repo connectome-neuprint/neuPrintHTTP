@@ -61,7 +61,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	preurl := "http://" + user + ":" + pass + "@"
 	url := preurl + server + "/db/data/transaction"
 
-	return Store{server, dbversion, url, preurl, typename, instance}, nil
+	return &Store{server, dbversion, url, preurl, typename, instance}, nil
 }
 
 // Store is the neo4j storage instance
@@ -75,12 +75,12 @@ type Store struct {
 }
 
 // GetDatabsae returns database information
-func (store Store) GetDatabase() (loc string, desc string, err error) {
+func (store *Store) GetDatabase() (loc string, desc string, err error) {
 	return store.server, NAME, nil
 }
 
 // GetVersion returns the version of the driver
-func (store Store) GetVersion() (string, error) {
+func (store *Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
@@ -93,7 +93,7 @@ type databaseInfo struct {
 }
 
 // GetDatasets returns information on the datasets supported
-func (store Store) GetDatasets() (map[string]interface{}, error) {
+func (store *Store) GetDatasets() (map[string]interface{}, error) {
 	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
@@ -146,18 +146,18 @@ func (store Store) GetDatasets() (map[string]interface{}, error) {
 	return res, nil
 }
 
-func (store Store) GetInstance() string {
+func (store *Store) GetInstance() string {
 	return store.instance
 }
 
-func (store Store) GetType() string {
+func (store *Store) GetType() string {
 	return store.typename
 }
 
 // **** Cypher Specific Interface ****
 
 // CypherRequest makes a simple cypher request to neo4j
-func (store Store) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
+func (store *Store) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
 	trans, _ := store.StartTrans()
 	res, err := trans.CypherRequest(cypher, readonly)
 	var cres storage.CypherResult
@@ -168,17 +168,12 @@ func (store Store) CypherRequest(cypher string, readonly bool) (storage.CypherRe
 		return cres, err
 	}
 	return res, nil
-
-	if err == nil {
-		err = trans.Commit()
-	}
-	return res, err
 }
 
 // StartTrans starts a graph DB transaction
-func (store Store) StartTrans() (storage.CypherTransaction, error) {
+func (store *Store) StartTrans() (storage.CypherTransaction, error) {
 	neoClient := http.Client{
 		Timeout: time.Second * 60,
 	}
-	return Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient}, nil
+	return &Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient}, nil
 }
