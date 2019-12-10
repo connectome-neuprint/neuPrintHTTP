@@ -1,125 +1,71 @@
-# need to install neuprint-python, umap, scipy, scikit-learn, pandas
-# TODO: modify neuprint python to pass dataset into custom
-
+# need to install scipy, scikit-learn, pandas
 import sys
 import json
-import os
-
-dataset = sys.argv[1]
-typename = sys.argv[2]
-server = os.environ["NEUPRINT_SERVER"]
-
-#server = sys.argv[3]
-#token = sys.argv[4]
-
-
-import neuprint as neu
-client = neu.Client(server)
-
-# fetch all connections from this cell type
-query = f"MATCH (n :`{dataset}_Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status, m.cropped AS iscropped2, n.cropped AS iscropped1"
-connections = neu.fetch_custom(query)
-
 import re
 import pandas as pd
 import numpy as np
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform                                                                     
+from sklearn.preprocessing import normalize
+from sklearn.preprocessing import StandardScaler
 
-# ***** constants ****
-primary_status = set(["Traced", "Roughly traced", "Leaves"]) # won't consider a type unless at least Leaves
-connection_status = set(["Traced", "Roughly traced"]) # no need to look at partners to leaves
-name_exclusions = ".*_L" # ignore anything on the left unless there is nothing on the righ
-importance_cutoff = 0.25 # ignore connections after the top 50% (with some error margin)
-minweight = 3 # ignore connections for canonical inputs or outputs that are below this
-tracing_accuracy = 5 # number of connection error reasonably possible based on proofreading
-degrade_threshold = 7 # connection strength below which one does not weight as heavily
+# read json from piped string
+input = json.loads(sys.stdin.read())
 
 # maintain count of cell types
-unique_neurons = set()
-good_neurons = set()
-
 # make a list of cell type (or "none" if ID), count, partner id (to be used for none) for each cell type
 # (ignore name exclusions and Leaves for this table unless that there is nothing than add both)
 # (list for inputs and outputs) 
+unique_neurons = set(input["unique_neurons"])
+good_neurons = set(input["good_neurons"])
+celltype_lists_inputs_t = input["celltype_lists_inputs"]
+celltype_lists_outputs_t = input["celltype_lists_outputs"]
+
+input_size = input["input_size"]
+input_size = {int(k):v for k, v in input_size.items()}
+
+output_size = input["output_size"]
+output_size = {int(k):v for k, v in output_size.items()}
+
+input_comp = input["input_comp"]
+input_comp = {int(k):v for k, v in input_comp.items()}
+
+output_comp = input["output_comp"]
+output_comp = {int(k):v for k, v in output_comp.items()}
+
+neuron_instance = input["neuron_instance"]
+neuron_instance = {int(k):v for k, v in neuron_instance.items()}
+
+
+
 celltype_lists_inputs = {}
 celltype_lists_outputs = {}
-input_size = {}
-output_size = {}
-input_comp = {}
-output_comp = {}
-neuron_instance = {}
-if len(connections) == 0:
-    print(json.dumps({}))
-    exit(0)
-for idx, row in connections.iterrows():
-    bodyid = row["bodyId"]
-    type_status = row["body1status"]
-    type_status2 = row["body2status"] 
-    is_output = row["isOutput"]
-    neuron_instance[bodyid] = row["instance"]
-    is_cropped1 = row["iscropped1"]
-    is_cropped2 = row["iscropped2"]
 
-    # do not consider untraced neurons
-    if type_status not in primary_status:
-        continue
-    unique_neurons.add(bodyid)
-        
-    # add stats
-    if is_output:
-        if bodyid not in output_size:
-            output_size[bodyid] = 0
-        output_size[bodyid] += row["weight"]
-    if not is_output:
-        if bodyid not in input_size:
-            input_size[bodyid] = 0
-        input_size[bodyid] += row["weight"]
-        
-    # might as well ignore connection as well if not to traced
-    if type_status2 not in primary_status:
-        continue
+for bodyid, infoarr_arr in celltype_lists_inputs_t.items():
+    bodyid = int(bodyid)
+    if bodyid not in celltype_lists_inputs:
+        celltype_lists_inputs[bodyid] = []
 
-    # add stats if traced
-    if is_output:
-        if bodyid not in output_comp:
-            output_comp[bodyid] = 0
-        output_comp[bodyid] += row["weight"]
-    if not is_output:
-        if bodyid not in input_comp:
-            input_comp[bodyid] = 0
-        input_comp[bodyid] += row["weight"]
-        
-    conntype = row["type2"]
-    hastype = True
-    if conntype is None or conntype == "":
-        conntype = str(row["bodyId2"])
-        hastype = False
+    # add body id in the middle to allow sorting
+    for infoarr in infoarr_arr:
+        celltype_lists_inputs[bodyid].append((infoarr[0], infoarr[1], {"partner": infoarr[2], "weight": infoarr[0], "hastype": infoarr[3], "important": False}))
 
-    # don't consider the edge for something that is leaves and has not type
-    if not hastype and is_cropped2:
-        continue
-        
-    # don't consider a weak edge
-    if row["weight"] < minweight:
-        continue
-        
-    #if type_status in connection_status:
-    if is_cropped1 != True:
-        # make sure name exclusions are not in the instance name
-        if re.search(name_exclusions, row["instance"]) is None:
-            good_neurons.add(bodyid)
-    
-    if is_output:       
-        if bodyid not in celltype_lists_outputs:
-            celltype_lists_outputs[bodyid] = []
+for bodyid, infoarr_arr in celltype_lists_outputs_t.items():
+    bodyid = int(bodyid)
+    if bodyid not in celltype_lists_outputs:
+        celltype_lists_outputs[bodyid] = []
 
-        # add body id in the middle to allow sorting
-        celltype_lists_outputs[bodyid].append((row["weight"], row["bodyId2"], {"partner": conntype, "weight": row["weight"], "hastype": hastype, "important": False}))
-    else:       
-        if bodyid not in celltype_lists_inputs:
-            celltype_lists_inputs[bodyid] = []
+    # add body id in the middle to allow sorting
+    for infoarr in infoarr_arr:
+        celltype_lists_outputs[bodyid].append((infoarr[0], infoarr[1], {"partner": infoarr[2], "weight": infoarr[0], "hastype": infoarr[3], "important": False}))
 
-        # add body id in the middle to allow sorting
-        celltype_lists_inputs[bodyid].append((row["weight"], row["bodyId2"], {"partner": conntype, "weight": row["weight"], "hastype": hastype, "important": False}))
+
+# ***** constants ****
+
+
+importance_cutoff = 0.25 # ignore connections after the top 50% (with some error margin)
+tracing_accuracy = 5 # number of connection error reasonably possible based on proofreading
+
 
 # OUTPUT
 neuroninfo = {}
@@ -256,8 +202,6 @@ def compute_distance_matrix(features):
     """
 
     # compute pairwise distance and put in square form                                                                
-    from scipy.spatial.distance import pdist
-    from scipy.spatial.distance import squareform                                                                     
     dist_matrix = squareform(pdist(features.values))                                                                  
 
     return pd.DataFrame(dist_matrix, index=features.index.values.tolist(), columns=features.index.values.tolist())   
@@ -268,8 +212,6 @@ def normalize_data(inputs, outputs, neurons=None):
         outputs = outputs.loc[neurons]
     
     # normalize similar to cblast (but do not scale features after scaling across a neuron)
-    from sklearn.preprocessing import normalize
-    from sklearn.preprocessing import StandardScaler
     #combofeatures = np.concatenate((inputs.values, outputs.values), axis=1)
     #scaledfeatures = StandardScaler().fit_transform(combofeatures)
     #scaledfeatures = np.log(combofeatures+1)
@@ -315,16 +257,6 @@ for iter1 in range(len(working_features)):
 # compute distance matrix of features
 # OUTPUT
 dist_matrix = compute_distance_matrix(pd.DataFrame(all_features, index=row_ids_all))
-
-
-# reduce features using umap (require at least 4 neurons)
-# OUTPUT
-feature_matrix = None
-if len(all_features) >= 4:
-    import umap
-    reducer = umap.UMAP()
-    umap_vals = reducer.fit_transform(all_features)
-    feature_matrix = pd.DataFrame(umap_vals, index=row_ids_all) # can visualize using typecluster.view
 
 # generate big input, output (using threshold) and show biggest additions and misses with 50% match threshold    
 
@@ -426,10 +358,6 @@ results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
 results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
 results["common-inputs"] = features_inputs.to_dict('split')
 results["common-outputs"] = features_outputs.to_dict('split')
-if feature_matrix is None:
-    results["scatter2D-cluster"] = None 
-else:
-    results["scatter2D-cluster"] = feature_matrix.to_dict('split')
 results["dist-matrix"] = dist_matrix.to_dict('split')
 results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
 
