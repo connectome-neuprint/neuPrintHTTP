@@ -354,17 +354,18 @@ results["neuroninfo"] = neuroninfo
 results["centroid-neuron"] = centroid_neuron
 results["neuron-inputs"] = dictdf_to_json(celltypes_inputs)
 results["neuron-outputs"] = dictdf_to_json(celltypes_outputs)
-results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
-results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
-results["common-inputs"] = features_inputs.to_dict('split')
-results["common-outputs"] = features_outputs.to_dict('split')
-results["dist-matrix"] = dist_matrix.to_dict('split')
-results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
 
-medin_df = pd.DataFrame({'median': feature_inputs_med})
-medout_df = pd.DataFrame({'median': feature_outputs_med})
-results["common-inputs-med"] = medin_df.to_dict('split')
-results["common-outputs-med"] = medout_df.to_dict('split')
+if len(neuroninfo) > 1:
+    results["dist-matrix"] = dist_matrix.to_dict('split')
+    results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
+    results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
+    results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
+    results["common-inputs"] = features_inputs.to_dict('split')
+    results["common-outputs"] = features_outputs.to_dict('split')
+    medin_df = pd.DataFrame({'median': feature_inputs_med})
+    medout_df = pd.DataFrame({'median': feature_outputs_med})
+    results["common-inputs-med"] = medin_df.to_dict('split')
+    results["common-outputs-med"] = medout_df.to_dict('split')
 
 
 print(json.dumps(results, indent=2))
