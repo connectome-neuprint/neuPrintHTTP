@@ -21,6 +21,48 @@ paths:
       summary: list of available REST api routes
       tags:
       - apimeta
+  /api/cached/dailytype:
+    get:
+      description: |-
+        The program updates the completeness numbers each day.  A different
+        cell type is randomly picked and an exemplar is chosen
+        from this type.
+      operationId: getDailyType
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              connectivity:
+                description: connectivity breakdown
+                type: object
+              info:
+                description: information on the type and neuron id
+                properties:
+                  bodyid:
+                    type: integer
+                  numpost:
+                    type: integer
+                  numpre:
+                    type: integer
+                  numtype:
+                    type: integer
+                  typename:
+                    type: string
+                type: object
+              skeleton:
+                description: SWC contents for the chosen neuron
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets information for a different neuron type each day..
+      tags:
+      - cached
   /api/cached/roicompleteness:
     get:
       description: |-

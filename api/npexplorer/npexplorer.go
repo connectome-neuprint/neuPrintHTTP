@@ -2,7 +2,6 @@ package npexplorer
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo"
@@ -377,7 +376,6 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 	}()
 
 	res2, err := cmd.CombinedOutput()
-	fmt.Println(string(res2))
 	if err != nil {
 		errJSON := errorInfo{err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)

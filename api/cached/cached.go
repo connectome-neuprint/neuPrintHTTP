@@ -1,13 +1,17 @@
 package cached
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/knightjdr/hclust"
 	"github.com/labstack/echo"
 	//"math"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,8 +34,9 @@ type CacheType int
 var cachedResults map[CacheType]map[string]interface{}
 
 const (
-	ROIConn CacheType = 1
-	ROIComp CacheType = 2
+	ROIConn   CacheType = 1
+	ROIComp   CacheType = 2
+	DailyType CacheType = 3
 )
 
 // setupAPI loads all the endpoints for cached
@@ -53,6 +58,12 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	mainapi.SupportedEndpoints[endpoint] = true
 	cachedResults[ROIComp] = make(map[string]interface{})
 
+	// cell type of the data
+	endpoint = "dailytype"
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDailyType)
+	mainapi.SupportedEndpoints[endpoint] = true
+	cachedResults[DailyType] = make(map[string]interface{})
+
 	go func() {
 		for {
 			data, err := mainapi.Store.GetDatasets()
@@ -72,6 +83,14 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 						cachedResults[ROIComp][dataset] = res
 						mux.Unlock()
 					}
+
+					// cache daily type
+					if res, err := q.getDailyType_int(dataset); err == nil {
+						mux.Lock()
+						cachedResults[DailyType][dataset] = res
+						mux.Unlock()
+					}
+
 				}
 			}
 			// reset cache every day
@@ -360,4 +379,193 @@ func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) 
 	cypher = strings.Replace(cypher, "{status_conds}", statusarr, -1)
 
 	return ca.Store.GetMain(dataset).CypherRequest(cypher, true)
+}
+
+// getDailyType returns information for a different neeuron each day
+func (ca cypherAPI) getDailyType(c echo.Context) error {
+	// swagger:operation GET /api/cached/dailytype cached getDailyType
+	//
+	// Gets information for a different neuron type each day..
+	//
+	// The program updates the completeness numbers each day.  A different
+	// cell type is randomly picked and an exemplar is chosen
+	// from this type.
+	//
+	// ---
+	// parameters:
+	// - in: "query"
+	//   name: "dataset"
+	//   description: "specify dataset name"
+	// responses:
+	//   200:
+	//     description: "successful operation"
+	//     schema:
+	//       type: "object"
+	//       properties:
+	//         connectivity:
+	//           type: "object"
+	//           description: "connectivity breakdown"
+	//         info:
+	//           type: "object"
+	//           properties:
+	//             typename:
+	//               type: "string"
+	//             numtype:
+	//               type: "integer"
+	//             numpre:
+	//               type: "integer"
+	//             numpost:
+	//               type: "integer"
+	//             bodyid:
+	//               type: "integer"
+	//           description: "information on the type and neuron id"
+	//         skeleton:
+	//           type: "string"
+	//           description: "SWC contents for the chosen neuron"
+	// security:
+	// - Bearer: []
+
+	dataset := c.QueryParam("dataset")
+
+	mux.Lock()
+	if res, ok := cachedResults[DailyType][dataset]; ok {
+		mux.Unlock()
+		c.Response().Header().Set("Content-Encoding", "gzip")
+		resc, _ := res.([]byte)
+		return c.Blob(http.StatusOK, "application/json", resc)
+	}
+	mux.Unlock()
+
+	res, err := ca.getDailyType_int(dataset)
+	if err != nil {
+		mux.Lock()
+		cachedResults[DailyType][dataset] = res
+		mux.Unlock()
+		errJSON := api.ErrorInfo{Error: err.Error()}
+		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+
+	c.Response().Header().Set("Content-Encoding", "gzip")
+	return c.Blob(http.StatusOK, "application/json", res)
+}
+
+func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
+	requester := ca.Store.GetMain(dataset)
+
+	// find a random cell typee
+	random_query := "MATCH (n :Neuron {status: \"Traced\"}) WHERE not n.cropped WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron {status: \"Traced\"}) WHERE not n.cropped AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
+
+	rand_res, err := requester.CypherRequest(random_query, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rand_res.Data) == 0 {
+		return nil, fmt.Errorf("No cell type exists")
+	}
+
+	typename, ok := rand_res.Data[0][0].(string)
+	if !ok {
+		return nil, fmt.Errorf("Cell type could not be parsed")
+	}
+
+	// get an exemplar body
+	biggest_query := "MATCH (n :Neuron {type: \"{typename}\"}) RETURN n.bodyId, n.pre, n.post ORDER BY n.pre*5+n.post DESC LIMIT 1"
+	biggest_query = strings.Replace(biggest_query, "{typename}", typename, -1)
+
+	ex_res, err := requester.CypherRequest(biggest_query, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ex_res.Data) == 0 {
+		return nil, fmt.Errorf("No bodies exist for cell type")
+	}
+
+	bodyidf, ok := ex_res.Data[0][0].(float64)
+	if !ok {
+		return nil, fmt.Errorf("Body id could not be parsed")
+	}
+	bodyid := int(bodyidf)
+
+	numpref, ok := ex_res.Data[0][1].(float64)
+	if !ok {
+		return nil, fmt.Errorf("pre could not be parsed")
+	}
+	numpre := int(numpref)
+
+	numpostf, ok := ex_res.Data[0][2].(float64)
+	if !ok {
+		return nil, fmt.Errorf("post could not be parsed")
+	}
+	numpost := int(numpostf)
+
+	// get body count
+	count_query := "MATCH (n :Neuron {type: \"{typename}\"}) RETURN count(n)"
+	count_query = strings.Replace(count_query, "{typename}", typename, -1)
+
+	count_res, err := requester.CypherRequest(count_query, true)
+	if err != nil {
+		return nil, err
+	}
+	numtypef, ok := count_res.Data[0][0].(float64)
+	if !ok {
+		return nil, fmt.Errorf("Number of neurons could not be parsed")
+	}
+	numtype := int(numtypef)
+
+	// fetch connection info (for sunburst plot)
+	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'output' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'input' as direction"
+	connection_info = strings.Replace(connection_info, "{bodyid}", strconv.Itoa(bodyid), -1)
+
+	conninfo_res, err := requester.CypherRequest(connection_info, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch skeleton or empty string
+
+	// get key value store
+	store, err := ca.Store.FindStore("skeletons", dataset)
+	if err != nil {
+		return nil, err
+	}
+	kvstore, ok := store.(storage.KeyValue)
+	if !ok {
+		return nil, fmt.Errorf("database doesn't support keyvalue")
+	}
+
+	// fetch the value
+	keystr := strconv.Itoa(bodyid) + "_swc"
+	res, err := kvstore.Get([]byte(keystr))
+	skeleton_swc := ""
+	if err == nil {
+		skeleton_swc = string(res)
+	}
+
+	output := make(map[string]interface{})
+	output["connectivity"] = conninfo_res
+
+	info := make(map[string]interface{})
+	info["typename"] = typename
+	info["numtype"] = numtype
+	info["numpre"] = numpre
+	info["numpost"] = numpost
+	info["bodyid"] = bodyid
+	output["info"] = info
+	output["skeleton"] = skeleton_swc
+
+	// write to json string and compress to gzip
+	json_output, err := json.Marshal(output)
+	if err != nil {
+		return nil, err
+	}
+
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
+	w.Write([]byte(json_output))
+	w.Close()
+
+	return b.Bytes(), nil
+
 }
