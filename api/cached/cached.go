@@ -381,6 +381,11 @@ func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) 
 	return ca.Store.GetMain(dataset).CypherRequest(cypher, true)
 }
 
+type SkeletonResp struct {
+	Columns []string        `json:"columns"`
+	Data    [][]interface{} `json:"data"`
+}
+
 // getDailyType returns information for a different neeuron each day
 func (ca cypherAPI) getDailyType(c echo.Context) error {
 	// swagger:operation GET /api/cached/dailytype cached getDailyType
@@ -538,9 +543,46 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	// fetch the value
 	keystr := strconv.Itoa(bodyid) + "_swc"
 	res, err := kvstore.Get([]byte(keystr))
-	skeleton_swc := ""
-	if err == nil {
-		skeleton_swc = string(res)
+	skeleton := &SkeletonResp{}
+
+	if len(res) > 0 {
+		// copied from skeleton API
+		// parse and write out json
+		buffer := bytes.NewBuffer(res)
+
+		data := make([][]interface{}, 0)
+		columns := []string{"rowId", "x", "y", "z", "radius", "link"}
+		for {
+			line, err := buffer.ReadString('\n')
+			if err != nil {
+				break
+			}
+
+			entries := strings.Fields(line)
+			if len(entries) == 0 {
+				continue
+			}
+			// skip comments
+			if entries[0][0] == '#' {
+				continue
+			}
+
+			if len(entries) != 7 {
+				return nil, fmt.Errorf("SWC not formatted properly")
+			}
+
+			rownum, _ := strconv.Atoi(entries[0])
+			xloc, _ := strconv.ParseFloat(entries[2], 64)
+			yloc, _ := strconv.ParseFloat(entries[3], 64)
+			zloc, _ := strconv.ParseFloat(entries[4], 64)
+			radius, _ := strconv.ParseFloat(entries[5], 64)
+			link, _ := strconv.Atoi(entries[6])
+
+			data = append(data, []interface{}{rownum, xloc, yloc, zloc, radius, link})
+		}
+		skeleton = &SkeletonResp{columns, data}
+	} else {
+		skeleton = nil
 	}
 
 	output := make(map[string]interface{})
@@ -553,7 +595,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	info["numpost"] = numpost
 	info["bodyid"] = bodyid
 	output["info"] = info
-	output["skeleton"] = skeleton_swc
+	output["skeleton"] = skeleton
 
 	// write to json string and compress to gzip
 	json_output, err := json.Marshal(output)
