@@ -35,7 +35,7 @@ func (store cypherAPI) ExplorerFindNeurons(params FindNeuronsParams) (res interf
 	cypher := FindNeuronsQuery
 
 	initcond := false
-	cypher, err2 := subName(params.NeuronName, params.NeuronId, "neuron", cypher)
+	cypher, err2 := subName(params.NeuronName, params.NeuronId, "neuron", cypher, !params.EnableContains)
 	// if name exists, then add where statement
 	if err2 == nil {
 		initcond = true
@@ -141,7 +141,7 @@ func (store cypherAPI) ExplorerROIConnectivity(params DatasetParams) (res interf
 // ExplorerRankedTable implements API to show connectivity broken down by cell type
 func (store cypherAPI) ExplorerRankedTable(params ConnectionsParams) (res interface{}, err error) {
 	cypher := RankedTableQuery
-	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher, !params.EnableContains)
 	if err != nil {
 		return
 	}
@@ -151,7 +151,7 @@ func (store cypherAPI) ExplorerRankedTable(params ConnectionsParams) (res interf
 // ExplorerSimpleConnections implements API to show connectivity for a give neuron
 func (store cypherAPI) ExplorerSimpleConnections(params ConnectionsParams) (res interface{}, err error) {
 	cypher := SimpleConnectionsQuery
-	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "m", cypher, !params.EnableContains)
 	if err != nil {
 		return
 	}
@@ -165,9 +165,13 @@ func (store cypherAPI) ExplorerSimpleConnections(params ConnectionsParams) (res 
 	return store.Store.GetMain(params.Dataset).CypherRequest(cypher, true)
 }
 
-func subName(neuronName string, neuronId int64, matchvar string, cypher string) (string, error) {
+func subName(neuronName string, neuronId int64, matchvar string, cypher string, regex bool) (string, error) {
+	regstr := "=~"
+	if !regex {
+		regstr = " CONTAINS "
+	}
 	if neuronName != "" {
-		cypher = strings.Replace(cypher, "{neuronid}", "("+matchvar+".type =~\""+neuronName+"\" OR "+matchvar+".instance =~\""+neuronName+"\")", -1)
+		cypher = strings.Replace(cypher, "{neuronid}", "("+matchvar+".type"+regstr+"\""+neuronName+"\" OR "+matchvar+".instance"+regstr+"\""+neuronName+"\")", -1)
 	} else if neuronId != 0 {
 		cypher = strings.Replace(cypher, "{neuronid}", matchvar+".bodyId = "+strconv.FormatInt(neuronId, 10), -1)
 	} else {
@@ -181,7 +185,7 @@ func subName(neuronName string, neuronId int64, matchvar string, cypher string) 
 // ExplorerROIsInNeuron implements API to show ROIs intersecting given neuron
 func (store cypherAPI) ExplorerROIsInNeuron(params NeuronNameParams) (res interface{}, err error) {
 	cypher := IntersectingROIQuery
-	cypher, err = subName(params.NeuronName, params.NeuronId, "neuron", cypher)
+	cypher, err = subName(params.NeuronName, params.NeuronId, "neuron", cypher, true)
 	if err != nil {
 		return
 	}

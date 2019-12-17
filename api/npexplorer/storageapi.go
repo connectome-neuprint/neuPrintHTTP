@@ -20,13 +20,15 @@ type FilterParams struct {
 type FindNeuronsParams struct {
 	NeuronNameParams
 	FilterParams
-	InputROIs  []string `json:"input_ROIs"`
-	OutputROIs []string `json:"output_ROIs"`
+	InputROIs      []string `json:"input_ROIs"`
+	OutputROIs     []string `json:"output_ROIs"`
+	EnableContains bool     `json:"enable_contains,omitempty"`
 }
 
 type ConnectionsParams struct {
 	NeuronNameParams
-	FindInputs bool `json:"find_inputs"`
+	FindInputs     bool `json:"find_inputs"`
+	EnableContains bool `json:"enable_contains,omitempty"`
 }
 
 type MetaValParams struct {
