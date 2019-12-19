@@ -262,6 +262,20 @@ celltypes_outputs = {}
 celltypes_inputs_missed = {}
 celltypes_outputs_missed = {}
 
+### sort feature_inputs
+
+fi_lim = features_inputs.loc[list(neuron_working_set)]
+fo_lim = features_outputs.loc[list(neuron_working_set)]
+imed = fi_lim.median()   
+omed = fo_lim.median()
+i_order = np.argsort(imed)[::-1]
+o_order = np.argsort(omed)[::-1]
+
+features_inputs = features_inputs.iloc[:, i_order]
+features_outputs = features_outputs.iloc[:, o_order]
+#####
+
+
 # get median value for each feature
 feature_inputs_lim = features_inputs.loc[list(neuron_working_set)]
 feature_outputs_lim = features_outputs.loc[list(neuron_working_set)]
