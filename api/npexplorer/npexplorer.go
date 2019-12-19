@@ -307,16 +307,17 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 
 		// if type_status in connection_status:
 		if !is_cropped1 {
-			// make sure name exclusions are not in the instance name
-			//name_exclusions := ".*_L"
-			// hack for hemibrain
-			if len(dataset) >= len("hemibrain") && ("hemibrain" == dataset[0:len("hemibrain")]) {
-				if len(instance) < 2 || instance[len(instance)-1] != 'L' || instance[len(instance)-2] != '_' {
-					good_neurons[bodyid] = struct{}{}
-				}
-			} else {
-				good_neurons[bodyid] = struct{}{}
-			}
+			/*
+				// make sure name exclusions are not in the instance name
+				//name_exclusions := ".*_L"
+				// hack for hemibrain
+				if len(dataset) >= len("hemibrain") && ("hemibrain" == dataset[0:len("hemibrain")]) {
+					if len(instance) < 2 || instance[len(instance)-1] != 'L' || instance[len(instance)-2] != '_' {
+						good_neurons[bodyid] = struct{}{}
+					}
+				} else {*/
+			good_neurons[bodyid] = struct{}{}
+			//}
 		}
 
 		if is_output {

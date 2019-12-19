@@ -120,15 +120,16 @@ sort_lists(celltype_lists_outputs)
 neuron_working_set = good_neurons
 if len(good_neurons) == 0:
     neuron_working_set = unique_neurons
-    
+
 def generate_feature_table(celltype_lists):
     # add shared dict to a globally sorted list from each partner
     global_queue = []
     for neuron in neuron_working_set:
-        for (weight, bid2, val) in celltype_lists[neuron]:
-            val["examined"] = False
-            if val["important"]:
-                global_queue.append((weight, bid2, neuron, val))
+        if neuron in celltype_lists:
+            for (weight, bid2, val) in celltype_lists[neuron]:
+                val["examined"] = False
+                if val["important"]:
+                    global_queue.append((weight, bid2, neuron, val))
     global_queue.sort()
     global_queue.reverse()
     
@@ -145,17 +146,21 @@ def generate_feature_table(celltype_lists):
     
         # check for matches for each cell type instance in neuron working set
         for neuron in neuron_working_set:
-            for (weight, ignore, val) in celltype_lists[neuron]:
-                if not val["examined"] and val["partner"] == entry["partner"] and val["hastype"] == entry["hastype"]:
-                    val["examined"] = True
-                    break
+            if neuron in celltype_lists:
+                for (weight, ignore, val) in celltype_lists[neuron]:
+                    if not val["examined"] and val["partner"] == entry["partner"] and val["hastype"] == entry["hastype"]:
+                        val["examined"] = True
+                        break
                     
     # generate feature map for neuron
     features = np.zeros((len(unique_neurons), len(celltype_rank)))
     
     iter1 = 0
     for neuron in unique_neurons:
-        connlist = celltype_lists[neuron]
+        connlist = []
+        # it is possible that a neuron has no input or outputs
+        if neuron in celltype_lists:
+            connlist = celltype_lists[neuron]
         match_list = {}
         for (weight, ignore, val) in connlist:
             matchkey = (val["partner"], val["hastype"])
@@ -207,36 +212,26 @@ def compute_distance_matrix(features):
     return pd.DataFrame(dist_matrix, index=features.index.values.tolist(), columns=features.index.values.tolist())   
 
 def normalize_data(inputs, outputs, neurons=None):
+    if len(inputs.columns) == 0 and len(outputs.columns) == 0:
+        return inputs, inputs.index.to_list()
+    
+    
     if neurons is not None:
         inputs = inputs.loc[neurons]
         outputs = outputs.loc[neurons]
     
-    # normalize similar to cblast (but do not scale features after scaling across a neuron)
-    #combofeatures = np.concatenate((inputs.values, outputs.values), axis=1)
-    #scaledfeatures = StandardScaler().fit_transform(combofeatures)
-    #scaledfeatures = np.log(combofeatures+1)
-    #scaledfeatures_norm = normalize(scaledfeatures, axis=1, norm='l2')
-    #combofeatures_norm = normalize(combofeatures, axis=1, norm='l2') 
-    # ?? add size
-    #supercombo = np.concatenate((combofeatures_norm*(0.4**(1/2)), scaledfeatures_norm*(0.6**(1/2))), axis=1)
-    
-    # should input and output be weighted by relative size??
-    
-    #func = np.vectorize(lambda x: 0 if x == 0 else (1 / (1 + np.exp(-((x-8)/2))) if x<=7 else 1 / (1 + np.exp(-((x-17)/20)))))
-    #func = np.vectorize(lambda x: 0 if x == 0 else 1 / (1 + np.exp(-((x-17)/20))))
     func = np.vectorize(lambda x: 1 / (1 + np.exp(-((x-17)/20))))
-    #func = np.vectorize(lambda x: x)
-    input_norm = normalize(func(inputs.values), axis=1, norm='l2')
-    output_norm = normalize(func(outputs.values), axis=1, norm='l2')
     
-    #input_norm = normalize(np.log(inputs.values+1), axis=1, norm='l2')
-    #output_norm = normalize(np.log(outputs.values+1), axis=1, norm='l2')
-    #input_norm = normalize(inputs.values, axis=1, norm='l2')
-    #output_norm = normalize(outputs.values, axis=1, norm='l2')
-    supercombo = np.concatenate((input_norm*(0.5**(1/2)), output_norm*(0.5**(1/2))), axis=1)
+    if  len(inputs.columns) == 0:
+        supercombo = normalize(func(outputs.values), axis=1, norm='l2')
+    elif len(outputs.columns) == 0:
+        supercombo = normalize(func(inputs.values), axis=1, norm='l2')
+    else:
+        input_norm = normalize(func(inputs.values), axis=1, norm='l2')
+        output_norm = normalize(func(outputs.values), axis=1, norm='l2')
+        supercombo = np.concatenate((input_norm*(0.5**(1/2)), output_norm*(0.5**(1/2))), axis=1)
     
     return supercombo, inputs.index.to_list()
-    #return combofeatures_norm, inputs.index.to_list()
 
 all_features, row_ids_all = normalize_data(features_inputs, features_outputs)
 working_features, row_ids = normalize_data(features_inputs, features_outputs, list(neuron_working_set))
