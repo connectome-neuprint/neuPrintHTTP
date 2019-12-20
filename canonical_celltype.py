@@ -1,122 +1,98 @@
-# need to install neuprint-python, umap, scipy, scikit-learn, pandas
-# TODO: modify neuprint python to pass dataset into custom
-
+# need to install scipy, scikit-learn, pandas
 import sys
 import json
-import os
-
-dataset = sys.argv[1]
-typename = sys.argv[2]
-server = os.environ["NEUPRINT_SERVER"]
-
-#server = sys.argv[3]
-#token = sys.argv[4]
-
-
-import neuprint as neu
-client = neu.Client(server)
-
-# fetch all connections from this cell type
-query = f"MATCH (n :`{dataset}-Neuron` {{type: \"{typename}\"}})-[x :ConnectsTo]-(m) RETURN n.bodyId AS bodyId, n.instance AS instance, x.weight AS weight, m.bodyId AS bodyId2, m.type AS type2, (startNode(x) = n) as isOutput, n.status AS body1status, m.status AS body2status"
-connections = neu.fetch_custom(query)
-
 import re
 import pandas as pd
 import numpy as np
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform                                                                     
+from sklearn.preprocessing import normalize
+from sklearn.preprocessing import StandardScaler
 
-# ***** constants ****
-primary_status = set(["Traced", "Roughly traced", "Leaves"]) # won't consider a type unless at least Leaves
-connection_status = set(["Traced", "Roughly traced"]) # no need to look at partners to leaves
-name_exclusions = ".*_L" # ignore anything on the left unless there is nothing on the righ
-importance_cutoff = 0.25 # ignore connections after the top 50% (with some error margin)
-minweight = 3 # ignore connections for canonical inputs or outputs that are below this
-tracing_accuracy = 5 # number of connection error reasonably possible based on proofreading
-degrade_threshold = 7 # connection strength below which one does not weight as heavily
+# read json from piped string
+input = json.loads(sys.stdin.read())
+
+
 
 # maintain count of cell types
-unique_neurons = set()
-good_neurons = set()
-
 # make a list of cell type (or "none" if ID), count, partner id (to be used for none) for each cell type
 # (ignore name exclusions and Leaves for this table unless that there is nothing than add both)
 # (list for inputs and outputs) 
+unique_neurons = set(input["unique_neurons"])
+good_neurons = set(input["good_neurons"])
+celltype_lists_inputs_t = input["celltype_lists_inputs"]
+celltype_lists_outputs_t = input["celltype_lists_outputs"]
+
+input_size = input["input_size"]
+input_size = {int(k):v for k, v in input_size.items()}
+
+output_size = input["output_size"]
+output_size = {int(k):v for k, v in output_size.items()}
+
+input_comp = input["input_comp"]
+input_comp = {int(k):v for k, v in input_comp.items()}
+
+output_comp = input["output_comp"]
+output_comp = {int(k):v for k, v in output_comp.items()}
+
+neuron_instance = input["neuron_instance"]
+neuron_instance = {int(k):v for k, v in neuron_instance.items()}
+
+maxconn = 0
+for neuron in good_neurons:
+    numconn = 0
+    if neuron in input_size:
+        numconn += input_size[neuron]
+    if neuron in output_size:
+        numconn += output_size[neuron]
+    if numconn > maxconn:
+        maxconn = numconn
+
+maxconn *= 0.5
+
+good_neurons2 = []
+for neuron in good_neurons:
+    numconn = 0
+    if neuron in input_size:
+        numconn += input_size[neuron]
+    if neuron in output_size:
+        numconn += output_size[neuron]
+    if numconn >= maxconn:
+        good_neurons2.append(neuron)
+
+good_neurons = good_neurons2
+
+
+
+
 celltype_lists_inputs = {}
 celltype_lists_outputs = {}
-input_size = {}
-output_size = {}
-input_comp = {}
-output_comp = {}
-neuron_instance = {}
-if len(connections) == 0:
-    print(json.dumps({}))
-    exit(0)
-for idx, row in connections.iterrows():
-    bodyid = row["bodyId"]
-    type_status = row["body1status"]
-    type_status2 = row["body2status"] 
-    is_output = row["isOutput"]
-    neuron_instance[bodyid] = row["instance"]
-    
-    # do not consider untraced neurons
-    if type_status not in primary_status:
-        continue
-    unique_neurons.add(bodyid)
-        
-    # add stats
-    if is_output:
-        if bodyid not in output_size:
-            output_size[bodyid] = 0
-        output_size[bodyid] += row["weight"]
-    if not is_output:
-        if bodyid not in input_size:
-            input_size[bodyid] = 0
-        input_size[bodyid] += row["weight"]
-        
-    # might as well ignore connection as well if not to traced
-    if type_status2 not in primary_status:
-        continue
 
-    # add stats if traced
-    if is_output:
-        if bodyid not in output_comp:
-            output_comp[bodyid] = 0
-        output_comp[bodyid] += row["weight"]
-    if not is_output:
-        if bodyid not in input_comp:
-            input_comp[bodyid] = 0
-        input_comp[bodyid] += row["weight"]
-        
-    conntype = row["type2"]
-    hastype = True
-    if conntype is None or conntype == "":
-        conntype = str(row["bodyId2"])
-        hastype = False
+for bodyid, infoarr_arr in celltype_lists_inputs_t.items():
+    bodyid = int(bodyid)
+    if bodyid not in celltype_lists_inputs:
+        celltype_lists_inputs[bodyid] = []
 
-    # don't consider the edge for something that is leaves and has not type
-    if not hastype and type_status2 not in connection_status:
-        continue
-        
-    # don't consider a weak edge
-    if row["weight"] < minweight:
-        continue
-        
-    if type_status in connection_status:
-        # make sure name exclusions are not in the instance name
-        if re.search(name_exclusions, row["instance"]) is None:
-            good_neurons.add(bodyid)
-    
-    if is_output:       
-        if bodyid not in celltype_lists_outputs:
-            celltype_lists_outputs[bodyid] = []
+    # add body id in the middle to allow sorting
+    for infoarr in infoarr_arr:
+        celltype_lists_inputs[bodyid].append((infoarr[0], infoarr[1], {"partner": infoarr[2], "weight": infoarr[0], "hastype": infoarr[3], "important": False}))
 
-        # add body id in the middle to allow sorting
-        celltype_lists_outputs[bodyid].append((row["weight"], row["bodyId2"], {"partner": conntype, "weight": row["weight"], "hastype": hastype, "important": False}))
-    else:       
-        if bodyid not in celltype_lists_inputs:
-            celltype_lists_inputs[bodyid] = []
+for bodyid, infoarr_arr in celltype_lists_outputs_t.items():
+    bodyid = int(bodyid)
+    if bodyid not in celltype_lists_outputs:
+        celltype_lists_outputs[bodyid] = []
 
-        # add body id in the middle to allow sorting
-        celltype_lists_inputs[bodyid].append((row["weight"], row["bodyId2"], {"partner": conntype, "weight": row["weight"], "hastype": hastype, "important": False}))
+    # add body id in the middle to allow sorting
+    for infoarr in infoarr_arr:
+        celltype_lists_outputs[bodyid].append((infoarr[0], infoarr[1], {"partner": infoarr[2], "weight": infoarr[0], "hastype": infoarr[3], "important": False}))
+
+
+# ***** constants ****
+
+
+importance_cutoff = 0.25 # ignore connections after the top 50% (with some error margin)
+tracing_accuracy = 5 # number of connection error reasonably possible based on proofreading
+
 
 # OUTPUT
 neuroninfo = {}
@@ -171,15 +147,16 @@ sort_lists(celltype_lists_outputs)
 neuron_working_set = good_neurons
 if len(good_neurons) == 0:
     neuron_working_set = unique_neurons
-    
+
 def generate_feature_table(celltype_lists):
     # add shared dict to a globally sorted list from each partner
     global_queue = []
     for neuron in neuron_working_set:
-        for (weight, bid2, val) in celltype_lists[neuron]:
-            val["examined"] = False
-            if val["important"]:
-                global_queue.append((weight, bid2, neuron, val))
+        if neuron in celltype_lists:
+            for (weight, bid2, val) in celltype_lists[neuron]:
+                val["examined"] = False
+                if val["important"]:
+                    global_queue.append((weight, bid2, neuron, val))
     global_queue.sort()
     global_queue.reverse()
     
@@ -196,17 +173,21 @@ def generate_feature_table(celltype_lists):
     
         # check for matches for each cell type instance in neuron working set
         for neuron in neuron_working_set:
-            for (weight, ignore, val) in celltype_lists[neuron]:
-                if not val["examined"] and val["partner"] == entry["partner"] and val["hastype"] == entry["hastype"]:
-                    val["examined"] = True
-                    break
+            if neuron in celltype_lists:
+                for (weight, ignore, val) in celltype_lists[neuron]:
+                    if not val["examined"] and val["partner"] == entry["partner"] and val["hastype"] == entry["hastype"]:
+                        val["examined"] = True
+                        break
                     
     # generate feature map for neuron
     features = np.zeros((len(unique_neurons), len(celltype_rank)))
     
     iter1 = 0
     for neuron in unique_neurons:
-        connlist = celltype_lists[neuron]
+        connlist = []
+        # it is possible that a neuron has no input or outputs
+        if neuron in celltype_lists:
+            connlist = celltype_lists[neuron]
         match_list = {}
         for (weight, ignore, val) in connlist:
             matchkey = (val["partner"], val["hastype"])
@@ -253,45 +234,31 @@ def compute_distance_matrix(features):
     """
 
     # compute pairwise distance and put in square form                                                                
-    from scipy.spatial.distance import pdist
-    from scipy.spatial.distance import squareform                                                                     
     dist_matrix = squareform(pdist(features.values))                                                                  
 
     return pd.DataFrame(dist_matrix, index=features.index.values.tolist(), columns=features.index.values.tolist())   
 
 def normalize_data(inputs, outputs, neurons=None):
+    if len(inputs.columns) == 0 and len(outputs.columns) == 0:
+        return inputs, inputs.index.to_list()
+    
+    
     if neurons is not None:
         inputs = inputs.loc[neurons]
         outputs = outputs.loc[neurons]
     
-    # normalize similar to cblast (but do not scale features after scaling across a neuron)
-    from sklearn.preprocessing import normalize
-    from sklearn.preprocessing import StandardScaler
-    #combofeatures = np.concatenate((inputs.values, outputs.values), axis=1)
-    #scaledfeatures = StandardScaler().fit_transform(combofeatures)
-    #scaledfeatures = np.log(combofeatures+1)
-    #scaledfeatures_norm = normalize(scaledfeatures, axis=1, norm='l2')
-    #combofeatures_norm = normalize(combofeatures, axis=1, norm='l2') 
-    # ?? add size
-    #supercombo = np.concatenate((combofeatures_norm*(0.4**(1/2)), scaledfeatures_norm*(0.6**(1/2))), axis=1)
-    
-    # should input and output be weighted by relative size??
-    
-    #func = np.vectorize(lambda x: 0 if x == 0 else (1 / (1 + np.exp(-((x-8)/2))) if x<=7 else 1 / (1 + np.exp(-((x-17)/20)))))
-    #func = np.vectorize(lambda x: 0 if x == 0 else 1 / (1 + np.exp(-((x-17)/20))))
     func = np.vectorize(lambda x: 1 / (1 + np.exp(-((x-17)/20))))
-    #func = np.vectorize(lambda x: x)
-    input_norm = normalize(func(inputs.values), axis=1, norm='l2')
-    output_norm = normalize(func(outputs.values), axis=1, norm='l2')
     
-    #input_norm = normalize(np.log(inputs.values+1), axis=1, norm='l2')
-    #output_norm = normalize(np.log(outputs.values+1), axis=1, norm='l2')
-    #input_norm = normalize(inputs.values, axis=1, norm='l2')
-    #output_norm = normalize(outputs.values, axis=1, norm='l2')
-    supercombo = np.concatenate((input_norm*(0.5**(1/2)), output_norm*(0.5**(1/2))), axis=1)
+    if  len(inputs.columns) == 0:
+        supercombo = normalize(func(outputs.values), axis=1, norm='l2')
+    elif len(outputs.columns) == 0:
+        supercombo = normalize(func(inputs.values), axis=1, norm='l2')
+    else:
+        input_norm = normalize(func(inputs.values), axis=1, norm='l2')
+        output_norm = normalize(func(outputs.values), axis=1, norm='l2')
+        supercombo = np.concatenate((input_norm*(0.5**(1/2)), output_norm*(0.5**(1/2))), axis=1)
     
     return supercombo, inputs.index.to_list()
-    #return combofeatures_norm, inputs.index.to_list()
 
 all_features, row_ids_all = normalize_data(features_inputs, features_outputs)
 working_features, row_ids = normalize_data(features_inputs, features_outputs, list(neuron_working_set))
@@ -313,16 +280,6 @@ for iter1 in range(len(working_features)):
 # OUTPUT
 dist_matrix = compute_distance_matrix(pd.DataFrame(all_features, index=row_ids_all))
 
-
-# reduce features using umap (require at least 4 neurons)
-# OUTPUT
-feature_matrix = None
-if len(all_features) >= 4:
-    import umap
-    reducer = umap.UMAP()
-    umap_vals = reducer.fit_transform(all_features)
-    feature_matrix = pd.DataFrame(umap_vals, index=row_ids_all) # can visualize using typecluster.view
-
 # generate big input, output (using threshold) and show biggest additions and misses with 50% match threshold    
 
 # OUTPUT
@@ -331,6 +288,20 @@ celltypes_outputs = {}
 
 celltypes_inputs_missed = {}
 celltypes_outputs_missed = {}
+
+### sort feature_inputs
+
+fi_lim = features_inputs.loc[list(neuron_working_set)]
+fo_lim = features_outputs.loc[list(neuron_working_set)]
+imed = fi_lim.median()   
+omed = fo_lim.median()
+i_order = np.argsort(imed)[::-1]
+o_order = np.argsort(omed)[::-1]
+
+features_inputs = features_inputs.iloc[:, i_order]
+features_outputs = features_outputs.iloc[:, o_order]
+#####
+
 
 # get median value for each feature
 feature_inputs_lim = features_inputs.loc[list(neuron_working_set)]
@@ -408,24 +379,29 @@ get_matches(celltype_lists_outputs, feature_outputs_med, celltypes_outputs, cell
 results = {}
 
 def dictdf_to_json(val):
+    if val is None:
+        return None
     newdict = {}
     for key, df in val.items():
-        newdict[key] = df.to_json(orient='split')
+        newdict[key] = df.to_dict('split')
     return newdict
 
 results["neuroninfo"] = neuroninfo
 results["centroid-neuron"] = centroid_neuron
 results["neuron-inputs"] = dictdf_to_json(celltypes_inputs)
 results["neuron-outputs"] = dictdf_to_json(celltypes_outputs)
-results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
-results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
-results["common-inputs"] = features_inputs.to_json(orient='split')
-results["common-outputs"] = features_outputs.to_json(orient='split')
-results["scatter2D-cluster"] = feature_matrix.to_json(orient='split')
-results["dist-matrix"] = dist_matrix.to_json(orient='split')
-results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
-results["common-inputs-med"] = feature_inputs_med.to_json(orient='split')
-results["common-outputs-med"] = feature_outputs_med.to_json(orient='split')
+
+if len(neuroninfo) > 1:
+    results["dist-matrix"] = dist_matrix.to_dict('split')
+    results["average-distance"] = dist_matrix.values.sum()/(len(all_features)*len(all_features)-len(all_features))
+    results["neuron-missed-inputs"] = dictdf_to_json(celltypes_inputs_missed)
+    results["neuron-missed-outputs"] = dictdf_to_json(celltypes_outputs_missed)
+    results["common-inputs"] = features_inputs.to_dict('split')
+    results["common-outputs"] = features_outputs.to_dict('split')
+    medin_df = pd.DataFrame({'median': feature_inputs_med})
+    medout_df = pd.DataFrame({'median': feature_outputs_med})
+    results["common-inputs-med"] = medin_df.to_dict('split')
+    results["common-outputs-med"] = medout_df.to_dict('split')
 
 
 print(json.dumps(results, indent=2))

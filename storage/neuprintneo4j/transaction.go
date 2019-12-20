@@ -14,9 +14,10 @@ type Transaction struct {
 	currURL   string // curr tranaction URL
 	preURL    string // pre URL
 	neoClient http.Client
+	isStarted bool
 }
 
-func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
+func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.CypherResult, error) {
 	// empty result
 	var cres storage.CypherResult
 
@@ -51,8 +52,12 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.Cypher
 		return cres, fmt.Errorf(result.Errors[0].Message)
 	}
 
-	locationURL, _ := res.Location()
-	t.currURL = strings.Replace(locationURL.String(), "http://", t.preURL, -1)
+	if !t.isStarted {
+		locationURL, _ := res.Location()
+		t.currURL = strings.Replace(locationURL.String(), "http://", t.preURL, -1)
+		t.isStarted = true
+	}
+
 	// if database was modified and readonly, rollback the transaction (only allow readonly)
 	if readonly && result.Results[0].Stats["contains_updates"].(bool) {
 		if err := t.Kill(); err != nil {
@@ -69,11 +74,19 @@ func (t Transaction) CypherRequest(cypher string, readonly bool) (storage.Cypher
 		}
 		data[row] = arr
 	}
-	procRes := storage.CypherResult{result.Results[0].Columns, data, cypher}
+	procRes := storage.CypherResult{Columns: result.Results[0].Columns, Data: data, Debug: cypher}
 	return procRes, nil
 }
 
-func (t Transaction) Kill() error {
+func (t *Transaction) Kill() error {
+	if !t.isStarted {
+		// nothing to kill
+		return nil
+	}
+
+	// technically allow reuse of transaction
+	t.isStarted = false
+
 	bempty := new(bytes.Buffer)
 	newreq, err := http.NewRequest(http.MethodDelete, t.currURL, bempty)
 	if err != nil {
@@ -83,12 +96,29 @@ func (t Transaction) Kill() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	res.Body.Close()
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("request failed")
+	}
+
+	result := neoResults{}
+	jsonErr := json.Unmarshal(body, &result)
+	if jsonErr != nil {
+		return fmt.Errorf("error decoding json")
+	}
+
+	if len(result.Errors) > 0 {
+		return fmt.Errorf(result.Errors[0].Message)
+	}
 
 	return nil
 }
 
-func (t Transaction) Commit() error {
+func (t *Transaction) Commit() error {
+	// technically allow reuse of transaction
+	t.isStarted = false
+
 	commitLocation := t.currURL + "/commit"
 
 	bempty := new(bytes.Buffer)
@@ -96,9 +126,25 @@ func (t Transaction) Commit() error {
 	if err != nil {
 		return fmt.Errorf("request failed")
 	}
-	_, err = t.neoClient.Do(newreq)
+	res, err := t.neoClient.Do(newreq)
 	if err != nil {
 		return fmt.Errorf("request failed")
+	}
+
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("request failed")
+	}
+
+	result := neoResults{}
+	jsonErr := json.Unmarshal(body, &result)
+	if jsonErr != nil {
+		return fmt.Errorf("error decoding json")
+	}
+
+	if len(result.Errors) > 0 {
+		return fmt.Errorf(result.Errors[0].Message)
 	}
 
 	return nil

@@ -46,6 +46,10 @@ type ErrorInfo struct {
 	Error string `json:"error"`
 }
 
+type SuccessInfo struct {
+	Msg string `json:"msg"`
+}
+
 type ConnectomeAPI struct {
 	Store              storage.Store
 	SupportedEndpoints map[string]bool

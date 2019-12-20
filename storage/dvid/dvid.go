@@ -57,7 +57,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 		return nil, fmt.Errorf("incorrect configuration for neo4j")
 	}
 
-	return Store{dbversion, typename, instance, dvidConfig{cdataset, cserver, cbranch, cinstance}}, nil
+	return &Store{dbversion, typename, instance, dvidConfig{cdataset, cserver, cbranch, cinstance}}, nil
 }
 
 // Store is the neo4j storage instance
@@ -69,12 +69,12 @@ type Store struct {
 }
 
 // GetDatabsae returns database information
-func (store Store) GetDatabase() (loc string, desc string, err error) {
+func (store *Store) GetDatabase() (loc string, desc string, err error) {
 	return store.config.Server, NAME, nil
 }
 
 // GetVersion returns the version of the driver
-func (store Store) GetVersion() (string, error) {
+func (store *Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
@@ -84,31 +84,31 @@ type databaseInfo struct {
 }
 
 // GetDatasets returns information on the datasets supported
-func (store Store) GetDatasets() (map[string]interface{}, error) {
+func (store *Store) GetDatasets() (map[string]interface{}, error) {
 	datasetmap := make(map[string]interface{})
 	datasetmap[store.config.Dataset] = databaseInfo{store.config.Branch, store.config.Instance}
 
 	return datasetmap, nil
 }
 
-func (store Store) GetInstance() string {
+func (store *Store) GetInstance() string {
 	return store.instance
 }
 
-func (store Store) GetType() string {
+func (store *Store) GetType() string {
 	return store.typename
 }
 
 // *** Spatial Query Interfacde ****
 
-func (store Store) QueryByPoint(point storage.Point) ([]uint64, error) {
+func (store *Store) QueryByPoint(point storage.Point) ([]uint64, error) {
 	return nil, nil
 }
 
-func (store Store) QueryByBbox(point1 storage.Point, point2 storage.Point) ([]uint64, error) {
+func (store *Store) QueryByBbox(point1 storage.Point, point2 storage.Point) ([]uint64, error) {
 	return nil, nil
 }
 
-func (store Store) Raw3dData(point1 storage.Point, point2 storage.Point, scale storage.Scale, compression storage.Compression) ([]uint64, error) {
+func (store *Store) Raw3dData(point1 storage.Point, point2 storage.Point, scale storage.Scale, compression storage.Compression) ([]uint64, error) {
 	return nil, nil
 }

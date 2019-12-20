@@ -21,6 +21,48 @@ paths:
       summary: list of available REST api routes
       tags:
       - apimeta
+  /api/cached/dailytype:
+    get:
+      description: |-
+        The program updates the completeness numbers each day.  A different
+        cell type is randomly picked and an exemplar is chosen
+        from this type.
+      operationId: getDailyType
+      parameters:
+      - description: specify dataset name
+        in: query
+        name: dataset
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              connectivity:
+                description: connectivity breakdown
+                type: object
+              info:
+                description: information on the type and neuron id
+                properties:
+                  bodyid:
+                    type: integer
+                  numpost:
+                    type: integer
+                  numpre:
+                    type: integer
+                  numtype:
+                    type: integer
+                  typename:
+                    type: string
+                type: object
+              skeleton:
+                description: SWC contents for the chosen neuron
+                type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Gets information for a different neuron type each day..
+      tags:
+      - cached
   /api/cached/roicompleteness:
     get:
       description: |-
@@ -355,6 +397,145 @@ paths:
       - Bearer:
         - admin
       summary: Execute cypher against the main database
+      tags:
+      - raw-cypher
+  /api/raw/cypher/transaction:
+    post:
+      description: Starts and transaction and returns an id.
+      operationId: startTrans
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            dataset:
+              description: dataset name
+              example: hemibrain
+              type: string
+          required:
+          - cypher
+          type: object
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              transaction_id:
+                description: transcation id
+                type: integer
+            type: object
+      security:
+      - Bearer:
+        - admin
+      summary: Start a cypher transaction.
+      tags:
+      - raw-cypher
+  /api/raw/cypher/transaction/:id/commit:
+    post:
+      description: Commits and removes transaction.  If there is an error, the transaction
+        will still be deleted.
+      operationId: commitTrans
+      parameters:
+      - description: transaction id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer:
+        - admin
+      summary: Commits transaction.
+      tags:
+      - raw-cypher
+  /api/raw/cypher/transaction/:id/cypher:
+    post:
+      description: This query allows for reads and writes (admin only).
+      operationId: execTranCypher
+      parameters:
+      - description: transaction id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            cypher:
+              description: cypher statement (read only)
+              example: MATCH (n) RETURN n limit 1
+              type: string
+            dataset:
+              description: dataset name
+              example: hemibrain
+              type: string
+            version:
+              description: specify a neuprint model version for explicit check
+              example: 0.5.0
+              type: string
+          required:
+          - cypher
+          type: object
+      responses:
+        "200":
+          description: successful operation
+          schema:
+            properties:
+              columns:
+                description: Name of each result column
+                example:
+                - name
+                - size
+                items:
+                  type: string
+                type: array
+              data:
+                description: Table of results
+                example:
+                - - t4
+                  - 323131
+                - - mi1
+                  - 232323
+                items:
+                  description: Table row
+                  items:
+                    description: Cell value
+                    type: "null"
+                  type: array
+                type: array
+            type: object
+      security:
+      - Bearer:
+        - admin
+      summary: Execute cypher against the main database in a transaction
+      tags:
+      - raw-cypher
+  /api/raw/cypher/transaction/:id/kill:
+    post:
+      description: This will rollback the specified transaction.  If there is an error,
+        the transaction will still be deleted.
+      operationId: killTrans
+      parameters:
+      - description: transaction id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: successful operation
+      security:
+      - Bearer:
+        - admin
+      summary: Kill transaction.
       tags:
       - raw-cypher
   /api/raw/keyvalue/key/{instance}/{key}:

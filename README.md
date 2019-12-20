@@ -20,9 +20,8 @@ For developers: if modifying the swagger inline comments, update the documentati
 
     % go generate
 
-neuprintHTTP uses a python script to support cell type analysis.  To use this script, install the package at (https://github.com/connectome-neuprint/typecluster)[https://github.com/connectome-neuprint/typecluster]
-and make sure the build's python is in the executable path.  When starting neuprint http, set NEUPRINT_APPLICATION_CREDENTIALS to the appropriate neuprint token and
-NEUPRINT_SERVER to the location of the neuprint server.
+neuprintHTTP uses a python script to support cell type analysis.  To use this script, install scipy, scikit-learn, and pandas
+and make sure to run neuprint HTTP in the top directory where the python script is located. 
 
 ## Running
 

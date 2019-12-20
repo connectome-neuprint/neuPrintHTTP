@@ -36,6 +36,7 @@ type dvidConfig struct {
 	Server   string `json:"server"`
 	Branch   string `json:"branch"`
 	Instance string `json:"instance"`
+	Token    string `json:"token,omitempty"`
 }
 
 // NewStore creates an store instance that works with dvid.
@@ -60,10 +61,14 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	if !ok {
 		return nil, fmt.Errorf("incorrect configuration for neo4j")
 	}
+	token, ok := datamap["token"].(string)
+	if !ok {
+		token = ""
+	}
 
-	config := dvidConfig{cdataset, cserver, cbranch, cinstance}
-	endPoint := "http://" + config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
-	return Store{dbversion, typename, instance, config, endPoint}, nil
+	config := dvidConfig{cdataset, cserver, cbranch, cinstance, token}
+	endPoint := config.Server + "/api/node/" + config.Branch + "/" + config.Instance + "/key/"
+	return &Store{dbversion, typename, instance, config, endPoint}, nil
 }
 
 // Store is the neo4j storage instance
@@ -76,12 +81,12 @@ type Store struct {
 }
 
 // GetDatabsae returns database information
-func (store Store) GetDatabase() (loc string, desc string, err error) {
+func (store *Store) GetDatabase() (loc string, desc string, err error) {
 	return store.config.Server, NAME, nil
 }
 
 // GetVersion returns the version of the driver
-func (store Store) GetVersion() (string, error) {
+func (store *Store) GetVersion() (string, error) {
 	return store.version.String(), nil
 }
 
@@ -91,25 +96,25 @@ type databaseInfo struct {
 }
 
 // GetDatasets returns information on the datasets supported
-func (store Store) GetDatasets() (map[string]interface{}, error) {
+func (store *Store) GetDatasets() (map[string]interface{}, error) {
 	datasetmap := make(map[string]interface{})
 	datasetmap[store.config.Dataset] = databaseInfo{store.config.Branch, store.config.Instance}
 
 	return datasetmap, nil
 }
 
-func (store Store) GetInstance() string {
+func (store *Store) GetInstance() string {
 	return store.instance
 }
 
-func (store Store) GetType() string {
+func (store *Store) GetType() string {
 	return store.typename
 }
 
 // *** KeyValue Query Interfacde ****
 
 // Set puts data into DVID
-func (s Store) Set(key, val []byte) error {
+func (s *Store) Set(key, val []byte) error {
 	dvidClient := http.Client{
 		Timeout: time.Second * 60,
 	}
@@ -131,16 +136,21 @@ func (s Store) Set(key, val []byte) error {
 }
 
 // Get retrieve data from DVID
-func (s Store) Get(key []byte) ([]byte, error) {
+func (s *Store) Get(key []byte) ([]byte, error) {
 	dvidClient := http.Client{
 		Timeout: time.Second * 60,
 	}
 
-	fmt.Println(s.endPoint + string(key))
+	//fmt.Println(s.endPoint + string(key))
 	req, err := http.NewRequest(http.MethodGet, s.endPoint+string(key), nil)
 	if err != nil {
 		return nil, fmt.Errorf("request failed")
 	}
+
+	if s.config.Token != "" {
+		req.Header.Add("Authorization", "Bearer "+s.config.Token)
+	}
+
 	res, err := dvidClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed")

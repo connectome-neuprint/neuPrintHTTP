@@ -27,7 +27,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
@@ -46,9 +49,13 @@ func main() {
 
 	// create command line argument for port
 	var port = 11000
+	var proxyport = 0
 	var publicRead = false
+	var pidfile = ""
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
+	flag.IntVar(&proxyport, "proxy-port", 0, "proxy port to start server")
+	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
 	flag.Parse()
 	if flag.NArg() != 1 {
@@ -61,6 +68,35 @@ func main() {
 	if err != nil {
 		fmt.Print(err)
 		return
+	}
+
+	if pidfile != "" {
+		pid := os.Getpid()
+
+		// Open file using READ & WRITE permission.
+		fout, err := os.OpenFile(pidfile, os.O_WRONLY|os.O_CREATE, 0755)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		stopSig := make(chan os.Signal)
+		go func() {
+			for range stopSig {
+				os.Remove(pidfile)
+				os.Exit(0)
+			}
+		}()
+		signal.Notify(stopSig, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+		// Write some text line-by-line to file.
+		_, err = fout.WriteString(strconv.Itoa(pid))
+		if err != nil {
+			fmt.Println(err)
+			fout.Close()
+			return
+		}
+		fout.Close()
 	}
 
 	// create datastore based on configuration
@@ -83,6 +119,8 @@ func main() {
 
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
+
+	secure.ProxyPort = proxyport
 
 	var authorizer secure.Authorizer
 	// call new secure API and set authorization method
@@ -184,23 +222,23 @@ func main() {
 		return
 	}
 
-  fmt.Println("                                                                                                                                                               ")
-  fmt.Println("                                                                                                                                                               ")
-  fmt.Println("                                                          @@@@@@@@@@@%%%*.  @@@@@@@@@@@&&%*.    @@@@@@@@@@@@@@@@@@@       @@@@@@@@@@@@@@@@@@@@@@@@&            ")
-  fmt.Println("                                                           &(#@@@@@@@@@@@@%*  @@@@@@@@@@@@@@%*   &@@@@@@   &@@@@@@@#*      &&@@@@& @@@@@@@@@@@@@@@%            ")
-  fmt.Println("                                                           &@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@*     &@@@@@@@@@@@@@@@@@@@@&,.            ")
-  fmt.Println("                                                           &@@@@@&   @@@@@@@* @@@@&&&  @@@@@@@   &@@@@@@   &@@@@@@@@@@@*   &@@@@@& &   &@@@@@@    @            ")
-  fmt.Println("         .,,,, *#%%#*         .#%@&%#     ,,,,.    .,,,.   &@@@@@&   *&@@@@@@ @@@@@@&  &@@@@@@   &@@@@@@   &@@@@@@@@@@@@*  &@@@@@& @   &@@@@@@                 ")
-  fmt.Println("        &@@@@#@  &@@@      *&@@   %@@%  *#@@@@    *@@@@    &@@@@@@&&@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@@@@@& &@@@@@&     &@@@@@@                 ")
-  fmt.Println("       &@@@@@   *@@@@    *@@@@   @@@@@  @@@@     &@@@@     %@@@@@@@@@@@@@#@@  @@@@@@@@@@@@@@     &@@@@@@   &@@@@@& @@@@@@@@@@@@@@&     &@@@@@@                 ")
-  fmt.Println("     *#@@@@    @@@@@    @@@@  *@@@@    @@@@@   *#@@@@    *@@@@@@@@@@@@@@@@    @@@@@@@@@@@@&*     &@@@@@@   &@@@@@&   @@@@@@@@@@@@&     &@@@@@@                 ")
-  fmt.Println("    *@@@@    *@@@@    *@@@@@         #@@@@    #@@@@    *@  & %@@@&            @@@@@@@@@@@@@@&*   &@@@@@@   &@@@@@&     @@@@@@@@@@&     &@@@@@@                 ")
-  fmt.Println("   &@@@@    #@@@@   *@@&@@&*       *%@@@    #@@@@@   *#@   &@@@@@&            @@@@@@& @@@@@@@@#  &@@@@@@   &@@@@@&      @@@@@@@@@&     &@@@@@@                 ")
-  fmt.Println(" *&@@@@     @@@& .*@@  @@@@@*,,,*@@  @@& .%@  @@@  #@      &@@@@@&            @@@@@@&  @@@@@@@@#*&@@@@@@   &@@@@@&       @@@@@@@@&     &@@@@@@                 ")
-  fmt.Println("              @@@        @@@@@@      @@@@      @@@@       @@@@@@@@@@@      @@@@@@@@@@ @@@@@@@@@@@@@@@@@@@ @@@@@@@@@       @@@@@@@@@  @@@@@@@@@@@               ")
-  fmt.Println("                                                                                                                                                               ")
-  fmt.Println("                                                                                                                                                               ")
-  fmt.Println("neuPrintHTTP v1.0")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                          @@@@@@@@@@@%%%*.  @@@@@@@@@@@&&%*.    @@@@@@@@@@@@@@@@@@@       @@@@@@@@@@@@@@@@@@@@@@@@&            ")
+	fmt.Println("                                                           &(#@@@@@@@@@@@@%*  @@@@@@@@@@@@@@%*   &@@@@@@   &@@@@@@@#*      &&@@@@& @@@@@@@@@@@@@@@%            ")
+	fmt.Println("                                                           &@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@*     &@@@@@@@@@@@@@@@@@@@@&,.            ")
+	fmt.Println("                                                           &@@@@@&   @@@@@@@* @@@@&&&  @@@@@@@   &@@@@@@   &@@@@@@@@@@@*   &@@@@@& &   &@@@@@@    @            ")
+	fmt.Println("         .,,,, *#%%#*         .#%@&%#     ,,,,.    .,,,.   &@@@@@&   *&@@@@@@ @@@@@@&  &@@@@@@   &@@@@@@   &@@@@@@@@@@@@*  &@@@@@& @   &@@@@@@                 ")
+	fmt.Println("        &@@@@#@  &@@@      *&@@   %@@%  *#@@@@    *@@@@    &@@@@@@&&@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@@@@@& &@@@@@&     &@@@@@@                 ")
+	fmt.Println("       &@@@@@   *@@@@    *@@@@   @@@@@  @@@@     &@@@@     %@@@@@@@@@@@@@#@@  @@@@@@@@@@@@@@     &@@@@@@   &@@@@@& @@@@@@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("     *#@@@@    @@@@@    @@@@  *@@@@    @@@@@   *#@@@@    *@@@@@@@@@@@@@@@@    @@@@@@@@@@@@&*     &@@@@@@   &@@@@@&   @@@@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("    *@@@@    *@@@@    *@@@@@         #@@@@    #@@@@    *@  & %@@@&            @@@@@@@@@@@@@@&*   &@@@@@@   &@@@@@&     @@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("   &@@@@    #@@@@   *@@&@@&*       *%@@@    #@@@@@   *#@   &@@@@@&            @@@@@@& @@@@@@@@#  &@@@@@@   &@@@@@&      @@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println(" *&@@@@     @@@& .*@@  @@@@@*,,,*@@  @@& .%@  @@@  #@      &@@@@@&            @@@@@@&  @@@@@@@@#*&@@@@@@   &@@@@@&       @@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("              @@@        @@@@@@      @@@@      @@@@       @@@@@@@@@@@      @@@@@@@@@@ @@@@@@@@@@@@@@@@@@@ @@@@@@@@@       @@@@@@@@@  @@@@@@@@@@@               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("neuPrintHTTP v1.0")
 	// start server
 	secureAPI.StartEchoSecure(port)
 }
