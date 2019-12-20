@@ -377,6 +377,7 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 	}()
 
 	res2, err := cmd.CombinedOutput()
+
 	if err != nil {
 		errJSON := errorInfo{err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
