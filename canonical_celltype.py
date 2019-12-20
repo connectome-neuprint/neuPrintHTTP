@@ -12,6 +12,8 @@ from sklearn.preprocessing import StandardScaler
 # read json from piped string
 input = json.loads(sys.stdin.read())
 
+
+
 # maintain count of cell types
 # make a list of cell type (or "none" if ID), count, partner id (to be used for none) for each cell type
 # (ignore name exclusions and Leaves for this table unless that there is nothing than add both)
@@ -35,6 +37,31 @@ output_comp = {int(k):v for k, v in output_comp.items()}
 
 neuron_instance = input["neuron_instance"]
 neuron_instance = {int(k):v for k, v in neuron_instance.items()}
+
+maxconn = 0
+for neuron in good_neurons:
+    numconn = 0
+    if neuron in input_size:
+        numconn += input_size[neuron]
+    if neuron in output_size:
+        numconn += output_size[neuron]
+    if numconn > maxconn:
+        maxconn = numconn
+
+maxconn *= 0.5
+
+good_neurons2 = []
+for neuron in good_neurons:
+    numconn = 0
+    if neuron in input_size:
+        numconn += input_size[neuron]
+    if neuron in output_size:
+        numconn += output_size[neuron]
+    if numconn >= maxconn:
+        good_neurons2.append(neuron)
+
+good_neurons = good_neurons2
+
 
 
 
