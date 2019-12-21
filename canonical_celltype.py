@@ -62,8 +62,15 @@ for neuron in good_neurons:
 
 good_neurons = good_neurons2
 
-
-
+# unique neurons doesn't actually have to be a set, reorder
+unique_neurons_new = []
+for neuron in unique_neurons:
+    if neuron in good_neurons:
+        unique_neurons_new.append(neuron)
+for neuron in unique_neurons:
+    if neuron not in good_neurons:
+        unique_neurons_new.append(neuron)
+unique_neurons = unique_neurons_new
 
 celltype_lists_inputs = {}
 celltype_lists_outputs = {}
