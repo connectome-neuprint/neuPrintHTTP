@@ -283,19 +283,23 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		}
 	}
 
-	// sort roi names by clustering
-	subcluster, err := hclust.Cluster(distmatrix, "single")
-	if err != nil {
-		return nil, err
-	}
-	//optcluster := subcluster
-	optcluster := hclust.Optimize(subcluster, distmatrix, 0)
-	tree, err := hclust.Tree(optcluster, roinames)
-	if err != nil {
-		return nil, err
-	}
+	if len(distmatrix) > 2 {
+		// sort roi names by clustering
+		subcluster, err := hclust.Cluster(distmatrix, "single")
+		if err != nil {
+			return nil, err
+		}
+		//optcluster := subcluster
+		optcluster := hclust.Optimize(subcluster, distmatrix, 0)
+		tree, err := hclust.Tree(optcluster, roinames)
+		if err != nil {
+			return nil, err
+		}
 
-	return SortedROI{Names: tree.Order, Weights: roitable}, err
+		return SortedROI{Names: tree.Order, Weights: roitable}, err
+	} else {
+		return SortedROI{Names: roinames, Weights: roitable}, err
+	}
 }
 
 // getROICompleteness returns the tracing completeness of each ROI
