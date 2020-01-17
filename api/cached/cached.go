@@ -529,58 +529,59 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	}
 
 	// fetch skeleton or empty string
+	skeleton := &SkeletonResp{}
 
 	// get key value store
 	store, err := ca.Store.FindStore("skeletons", dataset)
-	if err != nil {
-		return nil, err
-	}
-	kvstore, ok := store.(storage.KeyValue)
-	if !ok {
-		return nil, fmt.Errorf("database doesn't support keyvalue")
-	}
-
-	// fetch the value
-	keystr := strconv.Itoa(bodyid) + "_swc"
-	res, err := kvstore.Get([]byte(keystr))
-	skeleton := &SkeletonResp{}
-
-	if len(res) > 0 {
-		// copied from skeleton API
-		// parse and write out json
-		buffer := bytes.NewBuffer(res)
-
-		data := make([][]interface{}, 0)
-		columns := []string{"rowId", "x", "y", "z", "radius", "link"}
-		for {
-			line, err := buffer.ReadString('\n')
-			if err != nil {
-				break
-			}
-
-			entries := strings.Fields(line)
-			if len(entries) == 0 {
-				continue
-			}
-			// skip comments
-			if entries[0][0] == '#' {
-				continue
-			}
-
-			if len(entries) != 7 {
-				return nil, fmt.Errorf("SWC not formatted properly")
-			}
-
-			rownum, _ := strconv.Atoi(entries[0])
-			xloc, _ := strconv.ParseFloat(entries[2], 64)
-			yloc, _ := strconv.ParseFloat(entries[3], 64)
-			zloc, _ := strconv.ParseFloat(entries[4], 64)
-			radius, _ := strconv.ParseFloat(entries[5], 64)
-			link, _ := strconv.Atoi(entries[6])
-
-			data = append(data, []interface{}{rownum, xloc, yloc, zloc, radius, link})
+	if err == nil {
+		kvstore, ok := store.(storage.KeyValue)
+		if !ok {
+			return nil, fmt.Errorf("database doesn't support keyvalue")
 		}
-		skeleton = &SkeletonResp{columns, data}
+
+		// fetch the value
+		keystr := strconv.Itoa(bodyid) + "_swc"
+		res, err := kvstore.Get([]byte(keystr))
+
+		if err == nil && len(res) > 0 {
+			// copied from skeleton API
+			// parse and write out json
+			buffer := bytes.NewBuffer(res)
+
+			data := make([][]interface{}, 0)
+			columns := []string{"rowId", "x", "y", "z", "radius", "link"}
+			for {
+				line, err := buffer.ReadString('\n')
+				if err != nil {
+					break
+				}
+
+				entries := strings.Fields(line)
+				if len(entries) == 0 {
+					continue
+				}
+				// skip comments
+				if entries[0][0] == '#' {
+					continue
+				}
+
+				if len(entries) != 7 {
+					return nil, fmt.Errorf("SWC not formatted properly")
+				}
+
+				rownum, _ := strconv.Atoi(entries[0])
+				xloc, _ := strconv.ParseFloat(entries[2], 64)
+				yloc, _ := strconv.ParseFloat(entries[3], 64)
+				zloc, _ := strconv.ParseFloat(entries[4], 64)
+				radius, _ := strconv.ParseFloat(entries[5], 64)
+				link, _ := strconv.Atoi(entries[6])
+
+				data = append(data, []interface{}{rownum, xloc, yloc, zloc, radius, link})
+			}
+			skeleton = &SkeletonResp{columns, data}
+		} else {
+			skeleton = nil
+		}
 	} else {
 		skeleton = nil
 	}
