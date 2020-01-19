@@ -45,6 +45,27 @@ func customUsage() {
 	flag.PrintDefaults()
 }
 
+func neuprintLogo() {
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                          @@@@@@@@@@@%%%*.  @@@@@@@@@@@&&%*.    @@@@@@@@@@@@@@@@@@@       @@@@@@@@@@@@@@@@@@@@@@@@&            ")
+	fmt.Println("                                                           &(#@@@@@@@@@@@@%*  @@@@@@@@@@@@@@%*   &@@@@@@   &@@@@@@@#*      &&@@@@& @@@@@@@@@@@@@@@%            ")
+	fmt.Println("                                                           &@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@*     &@@@@@@@@@@@@@@@@@@@@&,.            ")
+	fmt.Println("                                                           &@@@@@&   @@@@@@@* @@@@&&&  @@@@@@@   &@@@@@@   &@@@@@@@@@@@*   &@@@@@& &   &@@@@@@    @            ")
+	fmt.Println("         .,,,, *#%%#*         .#%@&%#     ,,,,.    .,,,.   &@@@@@&   *&@@@@@@ @@@@@@&  &@@@@@@   &@@@@@@   &@@@@@@@@@@@@*  &@@@@@& @   &@@@@@@                 ")
+	fmt.Println("        &@@@@#@  &@@@      *&@@   %@@%  *#@@@@    *@@@@    &@@@@@@&&@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@@@@@& &@@@@@&     &@@@@@@                 ")
+	fmt.Println("       &@@@@@   *@@@@    *@@@@   @@@@@  @@@@     &@@@@     %@@@@@@@@@@@@@#@@  @@@@@@@@@@@@@@     &@@@@@@   &@@@@@& @@@@@@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("     *#@@@@    @@@@@    @@@@  *@@@@    @@@@@   *#@@@@    *@@@@@@@@@@@@@@@@    @@@@@@@@@@@@&*     &@@@@@@   &@@@@@&   @@@@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("    *@@@@    *@@@@    *@@@@@         #@@@@    #@@@@    *@  & %@@@&            @@@@@@@@@@@@@@&*   &@@@@@@   &@@@@@&     @@@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("   &@@@@    #@@@@   *@@&@@&*       *%@@@    #@@@@@   *#@   &@@@@@&            @@@@@@& @@@@@@@@#  &@@@@@@   &@@@@@&      @@@@@@@@@&     &@@@@@@                 ")
+	fmt.Println(" *&@@@@     @@@& .*@@  @@@@@*,,,*@@  @@& .%@  @@@  #@      &@@@@@&            @@@@@@&  @@@@@@@@#*&@@@@@@   &@@@@@&       @@@@@@@@&     &@@@@@@                 ")
+	fmt.Println("              @@@        @@@@@@      @@@@      @@@@       @@@@@@@@@@@      @@@@@@@@@@ @@@@@@@@@@@@@@@@@@@ @@@@@@@@@       @@@@@@@@@  @@@@@@@@@@@               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("                                                                                                                                                               ")
+	fmt.Println("neuPrintHTTP v1.0")
+
+}
+
 func main() {
 
 	// create command line argument for port
@@ -119,6 +140,48 @@ func main() {
 
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
+
+	if options.DisableAuth {
+		e.GET("/", func(c echo.Context) error {
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" http://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+		})
+
+		// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
+		//
+		// swagger REST documentation
+		//
+		// YAML file containing swagger API documentation
+		//
+		// ---
+		// responses:
+		//   200:
+		//     description: "successful operation"
+
+		if options.SwaggerDir != "" {
+			e.Static("/api/help", options.SwaggerDir)
+		}
+		readGrp := e.Group("/api")
+
+		portstr := strconv.Itoa(port)
+
+		// load connectomic default READ-ONLY API
+		if err = api.SetupRoutes(e, readGrp, store, func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				return next(c)
+			}
+		}); err != nil {
+			fmt.Print(err)
+			return
+		}
+
+		// print logo
+		neuprintLogo()
+
+		// start server
+		e.Logger.Fatal(e.Start(":" + portstr))
+
+		return
+	}
 
 	secure.ProxyPort = proxyport
 
@@ -222,23 +285,9 @@ func main() {
 		return
 	}
 
-	fmt.Println("                                                                                                                                                               ")
-	fmt.Println("                                                                                                                                                               ")
-	fmt.Println("                                                          @@@@@@@@@@@%%%*.  @@@@@@@@@@@&&%*.    @@@@@@@@@@@@@@@@@@@       @@@@@@@@@@@@@@@@@@@@@@@@&            ")
-	fmt.Println("                                                           &(#@@@@@@@@@@@@%*  @@@@@@@@@@@@@@%*   &@@@@@@   &@@@@@@@#*      &&@@@@& @@@@@@@@@@@@@@@%            ")
-	fmt.Println("                                                           &@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@*     &@@@@@@@@@@@@@@@@@@@@&,.            ")
-	fmt.Println("                                                           &@@@@@&   @@@@@@@* @@@@&&&  @@@@@@@   &@@@@@@   &@@@@@@@@@@@*   &@@@@@& &   &@@@@@@    @            ")
-	fmt.Println("         .,,,, *#%%#*         .#%@&%#     ,,,,.    .,,,.   &@@@@@&   *&@@@@@@ @@@@@@&  &@@@@@@   &@@@@@@   &@@@@@@@@@@@@*  &@@@@@& @   &@@@@@@                 ")
-	fmt.Println("        &@@@@#@  &@@@      *&@@   %@@%  *#@@@@    *@@@@    &@@@@@@&&@@@@@@@@  @@@@@@@@@@@@@@@@   &@@@@@@   &@@@@@@@@@@@@@& &@@@@@&     &@@@@@@                 ")
-	fmt.Println("       &@@@@@   *@@@@    *@@@@   @@@@@  @@@@     &@@@@     %@@@@@@@@@@@@@#@@  @@@@@@@@@@@@@@     &@@@@@@   &@@@@@& @@@@@@@@@@@@@@&     &@@@@@@                 ")
-	fmt.Println("     *#@@@@    @@@@@    @@@@  *@@@@    @@@@@   *#@@@@    *@@@@@@@@@@@@@@@@    @@@@@@@@@@@@&*     &@@@@@@   &@@@@@&   @@@@@@@@@@@@&     &@@@@@@                 ")
-	fmt.Println("    *@@@@    *@@@@    *@@@@@         #@@@@    #@@@@    *@  & %@@@&            @@@@@@@@@@@@@@&*   &@@@@@@   &@@@@@&     @@@@@@@@@@&     &@@@@@@                 ")
-	fmt.Println("   &@@@@    #@@@@   *@@&@@&*       *%@@@    #@@@@@   *#@   &@@@@@&            @@@@@@& @@@@@@@@#  &@@@@@@   &@@@@@&      @@@@@@@@@&     &@@@@@@                 ")
-	fmt.Println(" *&@@@@     @@@& .*@@  @@@@@*,,,*@@  @@& .%@  @@@  #@      &@@@@@&            @@@@@@&  @@@@@@@@#*&@@@@@@   &@@@@@&       @@@@@@@@&     &@@@@@@                 ")
-	fmt.Println("              @@@        @@@@@@      @@@@      @@@@       @@@@@@@@@@@      @@@@@@@@@@ @@@@@@@@@@@@@@@@@@@ @@@@@@@@@       @@@@@@@@@  @@@@@@@@@@@               ")
-	fmt.Println("                                                                                                                                                               ")
-	fmt.Println("                                                                                                                                                               ")
-	fmt.Println("neuPrintHTTP v1.0")
+	// print logo
+	neuprintLogo()
+
 	// start server
 	secureAPI.StartEchoSecure(port)
 }

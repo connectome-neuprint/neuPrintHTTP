@@ -136,7 +136,9 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 	// load all data instance databases for auxiliary data
 	datatypes, ok := datatypes_raw.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("incorrectly formatted datatypes field")
+		//return nil, fmt.Errorf("incorrectly formatted datatypes field")
+		fmt.Println("WARNING: No auxiliary datatypes specified (skeleton endpoints will not work)")
+		datatypes = make(map[string]interface{})
 	}
 
 	stores := make([]SimpleStore, 0)
