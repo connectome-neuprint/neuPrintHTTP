@@ -283,7 +283,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		}
 	}
 
-	if len(distmatrix) > 2 {
+	if len(distmatrix) > 3 {
 		// sort roi names by clustering
 		subcluster, err := hclust.Cluster(distmatrix, "single")
 		if err != nil {
