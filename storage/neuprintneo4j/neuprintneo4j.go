@@ -6,6 +6,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -162,6 +163,9 @@ func (store *Store) CypherRequest(cypher string, readonly bool) (storage.CypherR
 	res, err := trans.CypherRequest(cypher, readonly)
 	var cres storage.CypherResult
 	if err != nil {
+		if strings.Contains(err.Error(), "Timeout") {
+			return cres, fmt.Errorf("Timeout experienced.  This could be due to database traffic or to non-optimal database queries.  Please cconsult neuPrint documentation or post a question to understand how to write more efficient queries.")
+		}
 		return cres, err
 	}
 	if err = trans.Commit(); err != nil {
