@@ -1,4 +1,4 @@
-// +build !nokafka
+// +build kafka
 
 package logging
 
