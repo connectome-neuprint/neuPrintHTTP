@@ -1,20 +1,33 @@
 {
     "engine": "neuPrint-neo4j",
     "engine-config": {
-        "server": "http://NEO4JSERVER:7474",
-        "user": "neo4j",
-        "password": "neo4j"
+	    "server": "<NEO4-SERVER>:7474",
+	    "user": "neo4j",
+	    "password": "<PASSWORD>"
     },
-    "auth-file": "authorized.json",
-    "ssl-cert": "cert.pem",
-    "ssl-key": "key.pem",
-    "oauthclient-id": "SOMEID",
-    "oauthclient-secret": "SOMESECRET",
-    "appsecret": "MYSECRET",
-    "hostname": "localhost",
-    "auth-token": "GOOGLECLOUDFUNC_TOKEN",
-    "swagger-docs": "GOPATH/src/github.com/janelia-flyem/neuPrintHTTP/swaggerdocs",
-    "log-file": "./neuprintlog.txt",
-    "auth-datastore": "GOOGLECLOUDFUNC",
-    "static-dir": ""
+    "datatypes": { 
+	"skeletons" : [
+		{
+		"instance": "<UNIQUE NAME>",
+		"engine": "dvidkv",
+		"engine-config": {
+			"dataset": "hemibrain",
+			"server": "http://<DVIDADDR>",
+			"branch": "<UUID>",
+			"instance": "segmentation_skeletons"
+		}
+		},
+		{
+		"instance": "<UNIQUE NAME>",
+		"engine": "badger",
+		"engine-config": {
+			"dataset": "hemibrain",
+			"location": "<DIRECTORY LOCATION>"
+		}
+		}
+	]
+    },
+    "disable-auth": true,
+    "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
+    "log-file": "log.json"
 }
