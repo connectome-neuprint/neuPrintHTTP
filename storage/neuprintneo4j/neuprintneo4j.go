@@ -164,7 +164,7 @@ func (store *Store) CypherRequest(cypher string, readonly bool) (storage.CypherR
 	var cres storage.CypherResult
 	if err != nil {
 		if strings.Contains(err.Error(), "Timeout") {
-			return cres, fmt.Errorf("Timeout experienced.  This could be due to database traffic or to non-optimal database queries. If the latter, please cconsult neuPrint documentation or post a question at https://groups.google.com/forum/#!forum/neuprint to understand other options.")
+			return cres, fmt.Errorf("Timeout experienced.  This could be due to database traffic or to non-optimal database queries. If the latter, please consult neuPrint documentation or post a question at https://groups.google.com/forum/#!forum/neuprint to understand other options.")
 		}
 		return cres, err
 	}
