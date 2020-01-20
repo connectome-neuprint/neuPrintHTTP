@@ -155,7 +155,7 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	mux.Unlock()
 
 	res, err := ca.getROIConnectivity_int(dataset)
-	if err != nil {
+	if err == nil {
 		mux.Lock()
 		cachedResults[ROIConn][dataset] = res
 		mux.Unlock()
