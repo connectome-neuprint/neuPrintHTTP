@@ -8,6 +8,8 @@ import (
 	"fmt"
 )
 
+var GlobalTimeout = 60
+
 // ***** Main interfaces to top-level databases *****
 
 // SimpleStore is an instance of Engine
@@ -67,7 +69,8 @@ type KeyValue interface {
 }
 
 // ParseConfig finds the appropriate storage engine from the configuration and initializes it
-func ParseConfig(engineName string, data interface{}, mainstores []interface{}, datatypes_raw interface{}) (Store, error) {
+func ParseConfig(engineName string, data interface{}, mainstores []interface{}, datatypes_raw interface{}, timeout int) (Store, error) {
+	GlobalTimeout = timeout
 	if availEngines == nil {
 		return nil, fmt.Errorf("No engines loaded")
 	}

@@ -39,7 +39,7 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return cres, fmt.Errorf("request failed")
+		return cres, err
 	}
 
 	result := neoResults{}

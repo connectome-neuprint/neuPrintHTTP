@@ -11,5 +11,8 @@ import (
 
 // CreateStore creates a datastore from the engine specified by the configuration
 func CreateStore(config Config) (storage.Store, error) {
-	return storage.ParseConfig(config.Engine, config.EngineConfig, config.MainStores, config.DataTypes)
+	if config.Timeout == 0 {
+		config.Timeout = 60
+	}
+	return storage.ParseConfig(config.Engine, config.EngineConfig, config.MainStores, config.DataTypes, config.Timeout)
 }

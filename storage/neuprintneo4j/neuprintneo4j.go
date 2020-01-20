@@ -164,7 +164,7 @@ func (store *Store) CypherRequest(cypher string, readonly bool) (storage.CypherR
 	var cres storage.CypherResult
 	if err != nil {
 		if strings.Contains(err.Error(), "Timeout") {
-			return cres, fmt.Errorf("Timeout experienced.  This could be due to database traffic or to non-optimal database queries.  Please cconsult neuPrint documentation or post a question to understand how to write more efficient queries.")
+			return cres, fmt.Errorf("Timeout experienced.  This could be due to database traffic or to non-optimal database queries. If the latter, please cconsult neuPrint documentation or post a question at https://groups.google.com/forum/#!forum/neuprint to understand other options.")
 		}
 		return cres, err
 	}
@@ -177,7 +177,7 @@ func (store *Store) CypherRequest(cypher string, readonly bool) (storage.CypherR
 // StartTrans starts a graph DB transaction
 func (store *Store) StartTrans() (storage.CypherTransaction, error) {
 	neoClient := http.Client{
-		Timeout: time.Second * 60,
+		Timeout: time.Second * time.Duration(storage.GlobalTimeout),
 	}
 	return &Transaction{currURL: store.url, preURL: store.preurl, neoClient: neoClient, isStarted: false}, nil
 }

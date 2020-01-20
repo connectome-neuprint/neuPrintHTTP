@@ -15,6 +15,7 @@ type Config struct {
 	MainStores    []interface{} `json:"mainstore-alternatives,omitempty"` // contains configuration for alternative main stores
 	KafkaServers  []string      `json:"kafka-servers,omitempty"`          // kafka servers for logging -- must build with kafka flag
 	LoggerFile    string        `json:"log-file,omitempty"`               // location for log file
+	Timeout       int           `json:"timeout,omitempty"`                // timeout in seconds for neo4j requeests (default 60 seconds)
 	DisableAuth   bool          `json:"disable-auth,omitempty"`           // set true to disable auth (can ignore flags below)
 	ClientID      string        `json:"oauthclient-id,omitempty"`         // google oauth client id
 	ClientSecret  string        `json:"oauthclient-secret,omitempty"`     // google oauth client secret
