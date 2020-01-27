@@ -7,7 +7,7 @@ Implements a connectomics REST interface that leverages the [neuprint](https://g
 
 ## Installation
 
-Go must be installed and GOPATH must be set to a location to store the spplication.  neuprint http supports both file-based logging and Apache Kafka.  For details on kafka, see below.  For basic installation:
+Go must be installed and GOPATH must be set to a location to store the application.  neuPrintHTTP supports both file-based logging and Apache Kafka.  For details on kafka, see below.  For basic installation:
 
     % go get github.com/connectome-neuprint/neuPrintHTTP
 
