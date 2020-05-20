@@ -524,7 +524,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	numtype := int(numtypef)
 
 	// fetch connection info (for sunburst plot)
-	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'output' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'input' as direction"
+	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'downstream' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'upstream' as direction"
 	connection_info = strings.Replace(connection_info, "{bodyid}", strconv.Itoa(bodyid), -1)
 
 	conninfo_res, err := requester.CypherRequest(connection_info, true)

@@ -1,1 +1,17 @@
+# only commit the sample config
+*.config.json
+config.json
+
+# no certificates
+*.pem
+
+# no log files
+log.json
+
+# no editor junk
 *.swp
+*~
+.vscode
+
+# no binaries
+neuPrintHTTP
