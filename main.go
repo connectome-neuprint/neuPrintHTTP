@@ -62,7 +62,7 @@ func neuprintLogo() {
 	fmt.Println("              @@@        @@@@@@      @@@@      @@@@       @@@@@@@@@@@      @@@@@@@@@@ @@@@@@@@@@@@@@@@@@@ @@@@@@@@@       @@@@@@@@@  @@@@@@@@@@@               ")
 	fmt.Println("                                                                                                                                                               ")
 	fmt.Println("                                                                                                                                                               ")
-	fmt.Println("neuPrintHTTP v1.2.0")
+	fmt.Println("neuPrintHTTP v1.2.1")
 
 }
 
