@@ -25,7 +25,7 @@ const (
 
 	RankedTableQuery = "MATCH (m:Neuron)-[e:ConnectsTo]-(n) WHERE {neuronid} RETURN m.instance AS Neuron1, m.type AS Neuron1Type, n.instance AS Neuron2, n.type AS Neuron2Type, e.weight AS Weight, n.bodyId AS Body2, id(m) AS m_id, id(n) AS n_id, id(startNode(e)) AS pre_id, m.bodyId AS Body1, e.weightHP AS WeightHP ORDER BY m.bodyId, e.weight DESC"
 
-	FindNeuronsQuery = " MATCH (m:Meta) WITH m.superLevelRois AS rois MATCH (neuron :{NeuronSegment}) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.type AS bodytype, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, neuron.synonyms as synonyms ORDER BY neuron.bodyId"
+	FindNeuronsQuery = " MATCH (m:Meta) WITH m.superLevelRois AS rois MATCH (neuron :{NeuronSegment}) {has_conditions} {neuronid} {pre_cond} {post_cond} {status_conds} {roi_list} RETURN neuron.bodyId AS bodyid, neuron.instance AS bodyname, neuron.type AS bodytype, neuron.status AS neuronStatus, neuron.roiInfo AS roiInfo, neuron.size AS size, neuron.pre AS npre, neuron.post AS npost, rois, neuron.notes as notes ORDER BY neuron.bodyId"
 
 	CommonConnectivityQuery = "WITH [{neuron_list}] AS queriedNeurons MATCH (k:{NeuronSegment}){connection}(c) WHERE (k.{idortype} IN queriedNeurons {pre_cond} {post_cond} {status_conds}) WITH k, c, r, toString(k.{idortype})+\"_weight\" AS dynamicWeight RETURN collect(apoc.map.fromValues([\"{inputoroutput}\", c.bodyId, \"name\", c.instance, \"type\", c.type, dynamicWeight, r.weight])) AS map"
 )
