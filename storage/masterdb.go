@@ -40,12 +40,18 @@ func (cw *CypherWrapper) CypherRequest(query string, readonly bool) (CypherResul
 		query = strings.Replace(query, ":Meta", ":`"+dataset+"_Meta`", -1)
 		query = strings.Replace(query, ":SynapseSet", ":`"+dataset+"_SynapseSet`", -1)
 		query = strings.Replace(query, ":Synapse", ":`"+dataset+"_Synapse`", -1)
+		query = strings.Replace(query, ":Cell", ":`"+dataset+"_Cell`", -1)
+		query = strings.Replace(query, ":ElementSet", ":`"+dataset+"_ElementSet`", -1)
+		query = strings.Replace(query, ":Element", ":`"+dataset+"_Element`", -1)
 
 		query = strings.Replace(query, ":`Neuron`", ":`"+dataset+"_Neuron`", -1)
 		query = strings.Replace(query, ":`Segment`", ":`"+dataset+"_Segment`", -1)
 		query = strings.Replace(query, ":`Meta`", ":`"+dataset+"_Meta`", -1)
 		query = strings.Replace(query, ":`SynapseSet`", ":`"+dataset+"_SynapseSet`", -1)
 		query = strings.Replace(query, ":`Synapse`", ":`"+dataset+"_Synapse`", -1)
+		query = strings.Replace(query, ":`Cell`", ":`"+dataset+"_Cell`", -1)
+		query = strings.Replace(query, ":`ElementSet`", ":`"+dataset+"_ElementSet`", -1)
+		query = strings.Replace(query, ":`Element`", ":`"+dataset+"_Element`", -1)
 
 		// handle SynapsesTo exception
 		query = strings.Replace(query, ":XSynapsesTo", ":SynapsesTo", -1)
