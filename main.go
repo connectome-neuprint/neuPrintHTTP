@@ -281,6 +281,11 @@ func main() {
 	// print logo
 	neuprintLogo()
 
+  // if log file selected print location of logs
+  if options.LoggerFile != "" {
+    fmt.Printf("logging to file: %s", options.LoggerFile)
+  }
+
 	// start server
 	secureAPI.StartEchoSecure(port)
 }
