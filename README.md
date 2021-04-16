@@ -82,6 +82,71 @@ This is the easiest way to use neuprint http.  It launches an http server and do
 ### Auth mode
 
 There are several options required to use authorization and authentication with Google.  Notably, the user must register
-the application with Google to enable using google authentication.  Also, for authoriation one can either specify user information in a static json file (example in this repo) or data can be extracted from Google's cloud datastore with a bit more configuration.  See more documentation in config/config.go.  One must also provide https credentials.  To get certificates for local testing, run and add the produced files into the config file.
+the application with Google to enable using google authentication.
+Also, for authoriation one can either specify user information in a static json file (example in this repo)
+or data can be extracted from Google's cloud datastore with a bit more configuration.  See more documentation in config/config.go.
+
+If you're using Google Datastore to manage the list of authorized users,
+you can use the Google Cloud Console or the Python API. (See below.)
+
+
+One must also provide https credentials.  To get certificates for local testing, run and add the produced files into the config file.
 
     % go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
+
+#### Update authorized users list with Google Cloud Console
+
+For adding or removing a single user, it's most convenient to just use the [Google Cloud Console][gcp-console].
+
+[gcp-console]: https://console.cloud.google.com/datastore/stats?project=dvid-em
+
+1. Start on the "Dashboard" page
+2. Click `neuprint_janelia`
+3. Click "Query Entities"
+4. Click `name=users`
+5. Add or delete properties (one per user)
+6. Click the "Save" button at the bottom of the screen.
+
+#### Update authorized users list with Python
+
+If you're using Google Datastore to manage the list of authorized users,
+it's convenient to programmatically edit the list with the [Google Datastore Python API][datastore-api].
+
+[datastore-api]: https://googleapis.dev/python/datastore/latest/index.html
+
+Start by installing the `google-cloud-datastore` Python package.
+Also make sure you've got the correct Google Cloud Project selected
+(or configure `GOOGLE_APPLICATION_CREDENTIALS`).
+
+```
+conda install -c conda-forge google-cloud-datastore
+gcloud config set project dvid-em
+```
+
+Here's an example:
+
+```python
+from google.cloud.datastore import Client, Key, Entity
+
+client = Client()
+
+# Fetch the list of users from the appropriate access list
+key = client.key('neuprint_janelia', 'users')
+r = client.query(kind='neuprint_janelia', ancestor=key).fetch(1000)
+
+# Extract the "entity", which is dict-like
+entity = list(r)[0]
+
+# Remove a user
+del entity['baduser@gmail.com']
+
+# Add some new users
+new_users = {
+    'newuser1@gmail.com': 'readwrite',
+    'newuser2@gmail.com': 'readwrite'
+}
+entity.update(new_users)
+
+# Upload
+client.put(entity)
+```
