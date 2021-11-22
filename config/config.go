@@ -27,6 +27,7 @@ type Config struct {
 	AuthToken     string        `json:"auth-token,omitempty"`             // token for authorization service
 	AuthDatastore string        `json:"auth-datastore,omitempty"`         // location of authorization service
 	StaticDir     string        `json:"static-dir,omitempty"`             // static webpage
+  NgDir         string        `json:"ng-dir,omitempty"`                 // directory for neuroglancer layers config
 	ProxyAuth     string        `json:"proxy-auth,omitempty"`             // remote proxy for authentication
 	ProxyInsecure bool          `json:"proxy-insecure,omitempty"`         // if true, disable https secure check
 }

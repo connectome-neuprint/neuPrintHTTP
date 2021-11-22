@@ -272,6 +272,21 @@ func main() {
 		e.Static("/api/help", options.SwaggerDir)
 	}
 
+	// swagger:operation GET /api/npexplorer/nglayers
+	//
+	// layer settings for neuroglancer view
+	//
+	// JSON files containing neuroglancer layer settings per dataset
+  //
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+
+	if options.NgDir != "" {
+		e.Static("/api/npexplorer/nglayers", options.NgDir)
+	}
+
 	// load connectomic default READ-ONLY API
 	if err = api.SetupRoutes(e, readGrp, store, secureAPI.AuthMiddleware(secure.ADMIN)); err != nil {
 		fmt.Print(err)
