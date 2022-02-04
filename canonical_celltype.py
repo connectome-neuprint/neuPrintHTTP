@@ -5,7 +5,7 @@ import re
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import pdist
-from scipy.spatial.distance import squareform                                                                     
+from scipy.spatial.distance import squareform
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing import StandardScaler
 
@@ -17,7 +17,7 @@ input = json.loads(sys.stdin.read())
 # maintain count of cell types
 # make a list of cell type (or "none" if ID), count, partner id (to be used for none) for each cell type
 # (ignore name exclusions and Leaves for this table unless that there is nothing than add both)
-# (list for inputs and outputs) 
+# (list for inputs and outputs)
 unique_neurons = set(input["unique_neurons"])
 good_neurons = set(input["good_neurons"])
 celltype_lists_inputs_t = input["celltype_lists_inputs"]
@@ -124,8 +124,8 @@ for neuron in unique_neurons:
     info["instance-name"] = neuron_instance[neuron]
     neuroninfo[neuron] = info
 
-# sort each list and cut-off anything below 50% with some error bar  
-def sort_lists(cell_type_lists):  
+# sort each list and cut-off anything below 50% with some error bar
+def sort_lists(cell_type_lists):
     for bid, info in cell_type_lists.items():
         important_count = 0
         info.sort()
@@ -166,18 +166,18 @@ def generate_feature_table(celltype_lists):
                     global_queue.append((weight, bid2, neuron, val))
     global_queue.sort()
     global_queue.reverse()
-    
+
     # provide rank from big to small and provide connection count
     # (count delineated by max in row but useful for bookkeeping)
     celltype_rank = []
-    
+
     # from large to small make a list of common partners, each time another is added, iterate through
     # other common partners to find a match (though we need to look at the whole list beyond the cut-off)
     for (count, ignore, neuron, entry) in global_queue:
         if entry["examined"]:
             continue
         celltype_rank.append((entry["partner"], count, entry["hastype"]))
-    
+
         # check for matches for each cell type instance in neuron working set
         for neuron in neuron_working_set:
             if neuron in celltype_lists:
@@ -185,10 +185,10 @@ def generate_feature_table(celltype_lists):
                     if not val["examined"] and val["partner"] == entry["partner"] and val["hastype"] == entry["hastype"]:
                         val["examined"] = True
                         break
-                    
+
     # generate feature map for neuron
     features = np.zeros((len(unique_neurons), len(celltype_rank)))
-    
+
     iter1 = 0
     for neuron in unique_neurons:
         connlist = []
@@ -213,18 +213,18 @@ def generate_feature_table(celltype_lists):
                 cfeatures.append(0)
         features[iter1] = cfeatures
         iter1 +=1
-            
+
     ranked_names = []
     for (ctype, count, hastype) in celltype_rank:
         ranked_names.append(ctype)
     neuron_ids = []
     for neuron in unique_neurons:
         neuron_ids.append(neuron)
-        
-        
+
+
     return pd.DataFrame(features, index=neuron_ids, columns=ranked_names)
-    
-# OUTPUT 
+
+# OUTPUT
 features_inputs = generate_feature_table(celltype_lists_inputs)
 
 # OUTPUT
@@ -237,25 +237,25 @@ def compute_distance_matrix(features):
     Args:
         features (dataframe): matrix of features
     Returns:
-        (dataframe): A 2d distance matrix represented as a table                                                      
+        (dataframe): A 2d distance matrix represented as a table
     """
 
-    # compute pairwise distance and put in square form                                                                
-    dist_matrix = squareform(pdist(features.values))                                                                  
+    # compute pairwise distance and put in square form
+    dist_matrix = squareform(pdist(features.values))
 
-    return pd.DataFrame(dist_matrix, index=features.index.values.tolist(), columns=features.index.values.tolist())   
+    return pd.DataFrame(dist_matrix, index=features.index.values.tolist(), columns=features.index.values.tolist())
 
 def normalize_data(inputs, outputs, neurons=None):
     if len(inputs.columns) == 0 and len(outputs.columns) == 0:
         return inputs, inputs.index.to_list()
-    
-    
+
+
     if neurons is not None:
         inputs = inputs.loc[neurons]
         outputs = outputs.loc[neurons]
-    
+
     func = np.vectorize(lambda x: 1 / (1 + np.exp(-((x-17)/20))))
-    
+
     if  len(inputs.columns) == 0:
         supercombo = normalize(func(outputs.values), axis=1, norm='l2')
     elif len(outputs.columns) == 0:
@@ -264,7 +264,7 @@ def normalize_data(inputs, outputs, neurons=None):
         input_norm = normalize(func(inputs.values), axis=1, norm='l2')
         output_norm = normalize(func(outputs.values), axis=1, norm='l2')
         supercombo = np.concatenate((input_norm*(0.5**(1/2)), output_norm*(0.5**(1/2))), axis=1)
-    
+
     return supercombo, inputs.index.to_list()
 
 all_features, row_ids_all = normalize_data(features_inputs, features_outputs)
@@ -287,7 +287,7 @@ for iter1 in range(len(working_features)):
 # OUTPUT
 dist_matrix = compute_distance_matrix(pd.DataFrame(all_features, index=row_ids_all))
 
-# generate big input, output (using threshold) and show biggest additions and misses with 50% match threshold    
+# generate big input, output (using threshold) and show biggest additions and misses with 50% match threshold
 
 # OUTPUT
 celltypes_inputs = {}
@@ -300,7 +300,7 @@ celltypes_outputs_missed = {}
 
 fi_lim = features_inputs.loc[list(neuron_working_set)]
 fo_lim = features_outputs.loc[list(neuron_working_set)]
-imed = fi_lim.median()   
+imed = fi_lim.median()
 omed = fo_lim.median()
 i_order = np.argsort(imed)[::-1]
 o_order = np.argsort(omed)[::-1]
@@ -315,7 +315,7 @@ feature_inputs_lim = features_inputs.loc[list(neuron_working_set)]
 feature_outputs_lim = features_outputs.loc[list(neuron_working_set)]
 
 # OUTPUT
-feature_inputs_med = feature_inputs_lim.median()   
+feature_inputs_med = feature_inputs_lim.median()
 feature_outputs_med = feature_outputs_lim.median()
 
 
@@ -332,7 +332,7 @@ def get_matches(celltype_lists, feature_med, celltypes_io, celltypes_io_missed):
         rank2neuron = {}
         for idx in range(len(connarr)):
             (weight, ignore, info) = connarr[idx]
-            
+
             match_features = list(np.where(feature_med.index.values == info["partner"])[0])
             #match_features = feature_med[[info["partner"]]]
             matchid = -1
@@ -348,7 +348,7 @@ def get_matches(celltype_lists, feature_med, celltypes_io, celltypes_io_missed):
                         matchid = fid
                         matchval = feature_med.iloc[fid]
                         break
-           
+
             # add a non-matching id (-1 by default)
             matched_ids.add(matchid)
             neuron2rank[idx] = matchval
@@ -378,7 +378,7 @@ def get_matches(celltype_lists, feature_med, celltypes_io, celltypes_io_missed):
             if feature_med[fid]*match_cutoff >= weight and feature_med[fid] > (weight+tracing_accuracy):
                 res2.append([feature_med.index[fid], feature_med[fid], weight])
         celltypes_io_missed[bid] = pd.DataFrame(res2, columns=["type", "group weight", "neuron weight"])
-    
+
 get_matches(celltype_lists_inputs, feature_inputs_med, celltypes_inputs, celltypes_inputs_missed)
 get_matches(celltype_lists_outputs, feature_outputs_med, celltypes_outputs, celltypes_outputs_missed)
 

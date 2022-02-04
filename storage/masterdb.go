@@ -16,7 +16,7 @@ type MasterDB struct {
 	Types         map[string][]SimpleStore
 }
 
-// MaiinStore implements the Cypher interfacee
+// MainStore implements the Cypher interfacee
 // and is responsible for automatically modifying cypher
 // TODO: support multiple databases (concatenation) and optional no cypher overwrite
 type CypherWrapper struct {
