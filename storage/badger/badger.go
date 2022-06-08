@@ -2,9 +2,10 @@ package badger
 
 import (
 	"fmt"
+
 	"github.com/blang/semver"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
-	badgerdb "github.com/dgraph-io/badger"
+	badgerdb "github.com/dgraph-io/badger/v3"
 )
 
 /* Implements badger specific implemetation of storage. */

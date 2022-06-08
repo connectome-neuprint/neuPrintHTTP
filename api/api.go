@@ -9,10 +9,11 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
-	"github.com/labstack/echo"
-	"net/http"
+	"github.com/labstack/echo/v4"
 )
 
 const APIVERSION = "0.1.0"

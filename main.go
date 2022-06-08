@@ -36,8 +36,8 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
 	secure "github.com/janelia-flyem/echo-secure"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func customUsage() {
@@ -46,16 +46,16 @@ func customUsage() {
 }
 
 func neuprintLogo() {
-  fmt.Println("                                                                                    ")
-  fmt.Println("                                    ooooooooo.             o8o                  .   ")
-  fmt.Println("                                    `888   `Y88.           `\"'                .o8   ")
-  fmt.Println("  ooo. .oo.    .ooooo.  oooo  oooo   888   .d88' oooo d8b oooo  ooo. .oo.   .o888oo ")
-  fmt.Println("  `888P\"Y88b  d88' `88b `888  `888   888ooo88P'  `888\"\"8P `888  `888P\"Y88b    888   ")
-  fmt.Println("   888   888  888ooo888  888   888   888          888      888   888   888    888   ")
-  fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
-  fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
-  fmt.Println("                                                                                    ")
-  fmt.Println("neuPrintHTTP v1.5.1")
+	fmt.Println("                                                                                    ")
+	fmt.Println("                                    ooooooooo.             o8o                  .   ")
+	fmt.Println("                                    `888   `Y88.           `\"'                .o8   ")
+	fmt.Println("  ooo. .oo.    .ooooo.  oooo  oooo   888   .d88' oooo d8b oooo  ooo. .oo.   .o888oo ")
+	fmt.Println("  `888P\"Y88b  d88' `88b `888  `888   888ooo88P'  `888\"\"8P `888  `888P\"Y88b    888   ")
+	fmt.Println("   888   888  888ooo888  888   888   888          888      888   888   888    888   ")
+	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
+	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
+	fmt.Println("                                                                                    ")
+	fmt.Println("neuPrintHTTP v1.5.1")
 
 }
 
@@ -277,7 +277,7 @@ func main() {
 	// layer settings for neuroglancer view
 	//
 	// JSON files containing neuroglancer layer settings per dataset
-  //
+	//
 	// ---
 	// responses:
 	//   200:
@@ -296,10 +296,10 @@ func main() {
 	// print logo
 	neuprintLogo()
 
-  // if log file selected print location of logs
-  if options.LoggerFile != "" {
-    fmt.Printf("logging to file: %s", options.LoggerFile)
-  }
+	// if log file selected print location of logs
+	if options.LoggerFile != "" {
+		fmt.Printf("logging to file: %s", options.LoggerFile)
+	}
 
 	// start server
 	secureAPI.StartEchoSecure(port)

@@ -1,11 +1,12 @@
 package keyvalue
 
 import (
-	"github.com/connectome-neuprint/neuPrintHTTP/api"
-	"github.com/connectome-neuprint/neuPrintHTTP/storage"
-	"github.com/labstack/echo"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/labstack/echo/v4"
 )
 
 func init() {

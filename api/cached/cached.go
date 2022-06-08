@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/knightjdr/hclust"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
+
 	//"math"
 	"fmt"
 	"net/http"

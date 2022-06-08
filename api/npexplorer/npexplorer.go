@@ -2,13 +2,14 @@ package npexplorer
 
 import (
 	"encoding/json"
-	"github.com/connectome-neuprint/neuPrintHTTP/api"
-	"github.com/connectome-neuprint/neuPrintHTTP/storage"
-	"github.com/labstack/echo"
 	"io"
 	"net/http"
 	"os/exec"
 	"strconv"
+
+	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/labstack/echo/v4"
 )
 
 func init() {
@@ -256,7 +257,7 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 		// ingore neuron types have not been traced in any way:
 		exists := primary_statuses[type_status]
 		if !exists {
-		   	continue
+			continue
 		}
 
 		unique_neurons[bodyid] = struct{}{}
@@ -277,9 +278,8 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 		// might as well ignore connection as well if not to traced
 		exists2 := primary_statuses[type_status2]
 		if !exists2 {
-		        continue
+			continue
 		}
-
 
 		// add stats if traced
 		if is_output {

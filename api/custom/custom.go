@@ -1,11 +1,12 @@
 package custom
 
 import (
+	"net/http"
+
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
-	"github.com/labstack/echo"
-	"net/http"
+	"github.com/labstack/echo/v4"
 )
 
 func init() {
