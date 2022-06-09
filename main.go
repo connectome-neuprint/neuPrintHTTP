@@ -55,7 +55,7 @@ func neuprintLogo() {
 	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
 	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
 	fmt.Println("                                                                                    ")
-	fmt.Println("neuPrintHTTP v1.5.1")
+	fmt.Println("neuPrintHTTP v1.5.2")
 
 }
 
