@@ -10,7 +10,7 @@ type MasterDB struct {
 	// MainStores contains all graph DBs
 	// (first store is the default)
 	MainStores    []SimpleStore
-	DatasetStores map[string]SimpleStore
+	DatasetStores map[string]SimpleStore // key is lower case to make it case insensitive for lookup
 	Stores        []SimpleStore
 	Instances     map[string]SimpleStore
 	Types         map[string][]SimpleStore
@@ -69,14 +69,26 @@ func (db *MasterDB) GetMain(datasets ...string) Cypher {
 	// just consider the first store for now
 	// default to the primary main store
 	if len(datasets) > 0 {
-		if store, ok := db.DatasetStores[datasets[0]]; ok {
-			return &CypherWrapper{datasets[0], store.(Cypher)}
+		lowerDataset := strings.ToLower(datasets[0])
+		if store, ok := db.DatasetStores[lowerDataset]; ok {
+			return &CypherWrapper{lowerDataset, store.(Cypher)}
 		} else {
-			return &CypherWrapper{datasets[0], db.MainStores[0].(Cypher)}
+			return &CypherWrapper{lowerDataset, db.MainStores[0].(Cypher)}
 		}
 	}
 
 	return &CypherWrapper{"", db.MainStores[0].(Cypher)}
+}
+
+// GetDataset returns Cypher for a request if a dataset exists.
+func (db *MasterDB) GetDataset(dataset string) (Cypher, error) {
+	fmt.Printf("In GetDataset() checking %v on db.DatasetStores: %v\n", dataset, db.DatasetStores)
+	lowerDataset := strings.ToLower(dataset)
+	store, ok := db.DatasetStores[lowerDataset]
+	if ok {
+		return &CypherWrapper{dataset, store.(Cypher)}, nil
+	}
+	return nil, fmt.Errorf("dataset %q not available in stores", dataset)
 }
 
 // **** Re-implement SimpleStore interface (since we could have multiple main stores) ****

@@ -6,6 +6,7 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 )
 
 var GlobalTimeout = 60
@@ -26,6 +27,7 @@ type SimpleStore interface {
 type Store interface {
 	SimpleStore
 	GetMain(datasets ...string) Cypher
+	GetDataset(dataset string) (Cypher, error)
 	GetStores() []SimpleStore
 	GetInstances() map[string]SimpleStore
 	GetTypes() map[string][]SimpleStore
@@ -118,11 +120,12 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 			continue
 		}
 		for dataset, _ := range datasets {
-			if _, ok = datasetStores[dataset]; ok {
-				return nil, fmt.Errorf("dataset exists multiple times")
+			lowerDataset := strings.ToLower(dataset)
+			if _, ok = datasetStores[lowerDataset]; ok {
+				return nil, fmt.Errorf("dataset %q exists multiple times", dataset)
 			}
 
-			datasetStores[dataset] = mainStore
+			datasetStores[lowerDataset] = mainStore
 		}
 
 		mainStores = append(mainStores, mainStore)
@@ -134,10 +137,11 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 		return nil, err
 	}
 	for dataset, _ := range datasets {
-		if _, ok := datasetStores[dataset]; ok {
+		lowerDataset := strings.ToLower(dataset)
+		if _, ok := datasetStores[lowerDataset]; ok {
 			return nil, fmt.Errorf("dataset exists multiple times")
 		}
-		datasetStores[dataset] = firstStore
+		datasetStores[lowerDataset] = firstStore
 	}
 
 	// load all data instance databases for auxiliary data

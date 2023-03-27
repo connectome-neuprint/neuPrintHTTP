@@ -111,7 +111,12 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 		}
 	}
 
-	if data, err := ca.Store.GetMain(req.Dataset).CypherRequest(req.Cypher, true); err != nil {
+	cypher, err := ca.Store.GetDataset(req.Dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
+		return c.JSON(http.StatusNotFound, errJSON)
+	}
+	if data, err := cypher.CypherRequest(req.Cypher, true); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {
