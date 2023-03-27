@@ -90,7 +90,7 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 	mainStores = append(mainStores, firstStore)
 
 	var mainStore SimpleStore
-	for _, engine_data_raw := range mainstores {
+	for engine_num, engine_data_raw := range mainstores {
 		engine_data := engine_data_raw.(map[string]interface{})
 
 		engineName, ok := engine_data["engine"].(string)
@@ -104,14 +104,18 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 
 			mainStore, err = engine.NewStore(data, "", "")
 			if err != nil {
-				return nil, err
+				// Allow configured store to not work, just skip it for now.
+				fmt.Printf("Skipping alternative store %d due to error: %v\n", engine_num, err)
+				continue
 			}
 		}
 
 		// add to dataset stores
 		datasets, err := mainStore.GetDatasets()
 		if err != nil {
-			return nil, err
+			// Allow configured store to not work, just skip it for now.
+			fmt.Printf("Skipping alternative store %d due to error getting datasets: %v\n", engine_num, err)
+			continue
 		}
 		for dataset, _ := range datasets {
 			if _, ok = datasetStores[dataset]; ok {
