@@ -195,7 +195,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	}
 
 	// restrict the query to the super level ROIs
-	cypher2 := "MATCH (m :Meta) RETURN m.superLevelRois AS rois"
+  cypher2 := "MATCH (meta :Meta) WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo UNWIND keys(roiInfo) as roi WITH meta, roiInfo, roi WHERE roi IN meta.superLevelRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE) RETURN collect(roi) as rois"
 	res2, err := ca.Store.GetMain(dataset).CypherRequest(cypher2, true)
 	if err != nil {
 		return nil, err
