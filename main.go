@@ -236,6 +236,13 @@ func main() {
 		return c.JSON(http.StatusOK, info)
 	}))
 
+  e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+		info := struct {
+			Url string
+		}{options.VimoServer}
+		return c.JSON(http.StatusOK, info)
+	}))
+
 	// setup default page
 	if options.StaticDir != "" {
 		e.Static("/", options.StaticDir)

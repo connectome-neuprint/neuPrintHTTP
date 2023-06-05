@@ -30,6 +30,7 @@ type Config struct {
   NgDir         string        `json:"ng-dir,omitempty"`                 // directory for neuroglancer layers config
 	ProxyAuth     string        `json:"proxy-auth,omitempty"`             // remote proxy for authentication
 	ProxyInsecure bool          `json:"proxy-insecure,omitempty"`         // if true, disable https secure check
+  VimoServer    string        `json:"vimo-server,omitempty"`            // url for the vimo server
 }
 
 // LoadConfig parses json configuration and loads options
