@@ -108,6 +108,10 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 		fmt.Printf("GetDatasets: %v\n", metadata)
 	}
 
+	if len(metadata.Data) == 0 {
+		return nil, fmt.Errorf("no datasets found in server %s", store.server)
+	}
+
 	res := make(map[string]interface{})
 
 	for _, row := range metadata.Data {
