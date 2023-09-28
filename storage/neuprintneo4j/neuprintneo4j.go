@@ -47,11 +47,11 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 	}
 	user, ok := datamap["user"].(string)
 	if !ok {
-		fmt.Printf("user not specified for neo4j\n")
+		fmt.Printf("Noted: user not specified for neo4j\n")
 	}
 	pass, ok := datamap["password"].(string)
 	if !ok {
-		fmt.Printf("password not specified for neo4j")
+		fmt.Printf("Noted: password not specified for neo4j\n")
 	}
 
 	dbversion, _ := semver.Make(VERSION)
