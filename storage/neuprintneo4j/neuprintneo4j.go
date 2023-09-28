@@ -96,10 +96,16 @@ type databaseInfo struct {
 
 // GetDatasets returns information on the datasets supported
 func (store *Store) GetDatasets() (map[string]interface{}, error) {
+	if storage.Verbose {
+		fmt.Printf("Trying to get datasets\n")
+	}
 	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag, m.hideDataSet AS hidden"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
+	}
+	if storage.Verbose {
+		fmt.Printf("GetDatasets: %v\n", metadata)
 	}
 
 	res := make(map[string]interface{})
