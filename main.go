@@ -35,6 +35,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	secure "github.com/janelia-flyem/echo-secure"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -71,6 +72,7 @@ func main() {
 	flag.IntVar(&proxyport, "proxy-port", 0, "proxy port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
+	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -236,7 +238,7 @@ func main() {
 		return c.JSON(http.StatusOK, info)
 	}))
 
-  e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			Url string
 		}{options.VimoServer}

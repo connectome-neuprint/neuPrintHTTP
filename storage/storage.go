@@ -11,6 +11,9 @@ import (
 
 var GlobalTimeout = 60
 
+// Verbose prints out information on every request
+var Verbose bool
+
 // ***** Main interfaces to top-level databases *****
 
 // SimpleStore is an instance of Engine
@@ -64,7 +67,7 @@ type Spatial interface {
 	Raw3dData(Point, Point, Scale, Compression) ([]byte, error)
 }
 
-// KeyValueis the main interface for accessing keyvalue databases
+// KeyValue is the main interface for accessing keyvalue databases
 type KeyValue interface {
 	Get([]byte) ([]byte, error)
 	Set([]byte, []byte) error
@@ -74,7 +77,7 @@ type KeyValue interface {
 func ParseConfig(engineName string, data interface{}, mainstores []interface{}, datatypes_raw interface{}, timeout int) (Store, error) {
 	GlobalTimeout = timeout
 	if availEngines == nil {
-		return nil, fmt.Errorf("No engines loaded")
+		return nil, fmt.Errorf("no engines loaded")
 	}
 	var err error
 	mainStores := make([]SimpleStore, 0, 0)

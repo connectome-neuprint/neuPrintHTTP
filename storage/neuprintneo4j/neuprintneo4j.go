@@ -3,11 +3,12 @@ package neuprintneo4j
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/blang/semver"
-	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/blang/semver"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 )
 
 func init() {
@@ -32,34 +33,33 @@ func (e Engine) GetName() string {
 }
 
 // NewStore creates an store instance that works with neo4j.
-// The neo4j engine requires a user name and password to authenticate and
-// the location of the server.
+// The neo4j engine requires the location of the server and possibly
+// a user name and password.
 func (e Engine) NewStore(data interface{}, typename, instance string) (storage.SimpleStore, error) {
 	datamap, ok := data.(map[string]interface{})
 	var emptyStore storage.Store
 	if !ok {
 		return emptyStore, fmt.Errorf("incorrect configuration for neo4j")
 	}
-	user, ok := datamap["user"].(string)
-	if !ok {
-		return emptyStore, fmt.Errorf("user not specified for neo4j")
-	}
-	pass, ok := datamap["password"].(string)
-	if !ok {
-		return emptyStore, fmt.Errorf("password not specified for neo4j")
-	}
 	server, ok := datamap["server"].(string)
 	if !ok {
 		return emptyStore, fmt.Errorf("server not specified for neo4j")
 	}
+	user, ok := datamap["user"].(string)
+	if !ok {
+		fmt.Printf("user not specified for neo4j\n")
+	}
+	pass, ok := datamap["password"].(string)
+	if !ok {
+		fmt.Printf("password not specified for neo4j")
+	}
 
 	dbversion, _ := semver.Make(VERSION)
 
-	// TODO: check connection to DB
-	/*if err != nil {
-	    return emptyStore, fmt.Errorf("could not connect to database")
-	}*/
-	preurl := "http://" + user + ":" + pass + "@"
+	preurl := "http://"
+	if user != "" && pass != "" {
+		preurl = preurl + user + ":" + pass + "@"
+	}
 	url := preurl + server + "/db/data/transaction"
 
 	return &Store{server, dbversion, url, preurl, typename, instance}, nil
@@ -130,10 +130,10 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 			return nil, err
 		}
 
-    hidden := false
-    if row[7] != nil {
-      hidden = row[7].(bool)
-    }
+		hidden := false
+		if row[7] != nil {
+			hidden = row[7].(bool)
+		}
 
 		superROIs := row[5].([]interface{})
 		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), make([]string, 0, len(superROIs)), info, hidden}
