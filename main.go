@@ -4,21 +4,22 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//     Version: 0.1.0
-//     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//	Version: 0.1.0
+//	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
-//     SecurityDefinitions:
-//     Bearer:
-//         type: apiKey
-//         name: Authorization
-//         in: header
-//         scopes:
-//           admin: Admin scope
-//           user: User scope
-//     Security:
-//     - Bearer:
+//	SecurityDefinitions:
+//	Bearer:
+//	    type: apiKey
+//	    name: Authorization
+//	    in: header
+//	    scopes:
+//	      admin: Admin scope
+//	      user: User scope
+//	Security:
+//	- Bearer:
 //
 // swagger:meta
+//
 //go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
 package main
 
