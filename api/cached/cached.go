@@ -464,7 +464,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	requester := ca.Store.GetMain(dataset)
 
 	// find a random cell typee
-	random_query := "MATCH (n :Neuron) WHERE not n.cropped AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE not n.cropped AND n.status IN [\"Traced\",\"Anchor\"] AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
+	random_query := "MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
 
 	rand_res, err := requester.CypherRequest(random_query, true)
 	if err != nil {
