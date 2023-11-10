@@ -2,8 +2,8 @@
 //
 // REST interface for neuPrint.
 //
-// 	Version: 0.1.0
-//	Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//	Version: 0.1.0
+//	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
 // swagger:meta
 package api

@@ -29,11 +29,10 @@ type cypherAPI struct {
 	Store storage.Store
 }
 
-var mux sync.Mutex
-
 type CacheType int
 
 var cachedResults map[CacheType]map[string]interface{}
+var cacheMux sync.Mutex
 
 const (
 	ROIConn   CacheType = 1
@@ -68,31 +67,18 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 	go func() {
 		for {
-			data, err := mainapi.Store.GetDatasets()
+			datasets, err := mainapi.Store.GetDatasets()
 			if err == nil {
 				// load connections
-				for dataset, _ := range data {
+				for dataset, _ := range datasets {
 					// cache roi connectivity
-					if res, err := q.getROIConnectivity_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[ROIConn][dataset] = res
-						mux.Unlock()
-					}
+					_, _ = q.roiConnectivity(dataset)
 
 					// cache roi completeness
-					if res, err := q.getROICompleteness_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[ROIComp][dataset] = res
-						mux.Unlock()
-					}
+					_, _ = q.roiCompleteness(dataset)
 
 					// cache daily type
-					if res, err := q.getDailyType_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[DailyType][dataset] = res
-						mux.Unlock()
-					}
-
+					_, _ = q.dailyType(dataset)
 				}
 			}
 			// reset cache every day
@@ -103,11 +89,24 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	return nil
 }
 
-type dbVersion struct {
-	Version string
+// returns how the ROIs connect to each other
+func (ca cypherAPI) roiConnectivity(dataset string) (res interface{}, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	var ok bool
+	if res, ok = cachedResults[ROIConn][dataset]; ok {
+		return
+	}
+
+	res, err = ca.getROIConnectivity_int(dataset)
+	if err == nil {
+		cachedResults[ROIConn][dataset] = res
+	}
+	return
 }
 
-// getROI connectivity returns how the ROIs connect to each other
+// getROIConnectivity provides web handler for how the ROIs connect to each other
 func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	// swagger:operation GET /api/cached/roiconnectivity cached getROIConnectivity
 	//
@@ -149,23 +148,11 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[ROIConn][dataset]; ok {
-		mux.Unlock()
-		return c.JSON(http.StatusOK, res)
-	}
-	mux.Unlock()
-
-	res, err := ca.getROIConnectivity_int(dataset)
-	if err == nil {
-		mux.Lock()
-		cachedResults[ROIConn][dataset] = res
-		mux.Unlock()
+	res, err := ca.roiConnectivity(dataset)
+	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// load result
 	return c.JSON(http.StatusOK, res)
 }
 
@@ -195,7 +182,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	}
 
 	// restrict the query to the super level ROIs
-  cypher2 := "MATCH (meta :Meta) WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo UNWIND keys(roiInfo) as roi WITH meta, roiInfo, roi WHERE roi IN meta.superLevelRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE) RETURN collect(roi) as rois"
+	cypher2 := "MATCH (meta :Meta) WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo UNWIND keys(roiInfo) as roi WITH meta, roiInfo, roi WHERE roi IN meta.superLevelRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE) RETURN collect(roi) as rois"
 	res2, err := ca.Store.GetMain(dataset).CypherRequest(cypher2, true)
 	if err != nil {
 		return nil, err
@@ -304,7 +291,24 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	}
 }
 
-// getROICompleteness returns the tracing completeness of each ROI
+// roiCompleteness returns the tracing completeness of each ROI
+func (ca cypherAPI) roiCompleteness(dataset string) (res interface{}, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	var ok bool
+	if res, ok = cachedResults[ROIComp][dataset]; ok {
+		return
+	}
+
+	res, err = ca.getROICompleteness_int(dataset)
+	if err == nil {
+		cachedResults[ROIComp][dataset] = res
+	}
+	return
+}
+
+// getROICompleteness is web handler that provides the tracing completeness of each ROI
 func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 	// swagger:operation GET /api/cached/roicompleteness cached getROICompleteness
 	//
@@ -344,29 +348,17 @@ func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[ROIComp][dataset]; ok {
-		mux.Unlock()
-		return c.JSON(http.StatusOK, res)
-	}
-	mux.Unlock()
-
-	res, err := ca.getROICompleteness_int(dataset)
+	res, err := ca.roiCompleteness(dataset)
 	if err != nil {
-		mux.Lock()
-		cachedResults[ROIComp][dataset] = res
-		mux.Unlock()
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// load result
 	return c.JSON(http.StatusOK, res)
 }
 
 var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized", "Leaves"}
 
-//getROICompleteness_int fetches roi completeness from database
+// getROICompleteness_int fetches roi completeness from database
 func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (n:Neuron) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
@@ -392,11 +384,28 @@ type SkeletonResp struct {
 	Data    [][]interface{} `json:"data"`
 }
 
-// getDailyType returns information for a different neeuron each day
+// daily type returns information for a different neeuron each day
+func (ca cypherAPI) dailyType(dataset string) (res []byte, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	if resc, ok := cachedResults[DailyType][dataset]; ok {
+		res, _ = resc.([]byte)
+		return
+	}
+
+	res, err = ca.getDailyType_int(dataset)
+	if err == nil {
+		cachedResults[DailyType][dataset] = res
+	}
+	return
+}
+
+// getDailyType is web handler that provides the information for a different neuron each day
 func (ca cypherAPI) getDailyType(c echo.Context) error {
 	// swagger:operation GET /api/cached/dailytype cached getDailyType
 	//
-	// Gets information for a different neuron type each day..
+	// Gets information for a different neuron type each day.
 	//
 	// The program updates the completeness numbers each day.  A different
 	// cell type is randomly picked and an exemplar is chosen
@@ -438,24 +447,11 @@ func (ca cypherAPI) getDailyType(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[DailyType][dataset]; ok {
-		mux.Unlock()
-		c.Response().Header().Set("Content-Encoding", "gzip")
-		resc, _ := res.([]byte)
-		return c.Blob(http.StatusOK, "application/json", resc)
-	}
-	mux.Unlock()
-
-	res, err := ca.getDailyType_int(dataset)
+	res, err := ca.dailyType(dataset)
 	if err != nil {
-		mux.Lock()
-		cachedResults[DailyType][dataset] = res
-		mux.Unlock()
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
 	c.Response().Header().Set("Content-Encoding", "gzip")
 	return c.Blob(http.StatusOK, "application/json", res)
 }
