@@ -83,6 +83,9 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 			}
 			// reset cache every day
 			time.Sleep(24 * time.Hour)
+			cachedResults[ROIConn] = make(map[string]interface{})
+			cachedResults[ROIComp] = make(map[string]interface{})
+			cachedResults[DailyType] = make(map[string]interface{})
 		}
 	}()
 
