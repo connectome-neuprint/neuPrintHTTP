@@ -188,14 +188,36 @@ const MAXVAL = 10000000000
 
 // getROIConnectivity_int implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
-	cypher := "MATCH (neuron :Neuron) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
+	cypher := `
+		MATCH (neuron :Neuron)
+		RETURN
+			neuron.bodyId AS bodyid,
+			neuron.roiInfo AS roiInfo
+	`
 	res, err := ca.Store.GetMain(dataset).CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
 	}
 
-	// restrict the query to the super level ROIs
-  cypher2 := "MATCH (meta :Meta) WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo UNWIND keys(roiInfo) as roi WITH meta, roiInfo, roi WHERE roi IN meta.superLevelRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE) RETURN collect(roi) as rois"
+	// Restrict results to the overview ROIs.
+	// If Meta.overviewRois is present, use that list.
+	// Otherwise, use the primaryRois by default.
+	// But
+	cypher2 := `
+		MATCH (meta :Meta)
+		WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo
+		UNWIND keys(roiInfo) as roi
+		WITH meta, roiInfo, roi
+		WHERE
+			(
+		     (meta.overviewRois IS NOT NULL AND roi IN meta.overviewRois)
+			  OR
+			 (meta.overviewRois IS NULL AND roi in meta.primaryRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE))
+		   )
+			AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE)
+		RETURN collect(roi) as rois
+	`
+
 	res2, err := ca.Store.GetMain(dataset).CypherRequest(cypher2, true)
 	if err != nil {
 		return nil, err
@@ -285,7 +307,27 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		}
 	}
 
-	if len(distmatrix) > 3 {
+	cypher3 := `
+	MATCH (m:Meta)
+	RETURN
+		CASE m.overviewOrder
+			WHEN NULL THEN 'clustered'
+			ELSE m.overviewOrder
+		END AS overviewOrder
+	`
+	res3, err := ca.Store.GetMain(dataset).CypherRequest(cypher3, true)
+	if err != nil {
+		return nil, err
+	}
+	var overviewOrder string
+	if len(res3.Data) > 0 {
+		overviewOrder = res3.Data[0][0].(string)
+	}
+
+	// If the dataset wants the overview ROIs to be auto-ordered,
+	// then use clustering to find the order.
+	// Otherwise, stick with the order given by Meta.overviewRois.
+	if len(distmatrix) > 3 && overviewOrder == "clustered" {
 		// sort roi names by clustering
 		subcluster, err := hclust.Cluster(distmatrix, "single")
 		if err != nil {
@@ -366,7 +408,7 @@ func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 
 var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized", "Leaves"}
 
-//getROICompleteness_int fetches roi completeness from database
+// getROICompleteness_int fetches roi completeness from database
 func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (n:Neuron) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
