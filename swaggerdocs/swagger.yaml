@@ -1,7 +1,7 @@
 info:
   contact:
-    email: plazas@janelia.hhmi.org
-    name: Stephen Plaza
+    email: neuprint@janelia.hhmi.org
+    name: Neuprint Team
   description: |-
     REST interface for neuPrint.  To test out the interface, copy  your token
     under your acocunt information. Then authorize Swagger by typing "Bearer " and

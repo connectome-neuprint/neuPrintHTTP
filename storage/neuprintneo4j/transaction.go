@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 )
 
 type Transaction struct {
@@ -33,6 +34,9 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	req.Header.Set("X-Stream", "true")
 	res, err := t.neoClient.Do(req)
 	if err != nil {
+		if storage.Verbose {
+			fmt.Printf("Request (%s) failed: %v\n", t.currURL, err)
+		}
 		return cres, err
 	}
 	defer res.Body.Close()
@@ -40,6 +44,9 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return cres, err
+	}
+	if storage.Verbose {
+		fmt.Printf("Request (%s) succeeded: %v\n", t.currURL, string(body))
 	}
 
 	result := neoResults{}

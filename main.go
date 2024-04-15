@@ -4,21 +4,22 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//     Version: 0.1.0
-//     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//	Version: 0.1.0
+//	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
-//     SecurityDefinitions:
-//     Bearer:
-//         type: apiKey
-//         name: Authorization
-//         in: header
-//         scopes:
-//           admin: Admin scope
-//           user: User scope
-//     Security:
-//     - Bearer:
+//	SecurityDefinitions:
+//	Bearer:
+//	    type: apiKey
+//	    name: Authorization
+//	    in: header
+//	    scopes:
+//	      admin: Admin scope
+//	      user: User scope
+//	Security:
+//	- Bearer:
 //
 // swagger:meta
+//
 //go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
 package main
 
@@ -35,6 +36,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	secure "github.com/janelia-flyem/echo-secure"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -55,7 +57,7 @@ func neuprintLogo() {
 	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
 	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
 	fmt.Println("                                                                                    ")
-	fmt.Println("neuPrintHTTP v1.6.0")
+	fmt.Println("neuPrintHTTP v1.6.5")
 
 }
 
@@ -71,6 +73,7 @@ func main() {
 	flag.IntVar(&proxyport, "proxy-port", 0, "proxy port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
+	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -236,7 +239,7 @@ func main() {
 		return c.JSON(http.StatusOK, info)
 	}))
 
-  e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			Url string
 		}{options.VimoServer}
