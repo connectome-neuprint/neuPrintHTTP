@@ -117,11 +117,10 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 				case "dataset":
 					datasetI := c.Get("dataset")
 					dataset, ok := datasetI.(string)
-					if ok {
-						buf.WriteString(dataset)
-					} else {
-						buf.WriteString("")
+					if !ok {
+						dataset = c.Param("dataset")
 					}
+					buf.WriteString(dataset)
 				case "time_unix":
 					return buf.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
 				case "time_unix_nano":
