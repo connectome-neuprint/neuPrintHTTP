@@ -1,0 +1,205 @@
+{
+  "engine": "neuPrint-neo4j",
+  "engine-config": {
+    "server": "emdata5.janelia.org:7484",
+    "user": "neo4j",
+    "password": "n304jPubl1cT35tFcancer"
+  },
+
+  "mainstore-alternatives": [
+    {
+      "engine": "neuPrint-neo4j",
+      "engine-config": {
+        "server": "emdata5.janelia.org:7494",
+        "user": "neo4j",
+        "password": "n304jPubl1cT35tFcancer"
+      }
+    },
+    {
+      "engine": "neuPrint-neo4j",
+      "engine-config": {
+        "server": "emdata5.janelia.org:9474",
+        "user": "neo4j",
+        "password": "n304jPubl1cT35tFcancer"
+      }
+    },
+    {
+      "engine": "neuPrint-neo4j",
+      "engine-config": {
+        "server": "emdata5.janelia.org:10474",
+        "user": "neo4j",
+        "password": "n304jPubl1cT35tFcancer"
+      }
+    }
+  ],
+  "datatypes": {
+    "skeletons": [
+      {
+        "instance": "hemi_skeleton",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "https://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "segmentation_skeletons",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+      {
+        "instance": "hemi_skeleton:v1.2",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.2",
+          "server": "https://hemibrain-dvid.janelia.org",
+          "branch": "31597d95bd844060b0ccc928a1a8a0a4",
+          "instance": "segmentation_skeletons",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+      {
+        "instance": "hemi_skeleton:v1.0",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.0",
+          "server": "https://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "segmentation_skeletons",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+      {
+        "instance": "hemi_skeleton:v1.0.1",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.0.1",
+          "server": "http://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "segmentation_skeletons"             ,
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+      {
+        "instance": "hemi_skeleton:v1.1",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.1",
+          "server": "http://hemibrain-dvid.janelia.org",
+          "branch": "20631f94c3f446d7864bc55bf515706e",
+          "instance": "segmentation_skeletons"             ,
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      }
+    ],
+    "roimeshes": [
+      {
+        "instance": "hemi_roimesh",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "https://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "roisSmoothedDecimated",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+      {
+        "instance": "hemi_roimesh:v1.2",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.0",
+          "server": "https://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "roisSmoothedDecimated",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+    	{
+        "instance": "hemi_roimesh:v1.0.1",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.0.1",
+          "server": "http://hemibrain-dvid.janelia.org",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "roisSmoothedDecimated",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      },
+   		{
+        "instance": "hemi_roimesh:v1.1",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain:v1.1",
+          "server": "http://hemibrain-dvid.janelia.org",
+          "branch": "20631f94c3f446d7864bc55bf515706e",
+          "instance": "roisSmoothedDecimated",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9keS5jbGVtZW50c0BnbWFpbC5jb20ifQ.60Wt6egyDeb1KZTnPM8Z5ShTw9x1hkx5-8AL_hH8Oc0"
+        }
+      }
+    ],
+    "rois": [
+      {
+        "instance": "NOTAVAILABLE--hemi_rois",
+        "engine": "dvid",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "blah",
+          "branch": "master",
+          "instance": "rois"
+        }
+      }
+    ]
+  },
+  "_datatypes": {
+    "skeletons": [
+      {
+        "instance": "hemi_skeleton",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "http://emdata4.int.janelia.org:8900",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "segmentation_skeletons"
+        }
+      }
+    ],
+    "roimeshes": [
+      {
+        "instance": "hemi_roimesh",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "http://emdata4.int.janelia.org:8900",
+          "branch": "52a13328874c4bb7b15dc4280da26576",
+          "instance": "rois"
+        }
+      }
+    ],
+    "rois": [
+      {
+        "instance": "NOTAVAILABLE--hemi_rois",
+        "engine": "dvid",
+        "engine-config": {
+          "dataset": "hemibrain",
+          "server": "blah",
+          "branch": "master",
+          "instance": "rois"
+        }
+      }
+    ]
+  },
+  "ssl-cert": "/Users/clementsj/Code/flyEM/neuPrintExplorer/certs/cert.pem",
+  "ssl-key": "/Users/clementsj/Code/flyEM/neuPrintExplorer/certs/key.pem",
+  "oauthclient-id": "274750196357-fsg2dk6bl1ln2oh87ue44b84uqqjdo9s.apps.googleusercontent.com",
+  "oauthclient-secret": "2tj3SeVjIFQohGiO9Bif2qdX",
+  "appsecret": "mtY4+kC0tZiBccR02Y0TH1idr0w=",
+  "hostname": "neuprint-dev.janelia.org",
+  "auth-token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InBsYXphLnN0ZXBoZW5AZ21haWwuY29tIiwibGV2ZWwiOiJhZG1pbiIsImltYWdlLXVybCI6Imh0dHBzOi8vbGg0Lmdvb2dsZXVzZXJjb250ZW50LmNvbS8tVEFJMWNJMEVxTDgvQUFBQUFBQUFBQUkvQUFBQUFBQUJtZEkvTml5T1JTVi05TWcvcGhvdG8uanBnP3N6PTUwIiwiZXhwIjoxNzE2MjQxODYxfQ.9LOX6qhTSRAE0KBWwHcviiJo_htqkZBPiVXV5UrAKmI",
+  "auth-datastore": "https://us-east1-dvid-em.cloudfunctions.net/neuprint-janelia/",
+  "swagger-docs": "/Users/clementsj/Code/flyEM/neuprintHTTP/swaggerdocs/",
+  "proxy-auth": "https://flyemlogin.janelia.org:443",
+  "proxy-insecure": true,
+  "static-dir": "/Users/clementsj/Code/flyEM/neuPrintExplorer/build",
+  "vimo-server": "https://vimo-server-bmcp5imp6q-uk.a.run.app",
+  "OMITlog-file": "log.json",
+  "auth-fileOMIT": "authorizedint.json"
+}
