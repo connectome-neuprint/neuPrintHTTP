@@ -130,7 +130,7 @@ func main() {
 	logger, err := logging.GetLogger(port, options)
 
 	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
-		Format: "{\"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
+		Format: "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
 		Output: logger,
 	}))
 

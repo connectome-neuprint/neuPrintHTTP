@@ -111,6 +111,9 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 		}
 	}
 
+	// set dataset for logging
+	c.Set("dataset", req.Dataset)
+
 	cypher, err := ca.Store.GetDataset(req.Dataset)
 	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
