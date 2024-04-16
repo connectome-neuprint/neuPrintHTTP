@@ -195,16 +195,16 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	// But
 	cypher2 := `
 		MATCH (meta :Meta)
-		WITH meta, apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo
-		UNWIND keys(roiInfo) as roi
-		WITH meta, roiInfo, roi
-		WHERE
-			(
-		     (meta.overviewRois IS NOT NULL AND roi IN meta.overviewRois)
-			  OR
-			 (meta.overviewRois IS NULL AND roi in meta.primaryRois AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE))
-		   )
-			AND NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE)
+		WITH
+			CASE meta.overviewRois
+				WHEN NULL THEN meta.primaryRois
+				ELSE meta.overviewRois
+			END AS overviewRois,
+			meta,
+			apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo
+		UNWIND overviewRois as roi
+		WITH roiInfo, roi
+		WHERE NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE)
 		RETURN collect(roi) as rois
 	`
 
