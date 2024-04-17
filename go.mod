@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/janelia-flyem/echo-secure v0.0.0-20220608035251-8811e3d36dfe
 	github.com/knightjdr/hclust v1.0.2
-	github.com/labstack/echo/v4 v4.7.2
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/gommon v0.3.1
 	github.com/valyala/fasttemplate v1.2.1
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.8.2
