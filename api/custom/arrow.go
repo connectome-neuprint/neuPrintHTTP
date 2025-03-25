@@ -14,6 +14,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// debugValue prints details about a value for debugging
+func debugValue(val interface{}) string {
+	return fmt.Sprintf("Value: %v, Type: %T", val, val)
+}
+
 // CypherArrowData holds the Arrow representation of a Neo4j query result
 type CypherArrowData struct {
 	Schema  *arrow.Schema
@@ -37,11 +42,34 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 		// Infer type from first row (not ideal but simple)
 		var dataType arrow.DataType = arrow.BinaryTypes.String
 		if len(result.Data) > 0 {
-			switch result.Data[0][i].(type) {
+			val := result.Data[0][i]
+			fmt.Printf("Column %s type inference: %s\n", colName, debugValue(val))
+			
+			// For numeric operations, prefer Int64 when possible
+			preferInt64 := true
+			
+			switch v := val.(type) {
 			case int, int64:
 				dataType = arrow.PrimitiveTypes.Int64
+			case json.Number:
+				// Try to parse as int64 first, which is generally preferred for numeric data
+				if _, err := v.Int64(); err == nil {
+					dataType = arrow.PrimitiveTypes.Int64
+				} else {
+					dataType = arrow.PrimitiveTypes.Float64
+				}
 			case float64:
-				dataType = arrow.PrimitiveTypes.Float64
+				// If the float64 can be exactly represented as an int64, prefer that type
+				if preferInt64 {
+					intVal := int64(v)
+					if float64(intVal) == v {
+						dataType = arrow.PrimitiveTypes.Int64
+					} else {
+						dataType = arrow.PrimitiveTypes.Float64
+					}
+				} else {
+					dataType = arrow.PrimitiveTypes.Float64
+				}
 			case bool:
 				dataType = arrow.FixedWidthTypes.Boolean
 			default:
@@ -79,7 +107,15 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 				} else {
 					// If not a valid int64, try float64
 					if floatVal, err := num.Float64(); err == nil {
-						if builders[colIdx].Type().ID() == arrow.FLOAT64 {
+						// Check if this float can be represented exactly as an int64
+						if builders[colIdx].Type().ID() == arrow.INT64 {
+							intVal := int64(floatVal)
+							if float64(intVal) == floatVal {
+								builders[colIdx].(*array.Int64Builder).Append(intVal)
+							} else {
+								builders[colIdx].AppendNull()
+							}
+						} else if builders[colIdx].Type().ID() == arrow.FLOAT64 {
 							builders[colIdx].(*array.Float64Builder).Append(floatVal)
 						} else {
 							builders[colIdx].AppendNull()
@@ -291,6 +327,12 @@ func (ca cypherAPI) getCustomArrow(c echo.Context) error {
 	if err != nil {
 		errJSON := map[string]string{"error": "cypher query failed: " + err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+	
+	// Debug the received data
+	fmt.Printf("data: %v\n", data)
+	if len(data.Data) > 0 && len(data.Data[0]) > 0 {
+		fmt.Printf("First value: %s\n", debugValue(data.Data[0][0]))
 	}
 
 	// Convert to Arrow format

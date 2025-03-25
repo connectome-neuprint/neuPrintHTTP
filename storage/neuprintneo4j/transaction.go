@@ -83,15 +83,22 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		for col, val2 := range val.Row {
 			// Convert json.Number to int64 if possible, otherwise preserve as is
 			if num, ok := val2.(json.Number); ok {
-				// Try to convert to int64 first
+				// Attempt to parse as int64 first (preferred for most numeric operations)
 				if intVal, err := num.Int64(); err == nil {
 					arr[col] = intVal
 				} else {
-					// If not a valid int64, try float64
+					// Try float64 as fallback
 					if floatVal, err := num.Float64(); err == nil {
-						arr[col] = floatVal
+						// Check if this float can be represented exactly as an int64
+						intVal := int64(floatVal)
+						if float64(intVal) == floatVal {
+							// We have a float that's actually an integer value
+							arr[col] = intVal
+						} else {
+							arr[col] = floatVal
+						}
 					} else {
-						// If neither, keep as string
+						// If neither conversion works, keep as string
 						arr[col] = num.String()
 					}
 				}

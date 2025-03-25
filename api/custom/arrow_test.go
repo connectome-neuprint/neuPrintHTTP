@@ -192,15 +192,15 @@ func TestHTTPArrowEndpoint(t *testing.T) {
 		}
 		
 		// Verify the Arrow data types
-		// Note: json.Number is decoded as string in this test context
-		if record.Schema().Field(0).Type.ID() != arrow.STRING {
-			t.Errorf("Expected STRING type for id column, got %v", record.Schema().Field(0).Type.ID())
+		// With our improved type inference, json.Number values should be detected as INT64
+		if record.Schema().Field(0).Type.ID() != arrow.INT64 {
+			t.Errorf("Expected INT64 type for id column, got %v", record.Schema().Field(0).Type.ID())
 		}
 		if record.Schema().Field(1).Type.ID() != arrow.STRING {
 			t.Errorf("Expected STRING type for name column, got %v", record.Schema().Field(1).Type.ID())
 		}
-		if record.Schema().Field(2).Type.ID() != arrow.STRING {
-			t.Errorf("Expected STRING type for count column, got %v", record.Schema().Field(2).Type.ID())
+		if record.Schema().Field(2).Type.ID() != arrow.INT64 {
+			t.Errorf("Expected INT64 type for count column, got %v", record.Schema().Field(2).Type.ID())
 		}
 		if record.Schema().Field(3).Type.ID() != arrow.BOOL {
 			t.Errorf("Expected BOOL type for active column, got %v", record.Schema().Field(3).Type.ID())
