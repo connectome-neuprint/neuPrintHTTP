@@ -77,6 +77,7 @@ func main() {
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
+	flag.BoolVar(&storage.VerboseNumeric, "verbose-numeric", false, "enable verbose numeric type conversion debugging")
 	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")
 	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server")
 	flag.Parse()

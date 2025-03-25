@@ -43,7 +43,9 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 		var dataType arrow.DataType = arrow.BinaryTypes.String
 		if len(result.Data) > 0 {
 			val := result.Data[0][i]
-			fmt.Printf("Column %s type inference: %s\n", colName, debugValue(val))
+			if storage.VerboseNumeric {
+				fmt.Printf("Column %s type inference: %s\n", colName, debugValue(val))
+			}
 			
 			// For numeric operations, prefer Int64 when possible
 			preferInt64 := true
@@ -330,9 +332,41 @@ func (ca cypherAPI) getCustomArrow(c echo.Context) error {
 	}
 	
 	// Debug the received data
-	fmt.Printf("data: %v\n", data)
-	if len(data.Data) > 0 && len(data.Data[0]) > 0 {
+	if storage.Verbose {
+		fmt.Printf("data: %v\n", data)
+	}
+	
+	// Additional numeric debugging if enabled
+	if storage.VerboseNumeric && len(data.Data) > 0 && len(data.Data[0]) > 0 {
 		fmt.Printf("First value: %s\n", debugValue(data.Data[0][0]))
+		
+		// Add more detailed logging for value debugging
+		fmt.Printf("\n=== DETAILED VALUE ANALYSIS ===\n")
+		for i, row := range data.Data {
+			for j, val := range row {
+				fmt.Printf("Row %d, Col %d: %s\n", i, j, debugValue(val))
+				
+				// If it's a json.Number, let's see what it parses as
+				if num, ok := val.(json.Number); ok {
+					fmt.Printf("  - As json.Number string: %s\n", num.String())
+					
+					// Try int64 conversion
+					if intVal, err := num.Int64(); err == nil {
+						fmt.Printf("  - Converts to int64: %d\n", intVal)
+					} else {
+						fmt.Printf("  - Does NOT convert to int64: %v\n", err)
+					}
+					
+					// Try float64 conversion
+					if floatVal, err := num.Float64(); err == nil {
+						fmt.Printf("  - Converts to float64: %f (scientific: %e)\n", floatVal, floatVal)
+					} else {
+						fmt.Printf("  - Does NOT convert to float64: %v\n", err)
+					}
+				}
+			}
+		}
+		fmt.Printf("=== END ANALYSIS ===\n\n")
 	}
 
 	// Convert to Arrow format

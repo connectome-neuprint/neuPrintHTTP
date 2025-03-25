@@ -58,6 +58,14 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	if jsonErr != nil {
 		return cres, fmt.Errorf("error decoding json: %v", jsonErr)
 	}
+	
+	// Debug the raw JSON response if verbose numeric debugging is enabled
+	if storage.VerboseNumeric {
+		fmt.Printf("\n=== RAW NEO4J RESPONSE ANALYSIS ===\n")
+		fmt.Printf("Cypher: %s\n", cypher)
+		fmt.Printf("Raw JSON body: %s\n", string(body))
+		fmt.Printf("=== END RAW RESPONSE ===\n\n")
+	}
 
 	if len(result.Errors) > 0 {
 		return cres, fmt.Errorf(result.Errors[0].Message)
@@ -83,26 +91,48 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		for col, val2 := range val.Row {
 			// Convert json.Number to int64 if possible, otherwise preserve as is
 			if num, ok := val2.(json.Number); ok {
-				// Attempt to parse as int64 first (preferred for most numeric operations)
+				numStr := num.String()
+				
+				// Log the original value if verbose numeric debugging is enabled
+				if storage.VerboseNumeric {
+					fmt.Printf("Processing json.Number: %s\n", numStr)
+				}
+				
+				// Try to parse as int64 first
 				if intVal, err := num.Int64(); err == nil {
+					if storage.VerboseNumeric {
+						fmt.Printf("  - Successfully parsed as int64: %d\n", intVal)
+					}
 					arr[col] = intVal
 				} else {
+					// Log the int64 conversion failure if debug is enabled
+					if storage.VerboseNumeric {
+						fmt.Printf("  - Failed to parse as int64: %v\n", err)
+					}
+					
 					// Try float64 as fallback
 					if floatVal, err := num.Float64(); err == nil {
-						// Check if this float can be represented exactly as an int64
-						intVal := int64(floatVal)
-						if float64(intVal) == floatVal {
-							// We have a float that's actually an integer value
-							arr[col] = intVal
-						} else {
-							arr[col] = floatVal
+						if storage.VerboseNumeric {
+							fmt.Printf("  - Successfully parsed as float64: %f\n", floatVal)
 						}
+						
+						// Let's no longer do the float64 to int64 conversion for large numbers
+						// as it can cause precision loss for values like 2^55 + 1
+						arr[col] = floatVal
 					} else {
 						// If neither conversion works, keep as string
+						if storage.VerboseNumeric {
+							fmt.Printf("  - Failed to parse as float64: %v\n", err)
+							fmt.Printf("  - Keeping as string: %s\n", numStr)
+						}
 						arr[col] = num.String()
 					}
 				}
 			} else {
+				// For non-json.Number values, just pass through
+				if storage.VerboseNumeric {
+					fmt.Printf("Processing non-json.Number: %T\n", val2)
+				}
 				arr[col] = val2
 			}
 		}
