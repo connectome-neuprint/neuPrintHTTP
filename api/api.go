@@ -56,10 +56,27 @@ type ConnectomeAPI struct {
 	SupportedEndpoints map[string]bool
 	e                  *echo.Group
 	adminMiddleware    echo.MiddlewareFunc
+	Package            interface{} // Can hold the package-specific API object
+}
+
+// AddSwaggerDefinition adds a swagger definition
+func (c *ConnectomeAPI) AddSwaggerDefinition(name string, description string) {
+	// This is just a stub for documentation purposes
+}
+
+// AddSwaggerTag adds a swagger tag
+func (c *ConnectomeAPI) AddSwaggerTag(name string, description string, externalDocs string) {
+	// This is just a stub for documentation purposes
 }
 
 func newConnectomeAPI(store storage.Store, e *echo.Group, admincheck echo.MiddlewareFunc) *ConnectomeAPI {
-	return &ConnectomeAPI{store, make(map[string]bool), e, admincheck}
+	return &ConnectomeAPI{
+		Store:              store,
+		SupportedEndpoints: make(map[string]bool),
+		e:                  e,
+		adminMiddleware:    admincheck,
+		Package:            nil,
+	}
 }
 
 func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
@@ -101,13 +118,31 @@ func (c *ConnectomeAPI) SetAdminRoute(connType ConnectionType, prefix string, ro
 	c.SetRoute(connType, prefix, c.adminMiddleware(route))
 }
 
+// Map to store initialized API packages
+var apiPackages = make(map[string]interface{})
+
+// GetAPIPackage returns the API package with the given name
+func GetAPIPackage(name string) (interface{}, error) {
+	if pkg, ok := apiPackages[name]; ok {
+		return pkg, nil
+	}
+	return nil, echo.NewHTTPError(http.StatusBadRequest, "API package not found: "+name)
+}
+
 // SetupRoutes intializes all the loaded API.
 func SetupRoutes(e *echo.Echo, eg *echo.Group, store storage.Store, admincheck echo.MiddlewareFunc) error {
 	apiObj := newConnectomeAPI(store, eg, admincheck)
 
-	for _, f := range availAPIs {
+	for name, f := range availAPIs {
 		if err := f(apiObj); err != nil {
 			return err
+		}
+		
+		// Store the package in our map if it was set
+		if apiObj.Package != nil {
+			apiPackages[name] = apiObj.Package
+			// Reset for next iteration
+			apiObj.Package = nil
 		}
 	}
 

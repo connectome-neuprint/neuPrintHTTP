@@ -7,12 +7,122 @@ Implements a connectomics REST interface that leverages the [neuprint](https://g
 
 ## Installation
 
-Go must be installed and GOPATH must be set to a location to store the application.  neuPrintHTTP supports both file-based logging and Apache Kafka.  For details on kafka, see below.  For basic installation:
+Go must be installed (version 1.16+). neuPrintHTTP supports both file-based logging and Apache Kafka. For basic installation:
 
-    % go get github.com/connectome-neuprint/neuPrintHTTP
+### Option 1: Clone and build (recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/connectome-neuprint/neuPrintHTTP.git
+cd neuPrintHTTP
+
+# Build the application
+go build
+
+# Or install it to your GOPATH's bin directory
+go install
+```
+
+### Option 2: Direct install (requires Go modules)
+
+```bash
+# Install the latest version
+go install github.com/connectome-neuprint/neuPrintHTTP@latest
+```
+
+To run tests:
+
+    % go test ./...
+    
+To test a specific package:
+
+    % go test ./api/...
 
 neuprintHTTP uses a python script to support cell type analysis.  To use this script, install scipy, scikit-learn, and pandas
-and make sure to run neuprint HTTP in the top directory where the python script is located. 
+and make sure to run neuprint HTTP in the top directory where the python script is located.
+
+## Data Access Endpoints
+
+### Standard JSON Endpoint
+
+The default endpoint for custom queries is `/api/custom/custom`, which returns results in JSON format:
+
+```bash
+curl -X POST "http://localhost:11000/api/custom/custom" \
+  -H "Content-Type: application/json" \
+  -d '{"cypher": "MATCH (n) RETURN n LIMIT 1", "dataset": "hemibrain"}'
+```
+
+The response will be JSON with this structure:
+```json
+{
+  "columns": ["name", "size"],
+  "data": [["t4", 323131], ["mi1", 232323]]
+}
+```
+
+Where:
+- `columns`: Array of column names from your query
+- `data`: Array of rows, each row containing values that correspond to the columns
+
+### Apache Arrow Support
+
+neuPrintHTTP supports returning query results in Apache Arrow format via the `/api/custom/arrow` HTTP endpoint. This provides several advantages:
+
+- Efficient binary serialization with low overhead
+- Preservation of data types
+- Native integration with data science tools
+- Optimized memory layout for analytical workloads
+
+neuPrintHTTP uses Arrow v18 for all Arrow-related functionality, including both the HTTP IPC stream format and the preliminary Flight implementation.
+
+#### Using the Arrow Endpoint
+
+To retrieve data in Arrow format, send a POST request to `/api/custom/arrow` with the same JSON body format as the regular custom endpoint:
+
+```bash
+curl -X POST "http://localhost:11000/api/custom/arrow" \
+  -H "Content-Type: application/json" \
+  -d '{"cypher": "MATCH (n) RETURN n LIMIT 1", "dataset": "hemibrain"}' \
+  --output data.arrow
+```
+
+The response will be in Arrow IPC stream format with content type `application/vnd.apache.arrow.stream`. This is a standard way to transfer Arrow data over HTTP without requiring gRPC or Arrow Flight.
+
+You can parse this with Arrow libraries available in multiple languages:
+
+```python
+# Python example - Standard HTTP with Arrow IPC format (No Flight required)
+import pyarrow as pa
+import requests
+
+resp = requests.post('http://localhost:11000/api/custom/arrow', 
+                    json={"cypher": "MATCH (n) RETURN n LIMIT 1", 
+                          "dataset": "hemibrain"})
+
+# Parse the Arrow IPC stream from the HTTP response
+reader = pa.ipc.open_stream(pa.py_buffer(resp.content))
+table = reader.read_all()
+print(table)
+```
+
+```javascript
+// JavaScript example with Arrow JS
+const response = await fetch('http://localhost:11000/api/custom/arrow', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    cypher: "MATCH (n) RETURN n LIMIT 1",
+    dataset: "hemibrain"
+  })
+});
+
+// Get the binary data
+const arrayBuffer = await response.arrayBuffer();
+// Parse the Arrow IPC stream
+const table = await arrow.tableFromIPC(arrayBuffer);
+console.log(table.toString());
+```
 
 ### developers
 

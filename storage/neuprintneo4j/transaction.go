@@ -49,10 +49,14 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		fmt.Printf("Request (%s) succeeded: %v\n", t.currURL, string(body))
 	}
 
+	// Use json.Decoder with UseNumber() to preserve number precision
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber() // This ensures numbers are stored as json.Number
+	
 	result := neoResults{}
-	jsonErr := json.Unmarshal(body, &result)
+	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
-		return cres, fmt.Errorf("error decoding json")
+		return cres, fmt.Errorf("error decoding json: %v", jsonErr)
 	}
 
 	if len(result.Errors) > 0 {
@@ -77,7 +81,23 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	for row, val := range result.Results[0].Data {
 		arr := make([]interface{}, len(val.Row))
 		for col, val2 := range val.Row {
-			arr[col] = val2
+			// Convert json.Number to int64 if possible, otherwise preserve as is
+			if num, ok := val2.(json.Number); ok {
+				// Try to convert to int64 first
+				if intVal, err := num.Int64(); err == nil {
+					arr[col] = intVal
+				} else {
+					// If not a valid int64, try float64
+					if floatVal, err := num.Float64(); err == nil {
+						arr[col] = floatVal
+					} else {
+						// If neither, keep as string
+						arr[col] = num.String()
+					}
+				}
+			} else {
+				arr[col] = val2
+			}
 		}
 		data[row] = arr
 	}
@@ -109,10 +129,14 @@ func (t *Transaction) Kill() error {
 		return fmt.Errorf("request failed")
 	}
 
+	// Use json.Decoder with UseNumber() to preserve number precision
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	
 	result := neoResults{}
-	jsonErr := json.Unmarshal(body, &result)
+	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
-		return fmt.Errorf("error decoding json")
+		return fmt.Errorf("error decoding json: %v", jsonErr)
 	}
 
 	if len(result.Errors) > 0 {
@@ -144,10 +168,14 @@ func (t *Transaction) Commit() error {
 		return fmt.Errorf("request failed")
 	}
 
+	// Use json.Decoder with UseNumber() to preserve number precision
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	
 	result := neoResults{}
-	jsonErr := json.Unmarshal(body, &result)
+	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
-		return fmt.Errorf("error decoding json")
+		return fmt.Errorf("error decoding json: %v", jsonErr)
 	}
 
 	if len(result.Errors) > 0 {
