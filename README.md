@@ -144,45 +144,90 @@ And then:
 
 ## Running
 
-    % neuprintHTTP -port |PORTNUM| config.json
- 
-This launches the server at the specified port with the provided configuration file.  A sample 'shell' config file can be found in 'sample_config.json' in this repo and is show below with some markup.   More description of all possible options are available at 'config/config.go'.
+Basic usage:
 
+```bash
+neuprintHTTP -port PORT_NUMBER config.json
 ```
+
+### Command Line Options
+
+```bash
+Usage: neuprintHTTP [OPTIONS] CONFIG.json
+  -port int
+        port to start server (default 11000)
+  -arrow-flight-port int
+        port for Arrow Flight gRPC server (default 11001)
+  -disable-arrow
+        disable Arrow format support (enabled by default)
+  -public_read
+        allow all users read access
+  -proxy-port int
+        proxy port to start server
+  -pid-file string
+        file for pid
+  -verbose
+        verbose mode
+```
+
+### Configuration
+
+The server is configured using a JSON file. The configuration specifies database connections, authentication options, and other server settings.
+
+#### Apache Arrow Configuration
+
+The Arrow support in neuPrintHTTP includes:
+
+1. **Arrow IPC HTTP endpoint**: Available at `/api/custom/arrow` on the main HTTP port
+2. **Arrow Flight gRPC server**: Runs on a separate port (default: 11001)
+
+To change the Arrow Flight port:
+
+```bash
+# Start with custom Flight port
+neuprintHTTP -arrow-flight-port 12345 config.json
+```
+
+To disable Arrow support entirely:
+
+```bash
+# Disable all Arrow functionality
+neuprintHTTP -disable-arrow config.json
+```
+
+#### Sample Configuration
+
+A sample configuration file can be found in `sampleconfig.json` in this repo:
+
+```json
 {
     "engine": "neuPrint-neo4j",
     "engine-config": {
-	    "server": "<NEO4-SERVER>:7474", # location of neo4j
-	    "user": "neo4j",
-	    "password": "<PASSWORD>"
+        "server": "<NEO4-SERVER>:7474", 
+        "user": "neo4j",
+        "password": "<PASSWORD>"
     },
-    "datatypes": {  # optional but configuring "skeletons" allows user to access skeletons through the API
-	"skeletons" : [ # examples of two different ways to link to skeletons currently, only link one backend to a given dataset
-		{
-		"instance": "<UNIQUE NAME>", # any unique name
-		"engine": "dvidkv", # supports DVID as a back-end
-		"engine-config": {
-			"dataset": "hemibrain",
-			"server": "http://<DVIDADDR>",
-			"branch": "<UUID>",
-			"instance": "segmentation_skeletons"
-		}
-		},
-		{
-		"instance": "<UNIQUE NAME>", # different name
-		"engine": "badger", # also supports embedded keyvalue Badger
-		"engine-config": {
-			"dataset": "hemibrain",
-			"location": "<DIRECTORY LOCATION>"
-		}
-		}
-	]
+    "datatypes": {
+        "skeletons": [
+            {
+                "instance": "<UNIQUE NAME>",
+                "engine": "dvidkv",
+                "engine-config": {
+                    "dataset": "hemibrain",
+                    "server": "http://<DVIDADDR>",
+                    "branch": "<UUID>",
+                    "instance": "segmentation_skeletons"
+                }
+            }
+        ]
     },
-    "disable-auth": true, # to run no auth mode
-    "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs", # contains swagger documentation
+    "disable-auth": true,
+    "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
     "log-file": "log.json"
 }
 ```
+
+For more detailed configuration options, refer to `config/config.go`.
 
 
 ### No Auth Mode

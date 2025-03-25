@@ -70,7 +70,6 @@ func main() {
 	var publicRead = false
 	var pidfile = ""
 	var arrowFlightPort = 11001
-	var enableArrow = true
 	var disableArrow = false
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
@@ -78,9 +77,8 @@ func main() {
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
-	flag.BoolVar(&enableArrow, "enable-arrow", true, "enable Arrow format support (default: true)")
-	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support")
-	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server (not currently used)")
+	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")
+	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -95,13 +93,8 @@ func main() {
 	}
 
 	// Set Arrow configuration 
-	// If disable-arrow flag is set, it overrides enable-arrow
-	if disableArrow {
-		options.EnableArrow = false
-	} else {
-		// Otherwise, set the enableArrow value (default: true)
-		options.EnableArrow = enableArrow
-	}
+	// Arrow is enabled by default unless the disable-arrow flag is set
+	options.EnableArrow = !disableArrow
 	
 	// Set Arrow Flight port
 	if options.ArrowFlightPort == 0 && arrowFlightPort != 0 {
