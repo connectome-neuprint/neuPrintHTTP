@@ -141,6 +141,55 @@ paths:
             summary: Gets cached synapse connection projections for all neurons.
             tags:
                 - cached
+    /api/custom/arrow:
+        get:
+            description: |-
+                Executes the provided Cypher query against the specified dataset and returns
+                the results in Apache Arrow IPC stream format. This is useful for efficient
+                data transfer and integration with Arrow-based data processing libraries.
+            operationId: getArrow
+            parameters:
+                - in: body
+                  name: body
+                  required: true
+                  schema:
+                    properties:
+                        cypher:
+                            description: cypher statement (read only)
+                            example: MATCH (n) RETURN n limit 1
+                            type: string
+                        dataset:
+                            description: dataset name
+                            example: hemibrain
+                            type: string
+                        version:
+                            description: specify a neuprint model version for explicit check
+                            example: 0.5.0
+                            type: string
+                    required:
+                        - cypher
+                        - dataset
+                    type: object
+            produces:
+                - application/vnd.apache.arrow.stream
+            responses:
+                "200":
+                    description: successful operation - data in Arrow IPC stream format
+                    schema:
+                        $ref: '#/definitions/ArrowResponse'
+                "400":
+                    description: bad request - invalid parameters or query
+                    schema:
+                        $ref: '#/definitions/ErrorInfo'
+                "404":
+                    description: dataset not found
+                    schema:
+                        $ref: '#/definitions/ErrorInfo'
+            security:
+                - Bearer: []
+            summary: Execute Cypher query and return results in Apache Arrow IPC format
+            tags:
+                - arrow
     /api/custom/custom:
         get:
             description: Endpoint expects valid cypher and returns rows of data.
