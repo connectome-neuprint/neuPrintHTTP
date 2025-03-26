@@ -227,6 +227,24 @@ A sample configuration file can be found in `sampleconfig.json` in this repo:
 }
 ```
 
+#### Neo4j Bolt Driver
+
+neuPrintHTTP now supports the Neo4j Bolt protocol driver, which provides better performance and more accurate handling of large integer values (greater than 53 bits). To use the Bolt driver:
+
+```json
+{
+    "engine": "neuPrint-bolt",
+    "engine-config": {
+        "server": "bolt://localhost:7687", 
+        "user": "neo4j",
+        "password": "password"
+    },
+    "timeout": 600
+}
+```
+
+The Bolt driver correctly preserves large integer values (including integers above 2^53) that would be truncated to floating-point by the HTTP JSON API. This is particularly important for precise integer operations on large IDs and counts.
+
 For more detailed configuration options, refer to `config/config.go`.
 
 
