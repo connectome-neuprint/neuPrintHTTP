@@ -39,6 +39,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
 	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -93,10 +94,10 @@ func main() {
 		return
 	}
 
-	// Set Arrow configuration 
+	// Set Arrow configuration
 	// Arrow is enabled by default unless the disable-arrow flag is set
 	options.EnableArrow = !disableArrow
-	
+
 	// Set Arrow Flight port
 	if options.ArrowFlightPort == 0 && arrowFlightPort != 0 {
 		options.ArrowFlightPort = arrowFlightPort
@@ -143,12 +144,12 @@ func main() {
 	// Display Arrow status and start Flight server if enabled
 	if options.EnableArrow {
 		fmt.Println("✓ Arrow format enabled: HTTP endpoint available at /api/custom/arrow")
-		
+
 		// Create and start Arrow Flight server
 		if options.ArrowFlightPort > 0 {
 			// Wait a bit for API initialization to complete
 			fmt.Printf("Starting Arrow Flight server on port %d\n", options.ArrowFlightPort)
-			
+
 			// Start the Flight server in a separate goroutine
 			go func() {
 				// Create minimal Flight service
@@ -156,7 +157,7 @@ func main() {
 				flightService := &custom.FlightService{
 					Port: options.ArrowFlightPort,
 				}
-				
+
 				// Start the Flight service
 				if err := flightService.Start(); err != nil {
 					fmt.Printf("Arrow Flight server error: %v\n", err)

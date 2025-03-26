@@ -16,6 +16,7 @@ func init() {
 	version, _ := semver.Make(VERSION)
 	e := Engine{NAME, version}
 	storage.RegisterEngine(e)
+	fmt.Printf("Registered Neo4j Bolt engine: %s\n", NAME)
 }
 
 const (
