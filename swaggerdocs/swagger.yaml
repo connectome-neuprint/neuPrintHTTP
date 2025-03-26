@@ -1,797 +1,794 @@
 info:
-  contact:
-    email: neuprint@janelia.hhmi.org
-    name: Neuprint Team
-  description: |-
-    REST interface for neuPrint.  To test out the interface, copy  your token
-    under your acocunt information. Then authorize Swagger by typing "Bearer " and
-    pasting the token.
-  title: neuprint API
-  version: 0.1.0
+    contact:
+        email: neuprint@janelia.hhmi.org
+        name: Neuprint Team
+    description: |-
+        REST interface for neuPrint.  To test out the interface, copy  your token
+        under your acocunt information. Then authorize Swagger by typing "Bearer " and
+        pasting the token.
+    title: neuprint API
+    version: 0.1.0
 paths:
-  /api/available:
-    get:
-      description: list of all routes in /api
-      operationId: routes
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: list of available REST api routes
-      tags:
-      - apimeta
-  /api/cached/dailytype:
-    get:
-      description: |-
-        The program updates the completeness numbers each day.  A different
-        cell type is randomly picked and an exemplar is chosen
-        from this type.
-      operationId: getDailyType
-      parameters:
-      - description: specify dataset name
-        in: query
-        name: dataset
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              connectivity:
-                description: connectivity breakdown
-                type: object
-              info:
-                description: information on the type and neuron id
-                properties:
-                  bodyid:
-                    type: integer
-                  numpost:
-                    type: integer
-                  numpre:
-                    type: integer
-                  numtype:
-                    type: integer
-                  typename:
-                    type: string
-                type: object
-              skeleton:
-                description: SWC contents for the chosen neuron
-                type: string
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets information for a different neuron type each day..
-      tags:
-      - cached
-  /api/cached/roicompleteness:
-    get:
-      description: |-
-        The program updates the completeness numbers each day.  Completeness is defined
-        as "Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized".
-      operationId: getROICompleteness
-      parameters:
-      - description: specify dataset name
-        in: query
-        name: dataset
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              columns:
-                description: ROI stat breakdown
-                example:
-                - roi
-                - roipre
-                - roipost
-                - totalpre
-                - totalpost
-                items:
-                  type: string
-                type: array
-              data:
-                description: ROI completenss results
-                items:
-                  description: Completeness for a given ROI
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets tracing completeness for each ROI.
-      tags:
-      - cached
-  /api/cached/roiconnectivity:
-    get:
-      description: The program caches the region connections for each neuron updating
-        everyday.
-      operationId: getROIConnectivity
-      parameters:
-      - description: specify dataset name
-        in: query
-        name: dataset
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              roi_names:
-                description: sorted roi names based on clustering
-                items:
-                  type: string
-                type: array
-              weights:
-                description: adjacency list between rois
-                properties:
-                  roiin=>roiout:
+    /api/available:
+        get:
+            description: list of all routes in /api
+            operationId: routes
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: list of available REST api routes
+            tags:
+                - apimeta
+    /api/cached/dailytype:
+        get:
+            description: |-
+                The program updates the completeness numbers each day.  A different
+                cell type is randomly picked and an exemplar is chosen
+                from this type.
+            operationId: getDailyType
+            parameters:
+                - description: specify dataset name
+                  in: query
+                  name: dataset
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            connectivity:
+                                description: connectivity breakdown
+                                type: object
+                            info:
+                                description: information on the type and neuron id
+                                properties:
+                                    bodyid:
+                                        type: integer
+                                    numpost:
+                                        type: integer
+                                    numpre:
+                                        type: integer
+                                    numtype:
+                                        type: integer
+                                    typename:
+                                        type: string
+                                type: object
+                            skeleton:
+                                description: SWC contents for the chosen neuron
+                                type: string
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets information for a different neuron type each day.
+            tags:
+                - cached
+    /api/cached/roicompleteness:
+        get:
+            description: |-
+                The program updates the completeness numbers each day.  Completeness is defined
+                as "Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized".
+            operationId: getROICompleteness
+            parameters:
+                - description: specify dataset name
+                  in: query
+                  name: dataset
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            columns:
+                                description: ROI stat breakdown
+                                example:
+                                    - roi
+                                    - roipre
+                                    - roipost
+                                    - totalpre
+                                    - totalpost
+                                items:
+                                    type: string
+                                type: array
+                            data:
+                                description: ROI completenss results
+                                items:
+                                    description: Completeness for a given ROI
+                                    items:
+                                        description: Cell value
+                                        type: "null"
+                                    type: array
+                                type: array
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets tracing completeness for each ROI.
+            tags:
+                - cached
+    /api/cached/roiconnectivity:
+        get:
+            description: The program caches the region connections for each neuron updating everyday.
+            operationId: getROIConnectivity
+            parameters:
+                - description: specify dataset name
+                  in: query
+                  name: dataset
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            roi_names:
+                                description: sorted roi names based on clustering
+                                items:
+                                    type: string
+                                type: array
+                            weights:
+                                description: adjacency list between rois
+                                properties:
+                                    roiin=>roiout:
+                                        properties:
+                                            count:
+                                                description: number of bodies between two ROIs
+                                                type: integer
+                                            weight:
+                                                description: weighted connection strength between two ROIs
+                                                type: number
+                                        type: object
+                                type: object
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets cached synapse connection projections for all neurons.
+            tags:
+                - cached
+    /api/custom/custom:
+        get:
+            description: Endpoint expects valid cypher and returns rows of data.
+            operationId: custom
+            parameters:
+                - in: body
+                  name: body
+                  required: true
+                  schema:
                     properties:
-                      count:
-                        description: number of bodies between two ROIs
-                        type: integer
-                      weight:
-                        description: weighted connection strength between two ROIs
-                        type: number
+                        cypher:
+                            description: cypher statement (read only)
+                            example: MATCH (n) RETURN n limit 1
+                            type: string
+                        dataset:
+                            description: dataset name
+                            example: hemibrain
+                            type: string
+                        version:
+                            description: specify a neuprint model version for explicit check
+                            example: 0.5.0
+                            type: string
+                    required:
+                        - cypher
                     type: object
-                type: object
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets cached synapse connection projections for all neurons.
-      tags:
-      - cached
-  /api/custom/custom:
-    get:
-      description: Endpoint expects valid cypher and returns rows of data.
-      operationId: custom
-      parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          properties:
-            cypher:
-              description: cypher statement (read only)
-              example: MATCH (n) RETURN n limit 1
-              type: string
-            dataset:
-              description: dataset name
-              example: hemibrain
-              type: string
-            version:
-              description: specify a neuprint model version for explicit check
-              example: 0.5.0
-              type: string
-          required:
-          - cypher
-          type: object
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              columns:
-                description: Name of each result column
-                example:
-                - name
-                - size
-                items:
-                  type: string
-                type: array
-              data:
-                description: Table of results
-                example:
-                - - t4
-                  - 323131
-                - - mi1
-                  - 232323
-                items:
-                  description: Table row
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
-            type: object
-      security:
-      - Bearer: []
-      summary: Make custom cypher query against the database (read only)
-      tags:
-      - custom
-  /api/dbmeta/database:
-    get:
-      description: Returns JSON information about the database.
-      operationId: getDatabase
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              Description:
-                description: Information about the backend
-                type: string
-              Location:
-                description: Server location
-                type: string
-            type: object
-      security:
-      - Bearer: []
-      summary: Database information
-      tags:
-      - dbmeta
-  /api/dbmeta/datasets:
-    get:
-      description: Metadata associated with each dataset is also retrieved
-      operationId: getDatasets
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              ROIs:
-                description: regions of interest available for the dataset
-                example:
-                - alpha1
-                - alpha2
-                - alpha3
-                items:
-                  type: string
-                type: array
-              last-mod:
-                description: Last modification date for dataset
-                type: string
-              uuid:
-                description: last version id for dataset (UUID for DVID)
-                type: string
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets datasets in the graph database
-      tags:
-      - dbmeta
-  /api/dbmeta/instances:
-    get:
-      description: |-
-        Contains datatype and instance info for data not within the neuprint
-        data model.
-      operationId: getDataInstances
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            additionalProperties:
-              description: instance type name
-              items:
-                properties:
-                  datasets:
-                    items:
-                      description: dataset supported by instance
-                      type: string
-                    type: array
-                  instance:
-                    description: name of data instance
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            columns:
+                                description: Name of each result column
+                                example:
+                                    - name
+                                    - size
+                                items:
+                                    type: string
+                                type: array
+                            data:
+                                description: Table of results
+                                example:
+                                    - - t4
+                                      - 323131
+                                    - - mi1
+                                      - 232323
+                                items:
+                                    description: Table row
+                                    items:
+                                        description: Cell value
+                                        type: "null"
+                                    type: array
+                                type: array
+                        type: object
+            security:
+                - Bearer: []
+            summary: Make custom cypher query against the database (read only)
+            tags:
+                - custom
+    /api/dbmeta/database:
+        get:
+            description: Returns JSON information about the database.
+            operationId: getDatabase
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            Description:
+                                description: Information about the backend
+                                type: string
+                            Location:
+                                description: Server location
+                                type: string
+                        type: object
+            security:
+                - Bearer: []
+            summary: Database information
+            tags:
+                - dbmeta
+    /api/dbmeta/datasets:
+        get:
+            description: Metadata associated with each dataset is also retrieved
+            operationId: getDatasets
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            ROIs:
+                                description: regions of interest available for the dataset
+                                example:
+                                    - alpha1
+                                    - alpha2
+                                    - alpha3
+                                items:
+                                    type: string
+                                type: array
+                            last-mod:
+                                description: Last modification date for dataset
+                                type: string
+                            uuid:
+                                description: last version id for dataset (UUID for DVID)
+                                type: string
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets datasets in the graph database
+            tags:
+                - dbmeta
+    /api/dbmeta/instances:
+        get:
+            description: |-
+                Contains datatype and instance info for data not within the neuprint
+                data model.
+            operationId: getDataInstances
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        additionalProperties:
+                            description: instance type name
+                            items:
+                                properties:
+                                    datasets:
+                                        items:
+                                            description: dataset supported by instance
+                                            type: string
+                                        type: array
+                                    instance:
+                                        description: name of data instance
+                                        type: string
+                                type: object
+                            type: array
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets secondary data instances avaiable through neupint http
+            tags:
+                - dbmeta
+    /api/dbmeta/version:
+        get:
+            description: |-
+                Returns the version of the underlying neuprint data model.
+                Changes to the minor version not invalidate previous cypher
+                queries.
+            operationId: getVersion
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            Version:
+                                type: string
+                        type: object
+            security:
+                - Bearer: []
+            summary: Gets version of the database
+            tags:
+                - dbmeta
+    /api/help/swagger.yaml:
+        get:
+            description: YAML file containing swagger API documentation
+            operationId: helpyaml
+            responses:
+                "200":
+                    description: successful operation
+            summary: swagger REST documentation
+            tags:
+                - apimeta
+    /api/npexplorer/celltype/{dataset}/{type}:
+        get:
+            description: |-
+                Examines connectivity for every neuron instance of this type and tries
+                to determine a canonical connectivity.
+            operationId: getCellType
+            parameters:
+                - description: dataset name
+                  in: path
+                  name: dataset
+                  required: true
+                  schema:
                     type: string
-                type: object
-              type: array
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets secondary data instances avaiable through neupint http
-      tags:
-      - dbmeta
-  /api/dbmeta/version:
-    get:
-      description: |-
-        Returns the version of the underlying neuprint data model.
-        Changes to the minor version not invalidate previous cypher
-        queries.
-      operationId: getVersion
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              Version:
-                type: string
-            type: object
-      security:
-      - Bearer: []
-      summary: Gets version of the database
-      tags:
-      - dbmeta
-  /api/help/swagger.yaml:
-    get:
-      description: YAML file containing swagger API documentation
-      operationId: helpyaml
-      responses:
-        "200":
-          description: successful operation
-      summary: swagger REST documentation
-      tags:
-      - apimeta
-  /api/npexplorer/celltype/{dataset}/{type}:
-    get:
-      description: |-
-        Examines connectivity for every neuron instance of this type and tries
-        to determine a canonical connectivity.
-      operationId: getCellType
-      parameters:
-      - description: dataset name
-        in: path
-        name: dataset
-        required: true
-        schema:
-          type: string
-      - description: cell type
-        in: path
-        name: type
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: JSON results for neurons that make up the given cell type
-          schema:
-            type: object
-      security:
-      - Bearer: []
-      summary: Get cell type connectivity information
-      tags:
-      - npexplorer
-  /api/raw/cypher/cypher:
-    post:
-      description: This query allows for reads and writes (admin only).
-      operationId: execCypher
-      parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          properties:
-            cypher:
-              description: cypher statement (read only)
-              example: MATCH (n) RETURN n limit 1
-              type: string
-            dataset:
-              description: dataset name
-              example: hemibrain
-              type: string
-            version:
-              description: specify a neuprint model version for explicit check
-              example: 0.5.0
-              type: string
-          required:
-          - cypher
-          type: object
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              columns:
-                description: Name of each result column
-                example:
-                - name
-                - size
-                items:
-                  type: string
-                type: array
-              data:
-                description: Table of results
-                example:
-                - - t4
-                  - 323131
-                - - mi1
-                  - 232323
-                items:
-                  description: Table row
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
-            type: object
-      security:
-      - Bearer:
-        - admin
-      summary: Execute cypher against the main database
-      tags:
-      - raw-cypher
-  /api/raw/cypher/transaction:
-    post:
-      description: Starts and transaction and returns an id.
-      operationId: startTrans
-      parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          properties:
-            dataset:
-              description: dataset name
-              example: hemibrain
-              type: string
-          required:
-          - cypher
-          type: object
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              transaction_id:
-                description: transcation id
-                type: integer
-            type: object
-      security:
-      - Bearer:
-        - admin
-      summary: Start a cypher transaction.
-      tags:
-      - raw-cypher
-  /api/raw/cypher/transaction/:id/commit:
-    post:
-      description: Commits and removes transaction.  If there is an error, the transaction
-        will still be deleted.
-      operationId: commitTrans
-      parameters:
-      - description: transaction id
-        in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer:
-        - admin
-      summary: Commits transaction.
-      tags:
-      - raw-cypher
-  /api/raw/cypher/transaction/:id/cypher:
-    post:
-      description: This query allows for reads and writes (admin only).
-      operationId: execTranCypher
-      parameters:
-      - description: transaction id
-        in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-      - in: body
-        name: body
-        required: true
-        schema:
-          properties:
-            cypher:
-              description: cypher statement (read only)
-              example: MATCH (n) RETURN n limit 1
-              type: string
-            dataset:
-              description: dataset name
-              example: hemibrain
-              type: string
-            version:
-              description: specify a neuprint model version for explicit check
-              example: 0.5.0
-              type: string
-          required:
-          - cypher
-          type: object
-      responses:
-        "200":
-          description: successful operation
-          schema:
-            properties:
-              columns:
-                description: Name of each result column
-                example:
-                - name
-                - size
-                items:
-                  type: string
-                type: array
-              data:
-                description: Table of results
-                example:
-                - - t4
-                  - 323131
-                - - mi1
-                  - 232323
-                items:
-                  description: Table row
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
-            type: object
-      security:
-      - Bearer:
-        - admin
-      summary: Execute cypher against the main database in a transaction
-      tags:
-      - raw-cypher
-  /api/raw/cypher/transaction/:id/kill:
-    post:
-      description: This will rollback the specified transaction.  If there is an error,
-        the transaction will still be deleted.
-      operationId: killTrans
-      parameters:
-      - description: transaction id
-        in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer:
-        - admin
-      summary: Kill transaction.
-      tags:
-      - raw-cypher
-  /api/raw/keyvalue/key/{instance}/{key}:
-    get:
-      description: The data address is given by both the instance name and key.
-      operationId: getKV
-      parameters:
-      - description: database instance name
-        in: path
-        name: instance
-        required: true
-        schema:
-          type: string
-      - description: location of the data
-        in: path
-        name: key
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: blob data
-      security:
-      - Bearer: []
-      summary: Get data stored at the key.
-      tags:
-      - raw-keyvalue
-    post:
-      description: The data address is given by both the instance name and key.
-      operationId: postKV
-      parameters:
-      - description: database instance name
-        in: path
-        name: instance
-        required: true
-        schema:
-          type: string
-      - description: location of the data
-        in: path
-        name: key
-        required: true
-        schema:
-          type: string
-      - description: binary blob
-        in: body
-        name: blob
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Post data stored at the key.
-      tags:
-      - raw-keyvalue
-  /api/roimeshes/mesh/{dataset}/{roi}:
-    get:
-      description: The meshes are stored in OBJ format
-      operationId: getMesh
-      parameters:
-      - description: dataset name
-        in: path
-        name: dataset
-        required: true
-        schema:
-          type: string
-      - description: roi name
-        in: path
-        name: roi
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: binary OBJ file
-      security:
-      - Bearer: []
-      summary: Get mesh for given ROI
-      tags:
-      - roimeshes
-    post:
-      description: The mesh are stored as OBJ files
-      operationId: setMesh
-      parameters:
-      - description: dataset name
-        in: path
-        name: dataset
-        required: true
-        schema:
-          type: string
-      - description: roi name
-        in: path
-        name: roi
-        required: true
-        schema:
-          type: string
-      - description: mesh in OBJ format
-        in: body
-        name: obj
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Post mesh for the given ROI
-      tags:
-      - roimeshes
-  /api/serverinfo:
-    get:
-      description: If it is public,  no authorization is required
-      operationId: serverinfo
-      responses:
-        "200":
-          description: successful operation
-      summary: Returns whether the server is public
-      tags:
-      - apimeta
-  /api/skeletons/skeleton/{dataset}/{id}:
-    get:
-      description: |-
-        The skeletons are stored as swc but the default response is a table
-        of skeleton nodes.
-      operationId: getSkeleton
-      parameters:
-      - description: dataset name
-        in: path
-        name: dataset
-        required: true
-        schema:
-          type: string
-      - description: body id
-        in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-      - description: specify response format ("swc" or nothing)
-        in: query
-        name: format
-      responses:
-        "200":
-          description: binary swc file if "format=swc" specified or JSON
-          schema:
-            properties:
-              columns:
-                description: Name of each result column
-                items:
-                  type: string
-                type: array
-              data:
-                description: Table of skeleton nodes
-                items:
-                  description: Table row
-                  items:
-                    description: Cell value
-                    type: "null"
-                  type: array
-                type: array
-            type: object
-      security:
-      - Bearer: []
-      summary: Get skeleton for given body id
-      tags:
-      - skeletons
-    post:
-      description: The skeletons are stored as swc.
-      operationId: setSkeleton
-      parameters:
-      - description: dataset name
-        in: path
-        name: dataset
-        required: true
-        schema:
-          type: string
-      - description: body id
-        in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-      - description: skeleton in SWC format
-        in: body
-        name: swc
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Post skeleton for the given body id
-      tags:
-      - skeletons
-  /api/version:
-    get:
-      description: version number
-      operationId: getAPIVersion
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: version of the connectomics API
-      tags:
-      - apimeta
-  /login:
-    get:
-      description: Login user redirecting to profile
-      operationId: loginHandler
-      responses:
-        "302":
-          description: Redirect to /profile
-      summary: Login user
-      tags:
-      - user
-  /logout:
-    post:
-      description: Clears session cookie for the user
-      operationId: logoutHandler
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Logout user
-      tags:
-      - user
-  /profile:
-    get:
-      description: Returns user information
-      operationId: profileHandler
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Returns user information
-      tags:
-      - user
-  /token:
-    get:
-      description: JWT token should be passed in header for authentication
-      operationId: tokenHandler
-      responses:
-        "200":
-          description: successful operation
-      security:
-      - Bearer: []
-      summary: Returns JWT user bearer token
-      tags:
-      - user
+                - description: cell type
+                  in: path
+                  name: type
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: JSON results for neurons that make up the given cell type
+                    schema:
+                        type: object
+            security:
+                - Bearer: []
+            summary: Get cell type connectivity information
+            tags:
+                - npexplorer
+    /api/raw/cypher/cypher:
+        post:
+            description: This query allows for reads and writes (admin only).
+            operationId: execCypher
+            parameters:
+                - in: body
+                  name: body
+                  required: true
+                  schema:
+                    properties:
+                        cypher:
+                            description: cypher statement (read only)
+                            example: MATCH (n) RETURN n limit 1
+                            type: string
+                        dataset:
+                            description: dataset name
+                            example: hemibrain
+                            type: string
+                        version:
+                            description: specify a neuprint model version for explicit check
+                            example: 0.5.0
+                            type: string
+                    required:
+                        - cypher
+                    type: object
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            columns:
+                                description: Name of each result column
+                                example:
+                                    - name
+                                    - size
+                                items:
+                                    type: string
+                                type: array
+                            data:
+                                description: Table of results
+                                example:
+                                    - - t4
+                                      - 323131
+                                    - - mi1
+                                      - 232323
+                                items:
+                                    description: Table row
+                                    items:
+                                        description: Cell value
+                                        type: "null"
+                                    type: array
+                                type: array
+                        type: object
+            security:
+                - Bearer:
+                    - admin
+            summary: Execute cypher against the main database
+            tags:
+                - raw-cypher
+    /api/raw/cypher/transaction:
+        post:
+            description: Starts and transaction and returns an id.
+            operationId: startTrans
+            parameters:
+                - in: body
+                  name: body
+                  required: true
+                  schema:
+                    properties:
+                        dataset:
+                            description: dataset name
+                            example: hemibrain
+                            type: string
+                    required:
+                        - cypher
+                    type: object
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            transaction_id:
+                                description: transcation id
+                                type: integer
+                        type: object
+            security:
+                - Bearer:
+                    - admin
+            summary: Start a cypher transaction.
+            tags:
+                - raw-cypher
+    /api/raw/cypher/transaction/:id/commit:
+        post:
+            description: Commits and removes transaction.  If there is an error, the transaction will still be deleted.
+            operationId: commitTrans
+            parameters:
+                - description: transaction id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: integer
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer:
+                    - admin
+            summary: Commits transaction.
+            tags:
+                - raw-cypher
+    /api/raw/cypher/transaction/:id/cypher:
+        post:
+            description: This query allows for reads and writes (admin only).
+            operationId: execTranCypher
+            parameters:
+                - description: transaction id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: integer
+                - in: body
+                  name: body
+                  required: true
+                  schema:
+                    properties:
+                        cypher:
+                            description: cypher statement (read only)
+                            example: MATCH (n) RETURN n limit 1
+                            type: string
+                        dataset:
+                            description: dataset name
+                            example: hemibrain
+                            type: string
+                        version:
+                            description: specify a neuprint model version for explicit check
+                            example: 0.5.0
+                            type: string
+                    required:
+                        - cypher
+                    type: object
+            responses:
+                "200":
+                    description: successful operation
+                    schema:
+                        properties:
+                            columns:
+                                description: Name of each result column
+                                example:
+                                    - name
+                                    - size
+                                items:
+                                    type: string
+                                type: array
+                            data:
+                                description: Table of results
+                                example:
+                                    - - t4
+                                      - 323131
+                                    - - mi1
+                                      - 232323
+                                items:
+                                    description: Table row
+                                    items:
+                                        description: Cell value
+                                        type: "null"
+                                    type: array
+                                type: array
+                        type: object
+            security:
+                - Bearer:
+                    - admin
+            summary: Execute cypher against the main database in a transaction
+            tags:
+                - raw-cypher
+    /api/raw/cypher/transaction/:id/kill:
+        post:
+            description: This will rollback the specified transaction.  If there is an error, the transaction will still be deleted.
+            operationId: killTrans
+            parameters:
+                - description: transaction id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: integer
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer:
+                    - admin
+            summary: Kill transaction.
+            tags:
+                - raw-cypher
+    /api/raw/keyvalue/key/{instance}/{key}:
+        get:
+            description: The data address is given by both the instance name and key.
+            operationId: getKV
+            parameters:
+                - description: database instance name
+                  in: path
+                  name: instance
+                  required: true
+                  schema:
+                    type: string
+                - description: location of the data
+                  in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: blob data
+            security:
+                - Bearer: []
+            summary: Get data stored at the key.
+            tags:
+                - raw-keyvalue
+        post:
+            description: The data address is given by both the instance name and key.
+            operationId: postKV
+            parameters:
+                - description: database instance name
+                  in: path
+                  name: instance
+                  required: true
+                  schema:
+                    type: string
+                - description: location of the data
+                  in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+                - description: binary blob
+                  in: body
+                  name: blob
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Post data stored at the key.
+            tags:
+                - raw-keyvalue
+    /api/roimeshes/mesh/{dataset}/{roi}:
+        get:
+            description: The meshes are stored in OBJ format
+            operationId: getMesh
+            parameters:
+                - description: dataset name
+                  in: path
+                  name: dataset
+                  required: true
+                  schema:
+                    type: string
+                - description: roi name
+                  in: path
+                  name: roi
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: binary OBJ file
+            security:
+                - Bearer: []
+            summary: Get mesh for given ROI
+            tags:
+                - roimeshes
+        post:
+            description: The mesh are stored as OBJ files
+            operationId: setMesh
+            parameters:
+                - description: dataset name
+                  in: path
+                  name: dataset
+                  required: true
+                  schema:
+                    type: string
+                - description: roi name
+                  in: path
+                  name: roi
+                  required: true
+                  schema:
+                    type: string
+                - description: mesh in OBJ format
+                  in: body
+                  name: obj
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Post mesh for the given ROI
+            tags:
+                - roimeshes
+    /api/serverinfo:
+        get:
+            description: If it is public,  no authorization is required
+            operationId: serverinfo
+            responses:
+                "200":
+                    description: successful operation
+            summary: Returns whether the server is public
+            tags:
+                - apimeta
+    /api/skeletons/skeleton/{dataset}/{id}:
+        get:
+            description: |-
+                The skeletons are stored as swc but the default response is a table
+                of skeleton nodes.
+            operationId: getSkeleton
+            parameters:
+                - description: dataset name
+                  in: path
+                  name: dataset
+                  required: true
+                  schema:
+                    type: string
+                - description: body id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: integer
+                - description: specify response format ("swc" or nothing)
+                  in: query
+                  name: format
+            responses:
+                "200":
+                    description: binary swc file if "format=swc" specified or JSON
+                    schema:
+                        properties:
+                            columns:
+                                description: Name of each result column
+                                items:
+                                    type: string
+                                type: array
+                            data:
+                                description: Table of skeleton nodes
+                                items:
+                                    description: Table row
+                                    items:
+                                        description: Cell value
+                                        type: "null"
+                                    type: array
+                                type: array
+                        type: object
+            security:
+                - Bearer: []
+            summary: Get skeleton for given body id
+            tags:
+                - skeletons
+        post:
+            description: The skeletons are stored as swc.
+            operationId: setSkeleton
+            parameters:
+                - description: dataset name
+                  in: path
+                  name: dataset
+                  required: true
+                  schema:
+                    type: string
+                - description: body id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: integer
+                - description: skeleton in SWC format
+                  in: body
+                  name: swc
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Post skeleton for the given body id
+            tags:
+                - skeletons
+    /api/version:
+        get:
+            description: version number
+            operationId: getAPIVersion
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: version of the connectomics API
+            tags:
+                - apimeta
+    /login:
+        get:
+            description: Login user redirecting to profile
+            operationId: loginHandler
+            responses:
+                "302":
+                    description: Redirect to /profile
+            summary: Login user
+            tags:
+                - user
+    /logout:
+        post:
+            description: Clears session cookie for the user
+            operationId: logoutHandler
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Logout user
+            tags:
+                - user
+    /profile:
+        get:
+            description: Returns user information
+            operationId: profileHandler
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Returns user information
+            tags:
+                - user
+    /token:
+        get:
+            description: JWT token should be passed in header for authentication
+            operationId: tokenHandler
+            responses:
+                "200":
+                    description: successful operation
+            security:
+                - Bearer: []
+            summary: Returns JWT user bearer token
+            tags:
+                - user
 security:
-- Bearer: []
+    - Bearer: []
 securityDefinitions:
-  Bearer:
-    in: header
-    name: Authorization
-    scopes:
-      admin: Admin scope
-      user: User scope
-    type: apiKey
+    Bearer:
+        in: header
+        name: Authorization
+        scopes:
+            admin: Admin scope
+            user: User scope
+        type: apiKey
 swagger: "2.0"

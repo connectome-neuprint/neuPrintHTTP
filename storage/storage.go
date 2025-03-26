@@ -14,6 +14,9 @@ var GlobalTimeout = 60
 // Verbose prints out information on every request
 var Verbose bool
 
+// VerboseNumeric enables additional debugging for numeric conversions
+var VerboseNumeric bool
+
 // ***** Main interfaces to top-level databases *****
 
 // SimpleStore is an instance of Engine
