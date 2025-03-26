@@ -3,7 +3,8 @@
     "engine-config": {
         "server": "bolt://localhost:7687",
         "user": "neo4j",
-        "password": "password"
+        "password": "password",
+        "database": "neo4j"
     },
     "timeout": 600
 }

@@ -72,6 +72,12 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 		fmt.Printf("Noted: password not specified for neo4j\n")
 	}
 	
+	// Check for database name (Neo4j 4.0+ supports multiple databases)
+	dbName, _ := datamap["database"].(string)
+	if dbName != "" {
+		fmt.Printf("Using Neo4j database: %s\n", dbName)
+	}
+	
 	// Create the driver
 	ctx := context.Background()
 	var driver neo4j.DriverWithContext
@@ -116,6 +122,7 @@ func (e Engine) NewStore(data interface{}, typename, instance string) (storage.S
 		typename:  typename,
 		instance:  instance,
 		ctx:       ctx,
+		database:  dbName,
 	}, nil
 }
 
@@ -127,6 +134,7 @@ type Store struct {
 	typename string
 	instance string
 	ctx      context.Context
+	database string // The Neo4j database name (for Neo4j 4.0+)
 }
 
 // GetDatabase returns database information
@@ -265,6 +273,7 @@ func (store *Store) StartTrans() (storage.CypherTransaction, error) {
 		ctx:        store.ctx,
 		driver:     store.driver,
 		isExplicit: false,
+		database:   store.database,
 	}, nil
 }
 

@@ -237,7 +237,8 @@ neuPrintHTTP now supports the Neo4j Bolt protocol driver, which provides better 
     "engine-config": {
         "server": "bolt://localhost:7687", 
         "user": "neo4j",
-        "password": "password"
+        "password": "password",
+        "database": "neo4j"  // Optional: database name for Neo4j 4.0+ (omit for Neo4j 3.x)
     },
     "timeout": 600
 }

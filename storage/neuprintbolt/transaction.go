@@ -17,6 +17,7 @@ type Transaction struct {
 	session    neo4j.SessionWithContext
 	tx         neo4j.ExplicitTransaction
 	isExplicit bool
+	database   string // The Neo4j database name (for Neo4j 4.0+)
 }
 
 // CypherRequest executes a Cypher query in the transaction
@@ -33,9 +34,16 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 			accessMode = neo4j.AccessModeWrite
 		}
 
-		t.session = t.driver.NewSession(t.ctx, neo4j.SessionConfig{
+		config := neo4j.SessionConfig{
 			AccessMode: accessMode,
-		})
+		}
+		
+		// Add database name if specified
+		if t.database != "" {
+			config.DatabaseName = t.database
+		}
+
+		t.session = t.driver.NewSession(t.ctx, config)
 	}
 
 	// For explicit transactions
@@ -72,14 +80,28 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		}
 	} else {
 		// Run in auto-commit transaction
-		runResult, err := neo4j.ExecuteQuery(
-			t.ctx,
-			t.driver,
-			cypher,
-			nil,
-			neo4j.EagerResultTransformer,
-			neo4j.ExecuteQueryWithDatabase("neo4j"),
-		)
+		// Use database name if provided, otherwise use default database
+		var runResult *neo4j.EagerResult
+		var err error
+		
+		if t.database != "" {
+			runResult, err = neo4j.ExecuteQuery(
+				t.ctx,
+				t.driver,
+				cypher,
+				nil,
+				neo4j.EagerResultTransformer,
+				neo4j.ExecuteQueryWithDatabase(t.database),
+			)
+		} else {
+			runResult, err = neo4j.ExecuteQuery(
+				t.ctx,
+				t.driver,
+				cypher,
+				nil,
+				neo4j.EagerResultTransformer,
+			)
+		}
 		if err != nil {
 			return result, fmt.Errorf("failed to execute query: %w", err)
 		}
