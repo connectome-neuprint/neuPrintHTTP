@@ -181,7 +181,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	cypher := `
 		MATCH (neuron :Neuron)
 		RETURN
-			neuron.bodyId AS bodyid,
+			toString(neuron.bodyId) AS bodyid,
 			neuron.roiInfo AS roiInfo
 	`
 	res, err := ca.Store.GetMain(dataset).CypherRequest(cypher, true)
@@ -577,7 +577,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	}
 
 	// fetch connection info (for sunburst plot)
-	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'downstream' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'upstream' as direction"
+	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN toString(m.bodyId) as bodyId, m.type, x.weight, x.roiInfo, m.status, 'downstream' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN toString(m.bodyId) as bodyId, m.type, x.weight, x.roiInfo, m.status, 'upstream' as direction"
 	connection_info = strings.Replace(connection_info, "{bodyid}", strconv.FormatInt(bodyid, 10), -1)
 
 	conninfo_res, err := requester.CypherRequest(connection_info, true)
@@ -656,7 +656,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	info["numtype"] = numtype
 	info["numpre"] = numpre
 	info["numpost"] = numpost
-	info["bodyid"] = bodyid
+	info["bodyid"] = strconv.FormatInt(bodyid, 10)
 	output["info"] = info
 	output["skeleton"] = skeleton
 
