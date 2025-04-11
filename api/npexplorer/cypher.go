@@ -165,15 +165,15 @@ func (store cypherAPI) ExplorerSimpleConnections(params ConnectionsParams) (res 
 	return store.Store.GetMain(params.Dataset).CypherRequest(cypher, true)
 }
 
-func subName(neuronName string, neuronId int64, matchvar string, cypher string, regex bool) (string, error) {
+func subName(neuronName string, neuronId string, matchvar string, cypher string, regex bool) (string, error) {
 	regstr := "=~"
 	if !regex {
 		regstr = " CONTAINS "
 	}
 	if neuronName != "" {
 		cypher = strings.Replace(cypher, "{neuronid}", "("+matchvar+".type"+regstr+"\""+neuronName+"\" OR "+matchvar+".instance"+regstr+"\""+neuronName+"\")", -1)
-	} else if neuronId != 0 {
-		cypher = strings.Replace(cypher, "{neuronid}", matchvar+".bodyId = "+strconv.FormatInt(neuronId, 10), -1)
+	} else if neuronId != "" {
+		cypher = strings.Replace(cypher, "{neuronid}", matchvar+".bodyId = "+neuronId, -1)
 	} else {
 		cypher = strings.Replace(cypher, "{neuronid}", "", -1)
 		return cypher, fmt.Errorf("no neuron name specified")
