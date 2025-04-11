@@ -1,6 +1,7 @@
 module github.com/connectome-neuprint/neuPrintHTTP
 
-go 1.22.7
+go 1.23.0
+
 toolchain go1.24.1
 
 // Note: This go version is required by github.com/apache/arrow-go/v18
