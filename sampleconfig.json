@@ -29,5 +29,7 @@
     },
     "disable-auth": true,
     "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
-    "log-file": "log.json"
+    "log-file": "log.json",
+    "enable-arrow": true,
+    "arrow-flight-port": 11001
 }

@@ -15,8 +15,20 @@ func init() {
 
 const PREFIX = "/custom"
 
+// ConnectomeCustom is the main API object for custom endpoints
+type ConnectomeCustom struct {
+	api *api.ConnectomeAPI
+}
+
 type cypherAPI struct {
 	Store storage.Store
+}
+
+// NewArrowFlightServer creates a new Arrow Flight server with the given store
+func (cc *ConnectomeCustom) NewArrowFlightServer(store storage.Store) interface{} {
+	return &FlightService{
+		Store: store,
+	}
 }
 
 // setupAPI sets up the optionally supported custom endpoints
@@ -29,6 +41,21 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom)
 	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom)
+	
+	// Arrow IPC stream endpoint
+	arrowEndpoint := "arrow"
+	mainapi.SupportedEndpoints[arrowEndpoint] = true
+	mainapi.SetRoute(api.GET, PREFIX+"/"+arrowEndpoint, q.getCustomArrow)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+arrowEndpoint, q.getCustomArrow)
+	
+	// Add swagger documentation for the Arrow endpoint
+	mainapi.AddSwaggerDefinition("ArrowResponse", "Apache Arrow IPC Stream format response containing query results")
+	mainapi.AddSwaggerTag("arrow", "Apache Arrow", "Endpoints returning data in Apache Arrow format")
+	
+	// Create and return the ConnectomeCustom object
+	customAPI := &ConnectomeCustom{api: mainapi}
+	mainapi.Package = customAPI
+	
 	return nil
 }
 
@@ -111,7 +138,15 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 		}
 	}
 
-	if data, err := ca.Store.GetMain(req.Dataset).CypherRequest(req.Cypher, true); err != nil {
+	// set dataset for logging
+	c.Set("dataset", req.Dataset)
+
+	cypher, err := ca.Store.GetDataset(req.Dataset)
+	if err != nil {
+		errJSON := api.ErrorInfo{Error: err.Error()}
+		return c.JSON(http.StatusNotFound, errJSON)
+	}
+	if data, err := cypher.CypherRequest(req.Cypher, true); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {

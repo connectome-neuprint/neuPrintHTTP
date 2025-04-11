@@ -6,9 +6,16 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 )
 
 var GlobalTimeout = 60
+
+// Verbose prints out information on every request
+var Verbose bool
+
+// VerboseNumeric enables additional debugging for numeric conversions
+var VerboseNumeric bool
 
 // ***** Main interfaces to top-level databases *****
 
@@ -26,6 +33,7 @@ type SimpleStore interface {
 type Store interface {
 	SimpleStore
 	GetMain(datasets ...string) Cypher
+	GetDataset(dataset string) (Cypher, error)
 	GetStores() []SimpleStore
 	GetInstances() map[string]SimpleStore
 	GetTypes() map[string][]SimpleStore
@@ -62,7 +70,7 @@ type Spatial interface {
 	Raw3dData(Point, Point, Scale, Compression) ([]byte, error)
 }
 
-// KeyValueis the main interface for accessing keyvalue databases
+// KeyValue is the main interface for accessing keyvalue databases
 type KeyValue interface {
 	Get([]byte) ([]byte, error)
 	Set([]byte, []byte) error
@@ -72,7 +80,7 @@ type KeyValue interface {
 func ParseConfig(engineName string, data interface{}, mainstores []interface{}, datatypes_raw interface{}, timeout int) (Store, error) {
 	GlobalTimeout = timeout
 	if availEngines == nil {
-		return nil, fmt.Errorf("No engines loaded")
+		return nil, fmt.Errorf("no engines loaded")
 	}
 	var err error
 	mainStores := make([]SimpleStore, 0, 0)
@@ -90,7 +98,7 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 	mainStores = append(mainStores, firstStore)
 
 	var mainStore SimpleStore
-	for _, engine_data_raw := range mainstores {
+	for engine_num, engine_data_raw := range mainstores {
 		engine_data := engine_data_raw.(map[string]interface{})
 
 		engineName, ok := engine_data["engine"].(string)
@@ -104,21 +112,26 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 
 			mainStore, err = engine.NewStore(data, "", "")
 			if err != nil {
-				return nil, err
+				// Allow configured store to not work, just skip it for now.
+				fmt.Printf("Skipping alternative store %d due to error: %v\n", engine_num, err)
+				continue
 			}
 		}
 
 		// add to dataset stores
 		datasets, err := mainStore.GetDatasets()
 		if err != nil {
-			return nil, err
+			// Allow configured store to not work, just skip it for now.
+			fmt.Printf("Skipping alternative store %d due to error getting datasets: %v\n", engine_num, err)
+			continue
 		}
 		for dataset, _ := range datasets {
-			if _, ok = datasetStores[dataset]; ok {
-				return nil, fmt.Errorf("dataset exists multiple times")
+			lowerDataset := strings.ToLower(dataset)
+			if _, ok = datasetStores[lowerDataset]; ok {
+				return nil, fmt.Errorf("dataset %q exists multiple times", dataset)
 			}
 
-			datasetStores[dataset] = mainStore
+			datasetStores[lowerDataset] = mainStore
 		}
 
 		mainStores = append(mainStores, mainStore)
@@ -130,10 +143,11 @@ func ParseConfig(engineName string, data interface{}, mainstores []interface{}, 
 		return nil, err
 	}
 	for dataset, _ := range datasets {
-		if _, ok := datasetStores[dataset]; ok {
+		lowerDataset := strings.ToLower(dataset)
+		if _, ok := datasetStores[lowerDataset]; ok {
 			return nil, fmt.Errorf("dataset exists multiple times")
 		}
-		datasetStores[dataset] = firstStore
+		datasetStores[lowerDataset] = firstStore
 	}
 
 	// load all data instance databases for auxiliary data

@@ -29,11 +29,10 @@ type cypherAPI struct {
 	Store storage.Store
 }
 
-var mux sync.Mutex
-
 type CacheType int
 
 var cachedResults map[CacheType]map[string]interface{}
+var cacheMux sync.Mutex
 
 const (
 	ROIConn   CacheType = 1
@@ -68,46 +67,49 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 	go func() {
 		for {
-			data, err := mainapi.Store.GetDatasets()
+			datasets, err := mainapi.Store.GetDatasets()
 			if err == nil {
 				// load connections
-				for dataset, _ := range data {
+				for dataset, _ := range datasets {
 					// cache roi connectivity
-					if res, err := q.getROIConnectivity_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[ROIConn][dataset] = res
-						mux.Unlock()
-					}
+					_, _ = q.roiConnectivity(dataset)
 
 					// cache roi completeness
-					if res, err := q.getROICompleteness_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[ROIComp][dataset] = res
-						mux.Unlock()
-					}
+					_, _ = q.roiCompleteness(dataset)
 
 					// cache daily type
-					if res, err := q.getDailyType_int(dataset); err == nil {
-						mux.Lock()
-						cachedResults[DailyType][dataset] = res
-						mux.Unlock()
-					}
-
+					_, _ = q.dailyType(dataset)
 				}
 			}
 			// reset cache every day
 			time.Sleep(24 * time.Hour)
+			cachedResults[ROIConn] = make(map[string]interface{})
+			cachedResults[ROIComp] = make(map[string]interface{})
+			cachedResults[DailyType] = make(map[string]interface{})
 		}
 	}()
 
 	return nil
 }
 
-type dbVersion struct {
-	Version string
+// returns how the ROIs connect to each other
+func (ca cypherAPI) roiConnectivity(dataset string) (res interface{}, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	var ok bool
+	if res, ok = cachedResults[ROIConn][dataset]; ok {
+		return
+	}
+
+	res, err = ca.getROIConnectivity_int(dataset)
+	if err == nil {
+		cachedResults[ROIConn][dataset] = res
+	}
+	return
 }
 
-// getROI connectivity returns how the ROIs connect to each other
+// getROIConnectivity provides web handler for how the ROIs connect to each other
 func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	// swagger:operation GET /api/cached/roiconnectivity cached getROIConnectivity
 	//
@@ -149,23 +151,11 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[ROIConn][dataset]; ok {
-		mux.Unlock()
-		return c.JSON(http.StatusOK, res)
-	}
-	mux.Unlock()
-
-	res, err := ca.getROIConnectivity_int(dataset)
-	if err == nil {
-		mux.Lock()
-		cachedResults[ROIConn][dataset] = res
-		mux.Unlock()
+	res, err := ca.roiConnectivity(dataset)
+	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// load result
 	return c.JSON(http.StatusOK, res)
 }
 
@@ -188,14 +178,36 @@ const MAXVAL = 10000000000
 
 // getROIConnectivity_int implements API to find how ROIs are connected
 func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) {
-	cypher := "MATCH (neuron :Neuron) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo"
+	cypher := `
+		MATCH (neuron :Neuron)
+		RETURN
+			toString(neuron.bodyId) AS bodyid,
+			neuron.roiInfo AS roiInfo
+	`
 	res, err := ca.Store.GetMain(dataset).CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
 	}
 
-	// restrict the query to the super level ROIs
-	cypher2 := "MATCH (m :Meta) RETURN m.superLevelRois AS rois"
+	// Restrict results to the overview ROIs.
+	// If Meta.overviewRois is present, use that list.
+	// Otherwise, use the primaryRois by default.
+	// But
+	cypher2 := `
+		MATCH (meta :Meta)
+		WITH
+			CASE meta.overviewRois
+				WHEN NULL THEN meta.primaryRois
+				ELSE meta.overviewRois
+			END AS overviewRois,
+			meta,
+			apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo
+		UNWIND overviewRois as roi
+		WITH roiInfo, roi
+		WHERE NOT coalesce(roiInfo[roi]['excludeFromOverview'], FALSE)
+		RETURN collect(roi) as rois
+	`
+
 	res2, err := ca.Store.GetMain(dataset).CypherRequest(cypher2, true)
 	if err != nil {
 		return nil, err
@@ -285,7 +297,27 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 		}
 	}
 
-	if len(distmatrix) > 3 {
+	cypher3 := `
+	MATCH (m:Meta)
+	RETURN
+		CASE m.overviewOrder
+			WHEN NULL THEN 'clustered'
+			ELSE m.overviewOrder
+		END AS overviewOrder
+	`
+	res3, err := ca.Store.GetMain(dataset).CypherRequest(cypher3, true)
+	if err != nil {
+		return nil, err
+	}
+	var overviewOrder string
+	if len(res3.Data) > 0 {
+		overviewOrder = res3.Data[0][0].(string)
+	}
+
+	// If the dataset wants the overview ROIs to be auto-ordered,
+	// then use clustering to find the order.
+	// Otherwise, stick with the order given by Meta.overviewRois.
+	if len(distmatrix) > 3 && overviewOrder == "clustered" {
 		// sort roi names by clustering
 		subcluster, err := hclust.Cluster(distmatrix, "single")
 		if err != nil {
@@ -304,7 +336,24 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	}
 }
 
-// getROICompleteness returns the tracing completeness of each ROI
+// roiCompleteness returns the tracing completeness of each ROI
+func (ca cypherAPI) roiCompleteness(dataset string) (res interface{}, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	var ok bool
+	if res, ok = cachedResults[ROIComp][dataset]; ok {
+		return
+	}
+
+	res, err = ca.getROICompleteness_int(dataset)
+	if err == nil {
+		cachedResults[ROIComp][dataset] = res
+	}
+	return
+}
+
+// getROICompleteness is web handler that provides the tracing completeness of each ROI
 func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 	// swagger:operation GET /api/cached/roicompleteness cached getROICompleteness
 	//
@@ -344,29 +393,17 @@ func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[ROIComp][dataset]; ok {
-		mux.Unlock()
-		return c.JSON(http.StatusOK, res)
-	}
-	mux.Unlock()
-
-	res, err := ca.getROICompleteness_int(dataset)
+	res, err := ca.roiCompleteness(dataset)
 	if err != nil {
-		mux.Lock()
-		cachedResults[ROIComp][dataset] = res
-		mux.Unlock()
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
-	// load result
 	return c.JSON(http.StatusOK, res)
 }
 
 var completeStatuses = []string{"Traced", "Roughly traced", "Prelim Roughly traced", "final", "final (irrelevant)", "Finalized", "Leaves"}
 
-//getROICompleteness_int fetches roi completeness from database
+// getROICompleteness_int fetches roi completeness from database
 func (ca cypherAPI) getROICompleteness_int(dataset string) (interface{}, error) {
 	cypher := "MATCH (n:Neuron) WHERE {status_conds} WITH apoc.convert.fromJsonMap(n.roiInfo) AS roiInfo WITH roiInfo AS roiInfo, keys(roiInfo) AS roiList UNWIND roiList AS roiName WITH roiName AS roiName, sum(roiInfo[roiName].pre) AS pre, sum(roiInfo[roiName].post) AS post MATCH (meta:Meta) WITH apoc.convert.fromJsonMap(meta.roiInfo) AS globInfo, roiName AS roiName, pre AS pre, post AS post RETURN roiName AS roi, pre AS roipre, post AS roipost, globInfo[roiName].pre AS totalpre, globInfo[roiName].post AS totalpost ORDER BY roiName"
 
@@ -392,11 +429,28 @@ type SkeletonResp struct {
 	Data    [][]interface{} `json:"data"`
 }
 
-// getDailyType returns information for a different neeuron each day
+// daily type returns information for a different neeuron each day
+func (ca cypherAPI) dailyType(dataset string) (res []byte, err error) {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	if resc, ok := cachedResults[DailyType][dataset]; ok {
+		res, _ = resc.([]byte)
+		return
+	}
+
+	res, err = ca.getDailyType_int(dataset)
+	if err == nil {
+		cachedResults[DailyType][dataset] = res
+	}
+	return
+}
+
+// getDailyType is web handler that provides the information for a different neuron each day
 func (ca cypherAPI) getDailyType(c echo.Context) error {
 	// swagger:operation GET /api/cached/dailytype cached getDailyType
 	//
-	// Gets information for a different neuron type each day..
+	// Gets information for a different neuron type each day.
 	//
 	// The program updates the completeness numbers each day.  A different
 	// cell type is randomly picked and an exemplar is chosen
@@ -438,24 +492,11 @@ func (ca cypherAPI) getDailyType(c echo.Context) error {
 
 	dataset := c.QueryParam("dataset")
 
-	mux.Lock()
-	if res, ok := cachedResults[DailyType][dataset]; ok {
-		mux.Unlock()
-		c.Response().Header().Set("Content-Encoding", "gzip")
-		resc, _ := res.([]byte)
-		return c.Blob(http.StatusOK, "application/json", resc)
-	}
-	mux.Unlock()
-
-	res, err := ca.getDailyType_int(dataset)
+	res, err := ca.dailyType(dataset)
 	if err != nil {
-		mux.Lock()
-		cachedResults[DailyType][dataset] = res
-		mux.Unlock()
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-
 	c.Response().Header().Set("Content-Encoding", "gzip")
 	return c.Blob(http.StatusOK, "application/json", res)
 }
@@ -464,7 +505,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	requester := ca.Store.GetMain(dataset)
 
 	// find a random cell typee
-	random_query := "MATCH (n :Neuron) WHERE not n.cropped AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE not n.cropped AND n.status IN [\"Traced\",\"Anchor\"] AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
+	random_query := "MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
 
 	rand_res, err := requester.CypherRequest(random_query, true)
 	if err != nil {
@@ -472,12 +513,12 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	}
 
 	if len(rand_res.Data) == 0 {
-		return nil, fmt.Errorf("No cell type exists")
+		return nil, fmt.Errorf("no cell type exists")
 	}
 
 	typename, ok := rand_res.Data[0][0].(string)
 	if !ok {
-		return nil, fmt.Errorf("Cell type could not be parsed")
+		return nil, fmt.Errorf("cell type could not be parsed")
 	}
 
 	// get an exemplar body
@@ -490,26 +531,37 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	}
 
 	if len(ex_res.Data) == 0 {
-		return nil, fmt.Errorf("No bodies exist for cell type")
+		return nil, fmt.Errorf("no bodies exist for cell type")
 	}
 
-	bodyidf, ok := ex_res.Data[0][0].(float64)
-	if !ok {
-		return nil, fmt.Errorf("Body id could not be parsed")
-	}
-	bodyid := int(bodyidf)
+	var bodyid, numpre, numpost int64
 
-	numpref, ok := ex_res.Data[0][1].(float64)
-	if !ok {
-		return nil, fmt.Errorf("pre could not be parsed")
+	switch v := ex_res.Data[0][0].(type) {
+	case int64:
+		bodyid = v
+	case int32:
+		bodyid = int64(v)
+	default:
+		return nil, fmt.Errorf("body id is not an int: %T", v)
 	}
-	numpre := int(numpref)
 
-	numpostf, ok := ex_res.Data[0][2].(float64)
-	if !ok {
-		return nil, fmt.Errorf("post could not be parsed")
+	switch v := ex_res.Data[0][1].(type) {
+	case int64:
+		numpre = v
+	case int32:
+		numpre = int64(v)
+	default:
+		return nil, fmt.Errorf("presyn number is not an int: %T", v)
 	}
-	numpost := int(numpostf)
+
+	switch v := ex_res.Data[0][2].(type) {
+	case int64:
+		numpost = v
+	case int32:
+		numpost = int64(v)
+	default:
+		return nil, fmt.Errorf("postsyn number is not an int: %T", v)
+	}
 
 	// get body count
 	count_query := "MATCH (n :Neuron {type: \"{typename}\"}) RETURN count(n)"
@@ -519,15 +571,14 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	numtypef, ok := count_res.Data[0][0].(float64)
+	numtype, ok := count_res.Data[0][0].(int64)
 	if !ok {
-		return nil, fmt.Errorf("Number of neurons could not be parsed")
+		return nil, fmt.Errorf("number of neurons could not be parsed: %T", count_res.Data[0][0])
 	}
-	numtype := int(numtypef)
 
 	// fetch connection info (for sunburst plot)
-	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'downstream' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN m.bodyId, m.type, x.weight, x.roiInfo, m.status, 'upstream' as direction"
-	connection_info = strings.Replace(connection_info, "{bodyid}", strconv.Itoa(bodyid), -1)
+	connection_info := "MATCH (n :Neuron {bodyId: {bodyid}})-[x :ConnectsTo]->(m) RETURN toString(m.bodyId) as bodyId, m.type, x.weight, x.roiInfo, m.status, 'downstream' as direction UNION MATCH (n :Neuron {bodyId: {bodyid}})<-[x :ConnectsTo]-(m) RETURN toString(m.bodyId) as bodyId, m.type, x.weight, x.roiInfo, m.status, 'upstream' as direction"
+	connection_info = strings.Replace(connection_info, "{bodyid}", strconv.FormatInt(bodyid, 10), -1)
 
 	conninfo_res, err := requester.CypherRequest(connection_info, true)
 	if err != nil {
@@ -546,8 +597,13 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 		}
 
 		// fetch the value
-		keystr := strconv.Itoa(bodyid) + "_swc"
+		keystr := strconv.FormatInt(bodyid, 10) + "_swc"
 		res, err := kvstore.Get([]byte(keystr))
+		fmt.Printf("skeleton for daily type example: %s\n", keystr)
+		if err != nil {
+			fmt.Printf("error fetching skeleton: %s\n", err.Error())
+		}
+		fmt.Printf("skeleton size retrieved: %d\n", len(res))
 
 		if err == nil && len(res) > 0 {
 			// copied from skeleton API
@@ -600,7 +656,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	info["numtype"] = numtype
 	info["numpre"] = numpre
 	info["numpost"] = numpost
-	info["bodyid"] = bodyid
+	info["bodyid"] = strconv.FormatInt(bodyid, 10)
 	output["info"] = info
 	output["skeleton"] = skeleton
 

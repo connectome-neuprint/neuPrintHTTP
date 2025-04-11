@@ -4,21 +4,22 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//     Version: 0.1.0
-//     Contact: Stephen Plaza<plazas@janelia.hhmi.org>
+//	Version: 0.1.0
+//	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
-//     SecurityDefinitions:
-//     Bearer:
-//         type: apiKey
-//         name: Authorization
-//         in: header
-//         scopes:
-//           admin: Admin scope
-//           user: User scope
-//     Security:
-//     - Bearer:
+//	SecurityDefinitions:
+//	Bearer:
+//	    type: apiKey
+//	    name: Authorization
+//	    in: header
+//	    scopes:
+//	      admin: Admin scope
+//	      user: User scope
+//	Security:
+//	- Bearer:
 //
 // swagger:meta
+//
 //go:generate swagger generate spec -o ./swaggerdocs/swagger.yaml
 package main
 
@@ -33,9 +34,12 @@ import (
 	"syscall"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/api/custom"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
-	secure "github.com/janelia-flyem/echo-secure"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
+	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -55,7 +59,7 @@ func neuprintLogo() {
 	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
 	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
 	fmt.Println("                                                                                    ")
-	fmt.Println("neuPrintHTTP v1.5.2")
+	fmt.Println("neuPrintHTTP v1.6.7")
 
 }
 
@@ -66,11 +70,17 @@ func main() {
 	var proxyport = 0
 	var publicRead = false
 	var pidfile = ""
+	var arrowFlightPort = 11001
+	var disableArrow = false
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.IntVar(&proxyport, "proxy-port", 0, "proxy port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
+	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
+	flag.BoolVar(&storage.VerboseNumeric, "verbose-numeric", false, "enable verbose numeric type conversion debugging")
+	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")
+	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -82,6 +92,17 @@ func main() {
 	if err != nil {
 		fmt.Print(err)
 		return
+	}
+
+	// Set Arrow configuration
+	// Arrow is enabled by default unless the disable-arrow flag is set
+	options.EnableArrow = !disableArrow
+
+	// Set Arrow Flight port
+	if options.ArrowFlightPort == 0 && arrowFlightPort != 0 {
+		options.ArrowFlightPort = arrowFlightPort
+	} else if options.ArrowFlightPort != 0 {
+		arrowFlightPort = options.ArrowFlightPort
 	}
 
 	if pidfile != "" {
@@ -120,6 +141,33 @@ func main() {
 		return
 	}
 
+	// Display Arrow status and start Flight server if enabled
+	if options.EnableArrow {
+		fmt.Println("✓ Arrow format enabled: HTTP endpoint available at /api/custom/arrow")
+
+		// Create and start Arrow Flight server
+		if options.ArrowFlightPort > 0 {
+			// Wait a bit for API initialization to complete
+			fmt.Printf("Starting Arrow Flight server on port %d\n", options.ArrowFlightPort)
+
+			// Start the Flight server in a separate goroutine
+			go func() {
+				// Create minimal Flight service
+				// Full Flight implementation will be added in a future release
+				flightService := &custom.FlightService{
+					Port: options.ArrowFlightPort,
+				}
+
+				// Start the Flight service
+				if err := flightService.Start(); err != nil {
+					fmt.Printf("Arrow Flight server error: %v\n", err)
+				}
+			}()
+		}
+	} else {
+		fmt.Println("✗ Arrow format disabled (use --enable-arrow to enable)")
+	}
+
 	// create echo web framework
 	e := echo.New()
 
@@ -127,7 +175,7 @@ func main() {
 	logger, err := logging.GetLogger(port, options)
 
 	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
-		Format: "{\"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
+		Format: "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
 		Output: logger,
 	}))
 
@@ -233,6 +281,13 @@ func main() {
 		info := struct {
 			IsPublic bool
 		}{publicRead}
+		return c.JSON(http.StatusOK, info)
+	}))
+
+	e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+		info := struct {
+			Url string
+		}{options.VimoServer}
 		return c.JSON(http.StatusOK, info)
 	}))
 
