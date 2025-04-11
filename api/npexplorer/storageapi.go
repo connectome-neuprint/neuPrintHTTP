@@ -1,7 +1,5 @@
 package npexplorer
 
-// ?! consider defining struct here and then storage can include this information
-
 type DatasetParams struct {
 	Dataset string `json:"dataset"`
 }
@@ -22,13 +20,15 @@ type FilterParams struct {
 type FindNeuronsParams struct {
 	NeuronNameParams
 	FilterParams
-	InputROIs  []string `json:"input_ROIs"`
-	OutputROIs []string `json:"output_ROIs"`
+	InputROIs      []string `json:"input_ROIs"`
+	OutputROIs     []string `json:"output_ROIs"`
+	EnableContains bool     `json:"enable_contains,omitempty"`
 }
 
 type ConnectionsParams struct {
 	NeuronNameParams
-	FindInputs bool `json:"find_inputs"`
+	FindInputs     bool `json:"find_inputs"`
+	EnableContains bool `json:"enable_contains,omitempty"`
 }
 
 type MetaValParams struct {
@@ -53,19 +53,4 @@ type DistributionParams struct {
 type CompletenessParams struct {
 	DatasetParams
 	FilterParams
-}
-
-// StorageAPI specifies the interface that backend engine needs to satisfy
-type StorageAPI interface {
-	ExplorerFindNeurons(FindNeuronsParams) (interface{}, error)
-	ExplorerNeuronMeta(DatasetParams) (interface{}, error)
-	ExplorerNeuronMetaVals(MetaValParams) (interface{}, error)
-	ExplorerROIConnectivity(DatasetParams) (interface{}, error)
-	ExplorerRankedTable(ConnectionsParams) (interface{}, error)
-	ExplorerSimpleConnections(ConnectionsParams) (interface{}, error)
-	ExplorerROIsInNeuron(NeuronNameParams) (interface{}, error)
-	ExplorerCommonConnectivity(CommonConnectivityParams) (interface{}, error)
-	ExplorerAutapses(DatasetParams) (interface{}, error)
-	ExplorerDistribution(DistributionParams) (interface{}, error)
-	ExplorerCompleteness(CompletenessParams) (interface{}, error)
 }

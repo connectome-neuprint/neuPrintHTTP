@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/color"
 	"github.com/valyala/fasttemplate"
 )
@@ -64,7 +64,7 @@ type (
 var (
 	// DefaultLoggerConfig is the default Logger middleware config.
 	DefaultLoggerConfig = LoggerConfig{
-		Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}",` +
+		Format: `{"dataset":${dataset},"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}",` +
 			`"method":"${method}","uri":"${uri}","status":${status},"error":"${error}","latency":${latency},` +
 			`"latency_human":"${latency_human}","bytes_in":${bytes_in},` +
 			`"bytes_out":${bytes_out}}` + "\n",
@@ -114,6 +114,13 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 
 			if _, err = config.template.ExecuteFunc(buf, func(w io.Writer, tag string) (int, error) {
 				switch tag {
+				case "dataset":
+					datasetI := c.Get("dataset")
+					dataset, ok := datasetI.(string)
+					if !ok {
+						dataset = c.Param("dataset")
+					}
+					buf.WriteString(dataset)
 				case "time_unix":
 					return buf.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
 				case "time_unix_nano":
@@ -199,9 +206,11 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 						return buf.Write([]byte(c.FormValue(tag[5:])))
 					case strings.HasPrefix(tag, "custom:"):
 						if custval, ok := c.Get(tag[7:]).([]byte); ok {
-							return buf.Write([]byte(custval))
+							tempval := strings.Replace(string(custval), "\"", "\\\"", -1)
+							return buf.Write([]byte(tempval))
 						} else if custval, ok := c.Get(tag[7:]).(string); ok {
-							return buf.WriteString(custval)
+							tempval := strings.Replace(custval, "\"", "\\\"", -1)
+							return buf.WriteString(tempval)
 						} else {
 							return buf.WriteString("")
 						}
@@ -216,7 +225,6 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 			}); err != nil {
 				return
 			}
-
 			_, err = config.Output.Write(buf.Bytes())
 			return
 		}
