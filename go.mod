@@ -12,8 +12,8 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/knightjdr/hclust v1.0.2
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/echo-contrib v0.12.0
-	github.com/labstack/echo/v4 v4.7.2
 	github.com/labstack/gommon v0.3.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.27.0
 	github.com/satori/go.uuid v1.2.0
