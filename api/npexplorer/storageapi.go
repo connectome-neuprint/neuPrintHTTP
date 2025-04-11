@@ -7,7 +7,7 @@ type DatasetParams struct {
 type NeuronNameParams struct {
 	DatasetParams
 	NeuronName string `json:"neuron_name,omitempty"`
-	NeuronId   int64  `json:"neuron_id,omitempty"`
+	NeuronId   string `json:"neuron_id,omitempty"`
 }
 
 type FilterParams struct {
