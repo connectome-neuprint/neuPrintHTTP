@@ -9,11 +9,11 @@ require (
 	github.com/apache/arrow-go/v18 v18.1.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/dgraph-io/badger/v3 v3.2103.2
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/gorilla/sessions v1.2.1
 	github.com/knightjdr/hclust v1.0.2
-	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/echo-contrib v0.12.0
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/gommon v0.3.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.27.0
 	github.com/satori/go.uuid v1.2.0
