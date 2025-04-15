@@ -121,7 +121,7 @@ func (a DatastoreAuthorize) Authorize(user string, level AuthorizationLevel) boo
 	}
 
 	if found {
-		// authorization level of user satisfies requeted level
+		// authorization level of user satisfies requested level
 		if templevel, err := LevelFromString(perm); templevel >= level && err == nil {
 			return true
 		}
