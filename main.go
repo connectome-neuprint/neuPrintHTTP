@@ -49,6 +49,8 @@ func customUsage() {
 	flag.PrintDefaults()
 }
 
+const version = "v1.7.1"
+
 func neuprintLogo() {
 	fmt.Println("                                                                                    ")
 	fmt.Println("                                    ooooooooo.             o8o                  .   ")
@@ -59,7 +61,7 @@ func neuprintLogo() {
 	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
 	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
 	fmt.Println("                                                                                    ")
-	fmt.Println("neuPrintHTTP v1.6.7")
+	fmt.Printf("neuPrintHTTP %s\n", version)
 
 }
 
@@ -280,7 +282,8 @@ func main() {
 	e.GET("/api/serverinfo", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			IsPublic bool
-		}{publicRead}
+			Version  string
+		}{publicRead, version}
 		return c.JSON(http.StatusOK, info)
 	}))
 
