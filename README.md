@@ -211,9 +211,9 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 
 ```json
 {
-    "engine": "neuPrint-neo4j",
+    "engine": "neuPrint-bolt",
     "engine-config": {
-        "server": "<NEO4-SERVER>:7474", 
+        "server": "<NEO4-SERVER>:7687", 
         "user": "neo4j",
         "password": "<PASSWORD>"
     },
@@ -237,8 +237,8 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 }
 ```
 
-If you prefer to use a Bolt (optimized neo4j protocol) driver, then see the configuration
-for access using Bolt in `config-examples/config-bolt.json`.
+Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
+older `neuPrint-neo4j` engine is deprecated. See below.
 
 #### Neo4j Bolt Driver
 
