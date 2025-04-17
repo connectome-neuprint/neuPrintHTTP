@@ -1,9 +1,0 @@
-{
-    "engine": "neuPrint-bolt",
-    "engine-config": {
-        "server": "bolt://localhost:7687",
-        "user": "neo4j",
-        "password": "password"
-    },
-    "timeout": 600
-}
