@@ -2,6 +2,7 @@ package custom
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,10 +47,10 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 			if storage.VerboseNumeric {
 				fmt.Printf("Column %s type inference: %s\n", colName, debugValue(val))
 			}
-			
+
 			// For numeric operations, prefer Int64 when possible
 			preferInt64 := true
-			
+
 			switch v := val.(type) {
 			case int, int64:
 				dataType = arrow.PrimitiveTypes.Int64
@@ -208,12 +209,12 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 
 	// Create record from arrays and ensure proper cleanup
 	record := array.NewRecord(schema, arrays, int64(rowCount))
-	
+
 	// Set up proper release of arrays after record is created
 	for _, arr := range arrays {
 		defer arr.Release()
 	}
-	
+
 	// Clone the record to prevent it from being released when arrays are released
 	recordClone := record.NewSlice(0, record.NumRows())
 	defer record.Release()
@@ -229,7 +230,7 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 // getCustomArrow handles requests for Arrow format
 // swagger:operation GET /api/custom/arrow arrow getArrow
 //
-// Execute Cypher query and return results in Apache Arrow IPC format
+// # Execute Cypher query and return results in Apache Arrow IPC format
 //
 // Executes the provided Cypher query against the specified dataset and returns
 // the results in Apache Arrow IPC stream format. This is useful for efficient
@@ -239,40 +240,43 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 // tags:
 // - arrow
 // parameters:
-// - in: "body"
-//   name: "body"
-//   required: true
-//   schema:
+//   - in: "body"
+//     name: "body"
+//     required: true
+//     schema:
 //     type: "object"
 //     required: ["cypher", "dataset"]
 //     properties:
-//       dataset:
-//         type: "string"
-//         description: "dataset name"
-//         example: "hemibrain"
-//       cypher:
-//         type: "string"
-//         description: "cypher statement (read only)"
-//         example: "MATCH (n) RETURN n limit 1"
-//       version:
-//         type: "string"
-//         description: "specify a neuprint model version for explicit check"
-//         example: "0.5.0"
+//     dataset:
+//     type: "string"
+//     description: "dataset name"
+//     example: "hemibrain"
+//     cypher:
+//     type: "string"
+//     description: "cypher statement (read only)"
+//     example: "MATCH (n) RETURN n limit 1"
+//     version:
+//     type: "string"
+//     description: "specify a neuprint model version for explicit check"
+//     example: "0.5.0"
+//
 // produces:
 // - application/vnd.apache.arrow.stream
 // responses:
-//   200:
-//     description: "successful operation - data in Arrow IPC stream format"
-//     schema:
-//       $ref: "#/definitions/ArrowResponse"
-//   400:
-//     description: "bad request - invalid parameters or query"
-//     schema:
-//       $ref: "#/definitions/ErrorInfo"
-//   404:
-//     description: "dataset not found"
-//     schema:
-//       $ref: "#/definitions/ErrorInfo"
+//
+//	200:
+//	  description: "successful operation - data in Arrow IPC stream format"
+//	  schema:
+//	    $ref: "#/definitions/ArrowResponse"
+//	400:
+//	  description: "bad request - invalid parameters or query"
+//	  schema:
+//	    $ref: "#/definitions/ErrorInfo"
+//	404:
+//	  description: "dataset not found"
+//	  schema:
+//	    $ref: "#/definitions/ErrorInfo"
+//
 // security:
 // - Bearer: []
 func (ca cypherAPI) getCustomArrow(c echo.Context) error {
@@ -330,33 +334,33 @@ func (ca cypherAPI) getCustomArrow(c echo.Context) error {
 		errJSON := map[string]string{"error": "cypher query failed: " + err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
-	
+
 	// Debug the received data
 	if storage.Verbose {
 		fmt.Printf("data: %v\n", data)
 	}
-	
+
 	// Additional numeric debugging if enabled
 	if storage.VerboseNumeric && len(data.Data) > 0 && len(data.Data[0]) > 0 {
 		fmt.Printf("First value: %s\n", debugValue(data.Data[0][0]))
-		
+
 		// Add more detailed logging for value debugging
 		fmt.Printf("\n=== DETAILED VALUE ANALYSIS ===\n")
 		for i, row := range data.Data {
 			for j, val := range row {
 				fmt.Printf("Row %d, Col %d: %s\n", i, j, debugValue(val))
-				
+
 				// If it's a json.Number, let's see what it parses as
 				if num, ok := val.(json.Number); ok {
 					fmt.Printf("  - As json.Number string: %s\n", num.String())
-					
+
 					// Try int64 conversion
 					if intVal, err := num.Int64(); err == nil {
 						fmt.Printf("  - Converts to int64: %d\n", intVal)
 					} else {
 						fmt.Printf("  - Does NOT convert to int64: %v\n", err)
 					}
-					
+
 					// Try float64 conversion
 					if floatVal, err := num.Float64(); err == nil {
 						fmt.Printf("  - Converts to float64: %f (scientific: %e)\n", floatVal, floatVal)
@@ -389,15 +393,15 @@ func (ca cypherAPI) getCustomArrow(c echo.Context) error {
 		if record == nil {
 			continue // Skip nil records
 		}
-		
+
 		if err := writer.Write(record); err != nil {
 			errMsg := fmt.Sprintf("error writing Arrow record %d: %v", recordCount, err)
 			// We've already started sending response, so we can't send JSON error
 			// Log the error and return it
 			fmt.Println(errMsg)
-			return fmt.Errorf(errMsg)
+			return errors.New(errMsg)
 		}
-		
+
 		// Properly release each record after writing
 		defer record.Release()
 		recordCount++
