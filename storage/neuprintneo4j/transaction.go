@@ -3,6 +3,7 @@ package neuprintneo4j
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -52,13 +53,13 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	// Use json.Decoder with UseNumber() to preserve number precision
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber() // This ensures numbers are stored as json.Number
-	
+
 	result := neoResults{}
 	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
 		return cres, fmt.Errorf("error decoding json: %v", jsonErr)
 	}
-	
+
 	// Debug the raw JSON response if verbose numeric debugging is enabled
 	if storage.VerboseNumeric {
 		fmt.Printf("\n=== RAW NEO4J RESPONSE ANALYSIS ===\n")
@@ -68,7 +69,7 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	}
 
 	if len(result.Errors) > 0 {
-		return cres, fmt.Errorf(result.Errors[0].Message)
+		return cres, errors.New(result.Errors[0].Message)
 	}
 
 	if !t.isStarted {
@@ -92,12 +93,12 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 			// Convert json.Number to int64 if possible, otherwise preserve as is
 			if num, ok := val2.(json.Number); ok {
 				numStr := num.String()
-				
+
 				// Log the original value if verbose numeric debugging is enabled
 				if storage.VerboseNumeric {
 					fmt.Printf("Processing json.Number: %s\n", numStr)
 				}
-				
+
 				// Try to parse as int64 first
 				if intVal, err := num.Int64(); err == nil {
 					if storage.VerboseNumeric {
@@ -109,13 +110,13 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 					if storage.VerboseNumeric {
 						fmt.Printf("  - Failed to parse as int64: %v\n", err)
 					}
-					
+
 					// Try float64 as fallback
 					if floatVal, err := num.Float64(); err == nil {
 						if storage.VerboseNumeric {
 							fmt.Printf("  - Successfully parsed as float64: %f\n", floatVal)
 						}
-						
+
 						// Let's no longer do the float64 to int64 conversion for large numbers
 						// as it can cause precision loss for values like 2^55 + 1
 						arr[col] = floatVal
@@ -169,7 +170,7 @@ func (t *Transaction) Kill() error {
 	// Use json.Decoder with UseNumber() to preserve number precision
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
-	
+
 	result := neoResults{}
 	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
@@ -177,7 +178,7 @@ func (t *Transaction) Kill() error {
 	}
 
 	if len(result.Errors) > 0 {
-		return fmt.Errorf(result.Errors[0].Message)
+		return errors.New(result.Errors[0].Message)
 	}
 
 	return nil
@@ -208,7 +209,7 @@ func (t *Transaction) Commit() error {
 	// Use json.Decoder with UseNumber() to preserve number precision
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
-	
+
 	result := neoResults{}
 	jsonErr := decoder.Decode(&result)
 	if jsonErr != nil {
@@ -216,7 +217,7 @@ func (t *Transaction) Commit() error {
 	}
 
 	if len(result.Errors) > 0 {
-		return fmt.Errorf(result.Errors[0].Message)
+		return errors.New(result.Errors[0].Message)
 	}
 
 	return nil
