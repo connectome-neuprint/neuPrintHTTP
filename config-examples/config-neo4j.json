@@ -1,0 +1,12 @@
+{
+    "engine": "neuPrint-neo4j",
+    "engine-config": {
+        "server": "localhost:7474",
+        "user": "neo4j",
+        "password": "your-password"
+    },
+    "disable-auth": true,
+    "swagger-docs": "./swaggerdocs",
+    "log-file": "log.json",
+    "enable-arrow": true
+}
