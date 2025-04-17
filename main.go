@@ -4,7 +4,7 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//	Version: 0.1.0
+//	Version: 1.7.1
 //	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
 //	SecurityDefinitions:
@@ -39,6 +39,7 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
 	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
+	"github.com/connectome-neuprint/neuPrintHTTP/internal/version"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -48,8 +49,6 @@ func customUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] CONFIG.json\n", os.Args[0])
 	flag.PrintDefaults()
 }
-
-const version = "v1.7.1"
 
 func neuprintLogo() {
 	fmt.Println("                                                                                    ")
@@ -61,7 +60,7 @@ func neuprintLogo() {
 	fmt.Println("   888   888  888    .o  888   888   888          888      888   888   888    888 . ")
 	fmt.Println("  o888o o888o `Y8bod8P'  `V88V\"V8P' o888o        d888b    o888o o888o o888o   \"888\" ")
 	fmt.Println("                                                                                    ")
-	fmt.Printf("neuPrintHTTP %s\n", version)
+	fmt.Printf("neuPrintHTTP v%s\n", version.Version)
 
 }
 
@@ -283,7 +282,7 @@ func main() {
 		info := struct {
 			IsPublic bool
 			Version  string
-		}{publicRead, version}
+		}{publicRead, version.Version}
 		return c.JSON(http.StatusOK, info)
 	}))
 
