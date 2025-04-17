@@ -207,7 +207,7 @@ neuprintHTTP -disable-arrow config.json
 
 #### Sample Configuration
 
-A sample configuration file can be found in `sampleconfig.json` in this repo:
+A sample configuration file can be found in `config-examples/config.json` in this repo:
 
 ```json
 {
@@ -236,6 +236,9 @@ A sample configuration file can be found in `sampleconfig.json` in this repo:
     "log-file": "log.json"
 }
 ```
+
+If you prefer to use a Bolt (optimized neo4j protocol) driver, then see the configuration
+for access using Bolt in `config-examples/config-bolt.json`.
 
 #### Neo4j Bolt Driver
 
