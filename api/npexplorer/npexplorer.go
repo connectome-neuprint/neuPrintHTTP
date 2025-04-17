@@ -200,14 +200,14 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 
 	for _, row := range res.Data {
 
-		bodyid_t, ok := row[0].(float64)
+		bodyid_t, ok := row[0].(int64)
 		if !ok {
 			errJSON := api.ErrorInfo{Error: "body id1 not parsed properly"}
 			return c.JSON(http.StatusBadRequest, errJSON)
 		}
 		bodyid := int64(bodyid_t)
 
-		bodyid2_t, ok := row[3].(float64)
+		bodyid2_t, ok := row[3].(int64)
 		if !ok {
 			errJSON := api.ErrorInfo{Error: "body id2 not parsed properly"}
 			return c.JSON(http.StatusBadRequest, errJSON)
@@ -219,7 +219,7 @@ func (ca *cypherAPI) getCellType(c echo.Context) error {
 			instance = ""
 		}
 
-		weight_t, ok := row[2].(float64)
+		weight_t, ok := row[2].(int64)
 		if !ok {
 			errJSON := api.ErrorInfo{Error: "weight not parsed properly"}
 			return c.JSON(http.StatusBadRequest, errJSON)

@@ -13,10 +13,10 @@ import (
 
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
+	"github.com/connectome-neuprint/neuPrintHTTP/internal/version"
 	"github.com/labstack/echo/v4"
 )
 
-const APIVERSION = "0.1.0"
 const PREFIX = "/api"
 
 type setupAPI func(*ConnectomeAPI) error
@@ -83,7 +83,7 @@ func CheckVersion(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		vals := c.ParamValues()
 		if len(vals) > 0 {
-			if !utils.CheckSubsetVersion(vals[0], APIVERSION) {
+			if !utils.CheckSubsetVersion(vals[0], version.Version) {
 				errJSON := ErrorInfo{"Incompatible API version"}
 				return c.JSON(http.StatusBadRequest, errJSON)
 			}
@@ -184,6 +184,6 @@ type apiVersion struct {
 }
 
 func (api *ConnectomeAPI) getAPIVersion(c echo.Context) error {
-	vers := apiVersion{APIVERSION}
+	vers := apiVersion{version.Version}
 	return c.JSON(http.StatusOK, vers)
 }
