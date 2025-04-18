@@ -37,7 +37,7 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		config := neo4j.SessionConfig{
 			AccessMode: accessMode,
 		}
-		
+
 		// Add database name if specified
 		if t.database != "" {
 			config.DatabaseName = t.database
@@ -62,7 +62,7 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 	// Execute the query based on whether we have an explicit transaction or not
 	var records []*neo4j.Record
 	var keys []string
-	
+
 	if t.isExplicit && t.tx != nil {
 		// Run in explicit transaction
 		res, err := t.tx.Run(t.ctx, cypher, nil)
@@ -83,7 +83,7 @@ func (t *Transaction) CypherRequest(cypher string, readonly bool) (storage.Cyphe
 		// Use database name if provided, otherwise use default database
 		var runResult *neo4j.EagerResult
 		var err error
-		
+
 		if t.database != "" {
 			runResult, err = neo4j.ExecuteQuery(
 				t.ctx,
@@ -144,6 +144,23 @@ func convertNeo4jValue(val interface{}) interface{} {
 
 	// Handle different Neo4j types
 	switch v := val.(type) {
+	case neo4j.Point3D:
+		// Convert Neo4j Point3D to a map with field "coordinates"
+		href := fmt.Sprintf("http://spatialreference.org/ref/sr-org/%d/ogcwkt/", v.SpatialRefId)
+		return map[string]interface{}{
+			"coordinates": []float64{v.X, v.Y, v.Z},
+			"crs": map[string]interface{}{
+				"name": "cartesian-3d",
+				"properties": map[string]interface{}{
+					"href": href,
+					"type": "ogcwkt",
+				},
+				"srid": v.SpatialRefId,
+				"type": "link",
+			},
+			"type": "Point",
+		}
+
 	case neo4j.Node:
 		// Convert Neo4j node to a map with its properties
 		props := make(map[string]interface{})
@@ -151,6 +168,7 @@ func convertNeo4jValue(val interface{}) interface{} {
 			props[key] = convertNeo4jValue(value)
 		}
 		return props
+
 	case neo4j.Relationship:
 		// Convert Neo4j relationship to a map with its properties
 		props := make(map[string]interface{})
