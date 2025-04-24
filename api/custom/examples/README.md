@@ -47,10 +47,21 @@ The HTTP Arrow endpoint is fully functional at `/api/custom/arrow`. This is the 
 import requests
 import pyarrow as pa
 import io
+import os
+
+# Get token from environment variable
+token = os.environ.get("NEUPRINT_APPLICATION_CREDENTIALS")
+
+# Add the token to the headers
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {token}"
+}
 
 # Make HTTP request
 response = requests.post(
     "http://localhost:11000/api/custom/arrow",
+    headers=headers,
     json={"cypher": "MATCH (n) RETURN n LIMIT 10", "dataset": "hemibrain"}
 )
 

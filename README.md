@@ -96,10 +96,22 @@ You can parse this with Arrow libraries available in multiple languages:
 
 ```python
 # Python example - Standard HTTP with Arrow IPC format (No Flight required)
+import os
 import pyarrow as pa
 import requests
 
+# Get token from environment variable. Token can be found in neuPrintExplorer settings.
+# Only necessary if authentication is turned on.
+token = os.environ.get("NEUPRINT_APPLICATION_CREDENTIALS")
+
+# Add the token to the headers
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {token}"
+}
+
 resp = requests.post('http://localhost:11000/api/custom/arrow', 
+                    headers=headers,
                     json={"cypher": "MATCH (n) RETURN n LIMIT 1", 
                           "dataset": "hemibrain"})
 
