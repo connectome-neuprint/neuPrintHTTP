@@ -118,7 +118,24 @@ resp = requests.post('http://localhost:11000/api/custom/arrow',
 # Parse the Arrow IPC stream from the HTTP response
 reader = pa.ipc.open_stream(pa.py_buffer(resp.content))
 table = reader.read_all()
-print(table)
+
+# Convert to pandas DataFrame
+df = table.to_pandas()
+
+# For Neo4j node objects (which are represented as Arrow Maps)
+# we need a helper function to convert Arrow MapValue objects to Python dictionaries
+def convert_mapvalue_to_dict(val):
+    if hasattr(pa.lib, 'MapValue') and isinstance(val, pa.lib.MapValue):
+        return {k.as_py(): v.as_py() for k, v in val.items()}
+    return val
+
+# Process Map columns in the DataFrame
+for col in df.columns:
+    if hasattr(pa.lib, 'MapValue'):
+        # Use the MapValue approach if available
+        df[col] = df[col].map(lambda x: convert_mapvalue_to_dict(x) if x is not None else None)
+
+print(df)
 ```
 
 ```javascript

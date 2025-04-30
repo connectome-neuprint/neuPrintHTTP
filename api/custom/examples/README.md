@@ -69,8 +69,54 @@ response = requests.post(
 reader = pa.ipc.open_stream(io.BytesIO(response.content))
 table = reader.read_all()
 
-# Convert to pandas if needed
+# Convert to pandas DataFrame
 df = table.to_pandas()
+
+# Handle Neo4j node objects (which are represented as Arrow Maps)
+# Convert Arrow Map objects to Python dictionaries
+def convert_mapvalue_to_dict(val):
+    """Convert Arrow Map objects to Python dictionaries"""
+    if val is not None:
+        # Handle list of tuples format (most common in pandas conversion)
+        if isinstance(val, list) and all(isinstance(item, tuple) and len(item) == 2 for item in val):
+            return {item[0]: item[1] for item in val}
+        
+        # Handle tuple/list of tuples format that some PyArrow versions use
+        if isinstance(val, (list, tuple)) or (hasattr(val, 'tolist') and callable(val.tolist)):
+            try:
+                # Convert tolist if it's an array type
+                items = val.tolist() if hasattr(val, 'tolist') else val
+                
+                # If it's a list of key-value tuples, convert to dict
+                if all(isinstance(item, tuple) and len(item) == 2 for item in items):
+                    return {item[0]: item[1] for item in items}
+            except Exception:
+                pass
+        
+        # Check if the object has the 'items' method - MapArray in newer PyArrow versions
+        if hasattr(val, 'items') and callable(val.items):
+            try:
+                return {k.as_py() if hasattr(k, 'as_py') else k: 
+                        v.as_py() if hasattr(v, 'as_py') else v 
+                        for k, v in val.items()}
+            except AttributeError:
+                pass
+                
+        # Some versions represent maps differently
+        if hasattr(val, 'keys') and callable(val.keys) and hasattr(val, '__getitem__'):
+            try:
+                return {k.as_py() if hasattr(k, 'as_py') else k: 
+                        val[k].as_py() if hasattr(val[k], 'as_py') else val[k]
+                        for k in val.keys()}
+            except AttributeError:
+                pass
+    return val
+
+# Process each column - convert Map types to Python dictionaries
+for col in df.columns:
+    # Apply the conversion function to each value in the column
+    df[col] = df[col].map(lambda x: convert_mapvalue_to_dict(x) if x is not None else None)
+
 print(df)
 ```
 
