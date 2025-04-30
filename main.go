@@ -4,7 +4,7 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//	Version: 1.7.1
+//	Version: 1.7.3
 //	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
 //	SecurityDefinitions:
@@ -36,10 +36,10 @@ import (
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/api/custom"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
+	"github.com/connectome-neuprint/neuPrintHTTP/internal/version"
 	"github.com/connectome-neuprint/neuPrintHTTP/logging"
 	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
-	"github.com/connectome-neuprint/neuPrintHTTP/internal/version"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
