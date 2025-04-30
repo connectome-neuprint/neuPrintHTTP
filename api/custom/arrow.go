@@ -37,10 +37,30 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 		return nil, fmt.Errorf("no data to convert: empty result set")
 	}
 
-	// Create schema from column names and inferred types
+	// First pass: identify which columns contain node maps
+	hasNodeMaps := make([]bool, len(result.Columns))
+	for i := 0; i < len(result.Columns); i++ {
+		for _, row := range result.Data {
+			val := row[i]
+			if _, ok := val.(map[string]interface{}); ok {
+				hasNodeMaps[i] = true
+				break
+			}
+		}
+	}
+
+	// Create schema with appropriate types (Map type for nodes)
 	fields := make([]arrow.Field, len(result.Columns))
 	for i, colName := range result.Columns {
-		// Infer type from first row (not ideal but simple)
+		// Check if this column contains node maps
+		if hasNodeMaps[i] {
+			// For Neo4j nodes, use map type with string keys and string values
+			// This preserves the property filtering behavior (only include properties that exist)
+			fields[i] = arrow.Field{Name: colName, Type: arrow.MapOf(arrow.BinaryTypes.String, arrow.BinaryTypes.String)}
+			continue
+		}
+		
+		// For non-node columns, infer type as before
 		var dataType arrow.DataType = arrow.BinaryTypes.String
 		if len(result.Data) > 0 {
 			val := result.Data[0][i]
@@ -98,6 +118,59 @@ func ConvertCypherToArrow(result storage.CypherResult, allocator memory.Allocato
 	// Add data to builders
 	for _, row := range result.Data {
 		for colIdx, val := range row {
+			// Handle Neo4j node maps using StructBuilder
+			if hasNodeMaps[colIdx] {
+				if val == nil {
+					builders[colIdx].AppendNull()
+					continue
+				}
+				
+				// Check if this value is a node map
+				nodeMap, ok := val.(map[string]interface{})
+				if !ok {
+					// Not a node map, but column can contain them - append null
+					builders[colIdx].AppendNull()
+					continue
+				}
+				
+				// It's a node map, use the MapBuilder
+				mapBuilder := builders[colIdx].(*array.MapBuilder)
+				keyBuilder := mapBuilder.KeyBuilder().(*array.StringBuilder)
+				valueBuilder := mapBuilder.ItemBuilder().(*array.StringBuilder)
+				
+				// Start a new map entry
+				mapBuilder.Append(true)
+				
+				// Add each property as a key-value pair
+				for key, propVal := range nodeMap {
+					// Skip nil values
+					if propVal == nil {
+						continue
+					}
+					
+					// Add the key
+					keyBuilder.Append(key)
+					
+					// Add the value as string with type-specific handling
+					switch pv := propVal.(type) {
+					case string:
+						valueBuilder.Append(pv)
+					case json.Number:
+						valueBuilder.Append(pv.String())
+					case bool:
+						valueBuilder.Append(fmt.Sprintf("%t", pv))
+					case int, int64, float64:
+						valueBuilder.Append(fmt.Sprintf("%v", pv))
+					default:
+						// Convert anything else to string
+						valueBuilder.Append(fmt.Sprintf("%v", pv))
+					}
+				}
+				
+				continue
+			}
+			
+			// Handle non-node values (standard primitives)
 			// Convert json.Number to int64 if possible, otherwise preserve as is
 			if num, ok := val.(json.Number); ok {
 				// Try to convert to int64 first
