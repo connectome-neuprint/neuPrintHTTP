@@ -18,6 +18,12 @@ import (
 // Horrible Hack
 var ProxyPort = 0
 
+// AccessLevel is an alias for AuthorizationLevel for backward compatibility
+type AccessLevel = AuthorizationLevel
+
+// SecureAPI is an alias for EchoSecure for backward compatibility
+type SecureAPI = EchoSecure
+
 // SecureConfig provides configuration options when initializing echo
 type SecureConfig struct {
 	SSLCert          string     // filename for SSL certificate (should be .PEM file) (default auto TLS)
@@ -146,7 +152,7 @@ func (s EchoSecure) AuthMiddleware(authLevel AuthorizationLevel) echo.Middleware
 // API is created.  Authentication routes are addded in the default
 // echo context group.  Note: do not add auth middleware to the default context
 // since it will disable login.
-func InitializeEchoSecure(e *echo.Echo, config SecureConfig, secret []byte, sessionID string) (EchoSecure, error) {
+func InitializeEchoSecure(e *echo.Echo, config SecureConfig, secret []byte, sessionID string) (*EchoSecure, error) {
 	// setup logging and panic recover
 	manCert := false
 	if config.SSLCert != "" && config.SSLKey != "" {
@@ -180,7 +186,7 @@ func InitializeEchoSecure(e *echo.Echo, config SecureConfig, secret []byte, sess
 		enableAuthorize = false
 	}
 
-	s := EchoSecure{e, secret, enableAuthenticate, enableAuthorize, manCert, config}
+	s := &EchoSecure{e, secret, enableAuthenticate, enableAuthorize, manCert, config}
 	ProxyAuth = config.ProxyAuth
 
 	if enableAuthenticate {
