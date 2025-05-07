@@ -183,90 +183,67 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
 
-	if options.DisableAuth {
-		e.GET("/", func(c echo.Context) error {
-			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" http://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
-		})
-
-		// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
-		//
-		// swagger REST documentation
-		//
-		// YAML file containing swagger API documentation
-		//
-		// ---
-		// responses:
-		//   200:
-		//     description: "successful operation"
-
-		if options.SwaggerDir != "" {
-			e.Static("/api/help", options.SwaggerDir)
+	var secureAPI *secure.SecureAPI
+	var passthrough = func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			return next(c)
 		}
-		readGrp := e.Group("/api")
+	}
 
-		portstr := strconv.Itoa(port)
+	if !options.DisableAuth {
+		secure.ProxyPort = proxyport
 
-		// load connectomic default READ-ONLY API
-		if err = api.SetupRoutes(e, readGrp, store, func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				return next(c)
+		var authorizer secure.Authorizer
+		// call new secure API and set authorization method
+		if options.AuthDatastore != "" {
+			authorizer, err = secure.NewDatastoreAuthorizer(options.AuthDatastore, options.AuthToken)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
-		}); err != nil {
-			fmt.Print(err)
-			return
+		} else {
+			authorizer, err = secure.NewFileAuthorizer(options.AuthFile)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 		}
 
-		// print logo
-		neuprintLogo()
-
-		// start server
-		e.Logger.Fatal(e.Start(":" + portstr))
-
-		return
-	}
-
-	secure.ProxyPort = proxyport
-
-	var authorizer secure.Authorizer
-	// call new secure API and set authorization method
-	if options.AuthDatastore != "" {
-		authorizer, err = secure.NewDatastoreAuthorizer(options.AuthDatastore, options.AuthToken)
+		sconfig := secure.SecureConfig{
+			SSLCert:          options.CertPEM,
+			SSLKey:           options.KeyPEM,
+			ClientID:         options.ClientID,
+			ClientSecret:     options.ClientSecret,
+			AuthorizeChecker: authorizer,
+			Hostname:         options.Hostname,
+			ProxyAuth:        options.ProxyAuth,
+			ProxyInsecure:    options.ProxyInsecure,
+		}
+		secureAPI, err = secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-	} else {
-		authorizer, err = secure.NewFileAuthorizer(options.AuthFile)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
-
-	sconfig := secure.SecureConfig{
-		SSLCert:          options.CertPEM,
-		SSLKey:           options.KeyPEM,
-		ClientID:         options.ClientID,
-		ClientSecret:     options.ClientSecret,
-		AuthorizeChecker: authorizer,
-		Hostname:         options.Hostname,
-		ProxyAuth:        options.ProxyAuth,
-		ProxyInsecure:    options.ProxyInsecure,
-	}
-	secureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
-	if err != nil {
-		fmt.Println(err)
-		return
 	}
 
 	// create read only group
 	readGrp := e.Group("/api")
-	if publicRead {
-		readGrp.Use(secureAPI.AuthMiddleware(secure.NOAUTH))
+
+	// Create auth middleware based on settings
+	var authMiddleware func(accessLevel secure.AccessLevel) echo.MiddlewareFunc
+	if options.DisableAuth {
+		authMiddleware = func(accessLevel secure.AccessLevel) echo.MiddlewareFunc {
+			return passthrough
+		}
 	} else {
-		readGrp.Use(secureAPI.AuthMiddleware(secure.READ))
+		authMiddleware = secureAPI.AuthMiddleware
 	}
-	// setup server status message to show if it is public
+
+	if publicRead {
+		readGrp.Use(authMiddleware(secure.NOAUTH))
+	} else {
+		readGrp.Use(authMiddleware(secure.READ))
+	}
 
 	// swagger:operation GET /api/serverinfo apimeta serverinfo
 	//
@@ -278,15 +255,15 @@ func main() {
 	// responses:
 	//   200:
 	//     description: "successful operation"
-	e.GET("/api/serverinfo", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/serverinfo", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			IsPublic bool
 			Version  string
-		}{publicRead, version.Version}
+		}{publicRead || options.DisableAuth, version.Version}
 		return c.JSON(http.StatusOK, info)
 	}))
 
-	e.GET("/api/vimoserver", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/vimoserver", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
 		info := struct {
 			Url string
 		}{options.VimoServer}
@@ -309,8 +286,12 @@ func main() {
 		e.HTTPErrorHandler = customHTTPErrorHandler
 
 	} else {
-		e.GET("/", secureAPI.AuthMiddleware(secure.NOAUTH)(func(c echo.Context) error {
-			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" -H \"Authorization: Bearer YOURTOKEN\" https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+		e.GET("/", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+			authText := ""
+			if !options.DisableAuth {
+				authText = "-H \"Authorization: Bearer YOURTOKEN\" "
+			}
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" "+authText+"https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
 		}))
 	}
 
@@ -345,7 +326,7 @@ func main() {
 	}
 
 	// load connectomic default READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, store, secureAPI.AuthMiddleware(secure.ADMIN)); err != nil {
+	if err = api.SetupRoutes(e, readGrp, store, authMiddleware(secure.ADMIN)); err != nil {
 		fmt.Print(err)
 		return
 	}
@@ -359,5 +340,27 @@ func main() {
 	}
 
 	// start server
-	secureAPI.StartEchoSecure(port)
+	if options.DisableAuth {
+		// For DisableAuth mode, we still need to initialize a minimal secureAPI if we want to use HTTPS
+		if options.CertPEM != "" && options.KeyPEM != "" {
+			// Create a minimal secure config just for SSL
+			sconfig := secure.SecureConfig{
+				SSLCert:  options.CertPEM,
+				SSLKey:   options.KeyPEM,
+				Hostname: options.Hostname,
+			}
+			noAuthSecureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(""), "neuPrintHTTP")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			noAuthSecureAPI.StartEchoSecure(port)
+		} else {
+			// Fall back to HTTP if no SSL certs provided
+			portstr := strconv.Itoa(port)
+			e.Logger.Fatal(e.Start(":" + portstr))
+		}
+	} else {
+		secureAPI.StartEchoSecure(port)
+	}
 }
