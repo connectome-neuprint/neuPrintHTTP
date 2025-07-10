@@ -229,21 +229,35 @@ func convertNeo4jValue(val interface{}) interface{} {
 	}
 }
 
+// closeSession safely closes the Neo4j session with debugging
+func (t *Transaction) closeSession() {
+	if t.session != nil {
+		if storage.Verbose {
+			fmt.Printf("[DEBUG] Closing Neo4j session\n")
+		}
+		err := t.session.Close(t.ctx)
+		t.session = nil
+		if err != nil {
+			// Log the error but don't return it since this is called from defer
+			fmt.Printf("[ERROR] Failed to close Neo4j session: %v\n", err)
+		} else if storage.Verbose {
+			fmt.Printf("[DEBUG] Neo4j session closed successfully\n")
+		}
+	}
+}
+
 // Kill aborts the transaction
 func (t *Transaction) Kill() error {
+	defer t.closeSession() // Always close session, even if rollback fails
+	
 	if t.isExplicit && t.tx != nil {
+		if storage.Verbose {
+			fmt.Printf("[DEBUG] Rolling back Neo4j transaction\n")
+		}
 		err := t.tx.Rollback(t.ctx)
 		t.tx = nil
 		if err != nil {
 			return fmt.Errorf("failed to rollback transaction: %w", err)
-		}
-	}
-
-	if t.session != nil {
-		err := t.session.Close(t.ctx)
-		t.session = nil
-		if err != nil {
-			return fmt.Errorf("failed to close session: %w", err)
 		}
 	}
 
@@ -252,19 +266,16 @@ func (t *Transaction) Kill() error {
 
 // Commit commits the transaction
 func (t *Transaction) Commit() error {
+	defer t.closeSession() // Always close session, even if commit fails
+	
 	if t.isExplicit && t.tx != nil {
+		if storage.Verbose {
+			fmt.Printf("[DEBUG] Committing Neo4j transaction\n")
+		}
 		err := t.tx.Commit(t.ctx)
 		t.tx = nil
 		if err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
-	}
-
-	if t.session != nil {
-		err := t.session.Close(t.ctx)
-		t.session = nil
-		if err != nil {
-			return fmt.Errorf("failed to close session: %w", err)
 		}
 	}
 

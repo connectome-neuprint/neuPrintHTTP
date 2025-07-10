@@ -32,7 +32,11 @@ type cypherAPI struct {
 type CacheType int
 
 var cachedResults map[CacheType]map[string]interface{}
-var cacheMux sync.Mutex
+var cacheMux sync.RWMutex
+
+var roiConnectivityMux sync.Mutex
+var roiCompletenessMux sync.Mutex
+var dailyTypeMux sync.Mutex
 
 const (
 	ROIConn   CacheType = 1
@@ -72,13 +76,25 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 				// load connections
 				for dataset, _ := range datasets {
 					// cache roi connectivity
-					_, _ = q.roiConnectivity(dataset)
+					if _, err = q.roiConnectivity(dataset); err != nil {
+						fmt.Printf("Error caching roi connectivity for dataset %s: %v\n", dataset, err)
+					} else {
+						fmt.Printf("Cached roi connectivity for dataset %s\n", dataset)
+					}
 
 					// cache roi completeness
-					_, _ = q.roiCompleteness(dataset)
+					if _, err = q.roiCompleteness(dataset); err != nil {
+						fmt.Printf("Error caching roi completeness for dataset %s: %v\n", dataset, err)
+					} else {
+						fmt.Printf("Cached roi completeness for dataset %s\n", dataset)
+					}
 
 					// cache daily type
-					_, _ = q.dailyType(dataset)
+					if _, err = q.dailyType(dataset); err != nil {
+						fmt.Printf("Error caching daily type for dataset %s: %v\n", dataset, err)
+					} else {
+						fmt.Printf("Cached daily type for dataset %s\n", dataset)
+					}
 				}
 			}
 			// reset cache every day
@@ -94,18 +110,25 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 // returns how the ROIs connect to each other
 func (ca cypherAPI) roiConnectivity(dataset string) (res interface{}, err error) {
-	cacheMux.Lock()
-	defer cacheMux.Unlock()
+	roiConnectivityMux.Lock() // Only one roiConnectivity request at a time
+	defer roiConnectivityMux.Unlock()
 
+	cacheMux.RLock()
 	var ok bool
 	if res, ok = cachedResults[ROIConn][dataset]; ok {
+		cacheMux.RUnlock()
 		return
 	}
+	cacheMux.RUnlock()
 
 	res, err = ca.getROIConnectivity_int(dataset)
-	if err == nil {
-		cachedResults[ROIConn][dataset] = res
+	if err != nil {
+		return nil, err
 	}
+
+	cacheMux.Lock()
+	cachedResults[ROIConn][dataset] = res
+	cacheMux.Unlock()
 	return
 }
 
@@ -338,18 +361,26 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 
 // roiCompleteness returns the tracing completeness of each ROI
 func (ca cypherAPI) roiCompleteness(dataset string) (res interface{}, err error) {
-	cacheMux.Lock()
-	defer cacheMux.Unlock()
+	roiCompletenessMux.Lock() // Only one roiCompleteness request at a time
+	defer roiCompletenessMux.Unlock()
 
+	cacheMux.RLock()
 	var ok bool
 	if res, ok = cachedResults[ROIComp][dataset]; ok {
+		cacheMux.RUnlock()
 		return
 	}
+	cacheMux.RUnlock()
 
 	res, err = ca.getROICompleteness_int(dataset)
-	if err == nil {
-		cachedResults[ROIComp][dataset] = res
+	if err != nil {
+		return nil, err
 	}
+
+	cacheMux.Lock()
+	cachedResults[ROIComp][dataset] = res
+	cacheMux.Unlock()
+
 	return
 }
 
@@ -431,18 +462,26 @@ type SkeletonResp struct {
 
 // daily type returns information for a different neeuron each day
 func (ca cypherAPI) dailyType(dataset string) (res []byte, err error) {
-	cacheMux.Lock()
-	defer cacheMux.Unlock()
+	dailyTypeMux.Lock() // Only one dailyType request at a time
+	defer dailyTypeMux.Unlock()
 
+	cacheMux.RLock()
 	if resc, ok := cachedResults[DailyType][dataset]; ok {
 		res, _ = resc.([]byte)
+		cacheMux.RUnlock()
 		return
 	}
+	cacheMux.RUnlock()
 
 	res, err = ca.getDailyType_int(dataset)
-	if err == nil {
-		cachedResults[DailyType][dataset] = res
+	if err != nil {
+		return nil, err
 	}
+
+	cacheMux.Lock()
+	cachedResults[DailyType][dataset] = res
+	cacheMux.Unlock()
+
 	return
 }
 
