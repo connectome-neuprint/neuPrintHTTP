@@ -22,7 +22,7 @@ require (
 	github.com/valyala/fasttemplate v1.2.1
 	golang.org/x/crypto v0.36.0
 	golang.org/x/net v0.38.0
-	golang.org/x/oauth2 v0.23.0
+	golang.org/x/oauth2 v0.27.0
 	google.golang.org/grpc v1.69.2
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.8.2
 )
