@@ -92,6 +92,8 @@ type databaseInfo struct {
 	SuperLevelROIs []string `json:"superLevelROIs"`
 	Info           string   `json:"info"`
 	Hidden         bool     `json:"hidden"`
+	Logo           string   `json:"logo"`
+	Description    string   `json:"description"`
 }
 
 // GetDatasets returns information on the datasets supported
@@ -99,7 +101,7 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 	if storage.Verbose {
 		fmt.Printf("Trying to get datasets\n")
 	}
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag, m.hideDataSet AS hidden"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag, m.hideDataSet AS hidden, m.logo, m.description"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
@@ -145,8 +147,18 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 			hidden = row[7].(bool)
 		}
 
+		logo := ""
+		if row[8] != nil {
+			logo = row[8].(string)
+		}
+
+		description := ""
+		if row[9] != nil {
+			description = row[9].(string)
+		}
+
 		superROIs := row[5].([]interface{})
-		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), make([]string, 0, len(superROIs)), info, hidden}
+		dbInfo := databaseInfo{edit, uuid, make([]string, 0, len(roidata)), make([]string, 0, len(superROIs)), info, hidden, logo, description}
 
 		for roi := range roidata {
 			dbInfo.ROIs = append(dbInfo.ROIs, roi)
