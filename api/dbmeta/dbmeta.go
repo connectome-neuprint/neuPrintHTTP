@@ -131,6 +131,12 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// Metadata associated with each dataset is also retrieved
 	//
 	// ---
+	// parameters:
+	// - name: hidden
+	//   in: query
+	//   type: boolean
+	//   required: false
+	//   description: "Include hidden datasets when set to true"
 	// responses:
 	//   200:
 	//     description: "successful operation"
@@ -152,10 +158,39 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// security:
 	// - Bearer: []
 
-	if data, err := sa.Store.GetDatasets(); err != nil {
+	// Get the hidden query parameter
+	includeHidden := c.QueryParam("hidden") == "true"
+
+	if allData, err := sa.Store.GetDatasets(); err != nil {
 		return err
 	} else {
-		return c.JSON(http.StatusOK, data)
+		// Filter datasets based on hidden parameter.
+		// Easier to do here than percolating `hidden` query param to each store.
+		filteredData := make(map[string]interface{})
+
+		for datasetName, datasetInfo := range allData {
+			info, ok := datasetInfo.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("dataset info for %s is not a map", datasetName)
+			}
+
+			if hiddenField, exists := info["hidden"]; exists {
+				// Cast to bool and handle error
+				isHidden, ok := hiddenField.(bool)
+				if !ok {
+					return fmt.Errorf("hidden field for dataset %s is not a boolean", datasetName)
+				}
+				// Only include if not hidden, or if hidden=true was requested
+				if !isHidden || includeHidden {
+					filteredData[datasetName] = datasetInfo
+				}
+			} else {
+				// If no hidden field, include by default
+				filteredData[datasetName] = datasetInfo
+			}
+		}
+
+		return c.JSON(http.StatusOK, filteredData)
 	}
 }
 
