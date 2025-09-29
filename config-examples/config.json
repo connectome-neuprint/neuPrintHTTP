@@ -5,31 +5,69 @@
 	    "user": "neo4j",
 	    "password": "<PASSWORD>"
     },
-    "datatypes": { 
-	"skeletons" : [
-		{
-		"instance": "<UNIQUE NAME>",
-		"engine": "dvidkv",
-		"engine-config": {
-			"dataset": "hemibrain",
-			"server": "http://<DVIDADDR>",
-			"branch": "<UUID>",
-			"instance": "segmentation_skeletons"
-		}
-		},
-		{
-		"instance": "<UNIQUE NAME>",
-		"engine": "badger",
-		"engine-config": {
-			"dataset": "hemibrain",
-			"location": "<DIRECTORY LOCATION>"
-		}
-		}
-	]
+    "mainstore-alternatives": [
+      {
+        "engine": "neuPrint-neo4j",
+        "engine-config": {
+          "server": "<NEO4-SERVER>:7474",
+          "user": "neo4j",
+          "password": "<PASSWORD>"
+        }
+      }
+    ],
+    "datatypes": {
+      "skeletons" : [
+        {
+          "instance": "<UNIQUE NAME>",
+          "engine": "dvidkv",
+          "engine-config": {
+            "dataset": "hemibrain",
+            "server": "http://<DVIDADDR>",
+            "branch": "<UUID>",
+            "instance": "segmentation_skeletons"
+          }
+        },
+        {
+          "instance": "<UNIQUE NAME>",
+          "engine": "badger",
+          "engine-config": {
+            "dataset": "hemibrain",
+            "location": "<DIRECTORY LOCATION>"
+          }
+        }
+      ]
     },
+    "roimeshes": [
+      {
+        "instance": "<name>_roimesh",
+        "engine": "dvidkv",
+        "engine-config": {
+          "dataset": "<dataset_name>",
+          "server": "https://<DVIDADDR>",
+          "branch": "<UUID>",
+          "instance": "roisSmoothedDecimated",
+          "token": "<JWT access token if needed>"
+        }
+      }
+    ],
+    "appsecret": "<SECRET STRING PROVIDED BY GOOGLE OAUTH>",
+    "arrow-flight-port": 11001,
+    "auth-datastore": "<DATASTORE URL FOR CLOUD FUNCTION>",
+    "auth-file": "<PATH TO JSON FILE WITH USERNAMES IF NOT USING OAUTH>",
+    "auth-token": "<LONG LIVED JWT TOKEN PROVIDED BY FLYEM LOGIN SERVER>",
     "disable-auth": true,
-    "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
-    "log-file": "log.json",
     "enable-arrow": true,
-    "arrow-flight-port": 11001
+    "hostname": "<HOSTNAME FOR THIS SERVER>",
+    "log-file": "log.json",
+    "ng-dir": "<PATH TO NEUROGLANCER LAYERS DIRECTORY>",
+    "oauthclient-id": "<OAUTH CLIENT ID PROVIDED BY GOOGLE>",
+    "oauthclient-secret": "<OAUTH CLIENT SECRETi PROVIDED BY GOOGLE>",
+    "proxy-auth": "<URLi TO FLYEM LOGIN SERVER>",
+    "proxy-insecure": true,
+    "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
+    "ssl-cert": "<PATH TO SSL CERTIFICATE FILE>",
+    "ssl-key": "<PATH TO SSL KEY FILE>",
+    "static-dir": "<PATH TO STATIC FILES, I.E. REACT BUILD>",
+    "token-blocklist": "<PATH TO TEXT FILE OF JWT TOKENS TO BLOCK>",
+    "vimo-server": "<VIMO CLOUD FUNC URL>"
 }

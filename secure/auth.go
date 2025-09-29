@@ -1,6 +1,7 @@
 package secure
 
 import (
+	"bufio"
 	"crypto/tls"
 	"encoding/gob"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gorilla/sessions"
@@ -423,4 +425,58 @@ func stripProfile(p *userInfo) *Profile {
 		ImageURL: p.Picture + "?sz=50",
 		Email:    p.Email,
 	}
+}
+
+// AddTokenToBlocklist adds a JWT token to the global blocklist
+func AddTokenToBlocklist(token string) {
+	globalTokenBlocklist.AddToken(token)
+}
+
+// RemoveTokenFromBlocklist removes a JWT token from the global blocklist
+func RemoveTokenFromBlocklist(token string) {
+	globalTokenBlocklist.RemoveToken(token)
+}
+
+// LoadBlockedTokens loads a list of blocked tokens into the global blocklist
+func LoadBlockedTokens(tokens []string) {
+	globalTokenBlocklist.LoadTokensFromSlice(tokens)
+}
+
+// LoadBlockedTokensFromFile reads blocked tokens from a file and loads them into the global blocklist
+// The file should contain one token per line, with optional comments starting with #
+func LoadBlockedTokensFromFile(filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open blocklist file %s: %v", filePath, err)
+	}
+	defer file.Close()
+
+	var tokens []string
+	scanner := bufio.NewScanner(file)
+	lineNumber := 0
+
+	for scanner.Scan() {
+		lineNumber++
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		tokens = append(tokens, line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading blocklist file %s at line %d: %v", filePath, lineNumber, err)
+	}
+
+	// Load all tokens into the blocklist
+	globalTokenBlocklist.LoadTokensFromSlice(tokens)
+
+	// Log the number of tokens loaded
+	tokenCount := globalTokenBlocklist.Count()
+	fmt.Printf("Loaded %d blocked tokens from %s\n", tokenCount, filePath)
+
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/sessions"
@@ -17,6 +18,65 @@ import (
 
 // Horrible Hack
 var ProxyPort = 0
+
+// TokenBlocklist manages a thread-safe set of blocked JWT tokens
+type TokenBlocklist struct {
+	tokens map[string]bool
+	mu     sync.RWMutex
+}
+
+// NewTokenBlocklist creates a new token blocklist
+func NewTokenBlocklist() *TokenBlocklist {
+	return &TokenBlocklist{
+		tokens: make(map[string]bool),
+	}
+}
+
+// AddToken adds a token to the blocklist
+func (tb *TokenBlocklist) AddToken(token string) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.tokens[token] = true
+}
+
+// IsBlocked checks if a token is in the blocklist
+func (tb *TokenBlocklist) IsBlocked(token string) bool {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	return tb.tokens[token]
+}
+
+// RemoveToken removes a token from the blocklist
+func (tb *TokenBlocklist) RemoveToken(token string) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	delete(tb.tokens, token)
+}
+
+// LoadTokensFromSlice loads tokens from a slice into the blocklist
+func (tb *TokenBlocklist) LoadTokensFromSlice(tokens []string) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.tokens = make(map[string]bool)
+	for _, token := range tokens {
+		tb.tokens[token] = true
+	}
+}
+
+// Count returns the number of tokens in the blocklist
+func (tb *TokenBlocklist) Count() int {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	return len(tb.tokens)
+}
+
+// Global token blocklist instance
+var globalTokenBlocklist = NewTokenBlocklist()
+
+// GetTokenBlocklist returns the global token blocklist instance
+func GetTokenBlocklist() *TokenBlocklist {
+	return globalTokenBlocklist
+}
 
 // AccessLevel is an alias for AuthorizationLevel for backward compatibility
 type AccessLevel = AuthorizationLevel
@@ -34,6 +94,7 @@ type SecureConfig struct {
 	Hostname         string     // Hostname is the location of the server that will be used for Google oauth callback
 	ProxyAuth        string     // ProxyAuth name of proxy server (optional)
 	ProxyInsecure    bool       // If true, disable secure connection
+	TokenBlocklistFile string   // Path to file containing blocked JWT tokens (optional)
 }
 
 // EchoSecure handles secure connection configuration
@@ -62,6 +123,16 @@ func (s EchoSecure) AuthMiddleware(authLevel AuthorizationLevel) echo.Middleware
 			l := len("Bearer")
 			if len(auth) > l+1 && auth[:l] == "Bearer" {
 				auth = auth[l+1:]
+
+				// Check if token is in the blocklist
+				if globalTokenBlocklist.IsBlocked(auth) {
+					return &echo.HTTPError{
+						Code:     http.StatusUnauthorized,
+						Message:  "token has been revoked",
+						Internal: fmt.Errorf("blocked token used"),
+					}
+				}
+
 				claimsPtr := &jwtCustomClaims{}
 				t := reflect.ValueOf(claimsPtr).Type().Elem()
 				claims := reflect.New(t).Interface().(jwt.Claims)
@@ -191,6 +262,13 @@ func InitializeEchoSecure(e *echo.Echo, config SecureConfig, secret []byte, sess
 
 	if enableAuthenticate {
 		JWTSecret = secret
+
+		// Load blocked tokens from file if specified
+		if config.TokenBlocklistFile != "" {
+			if err := LoadBlockedTokensFromFile(config.TokenBlocklistFile); err != nil {
+				return nil, fmt.Errorf("failed to load token blocklist: %v", err)
+			}
+		}
 
 		// swagger:operation GET /login user loginHandler
 		//
