@@ -1,10 +1,16 @@
 package secure
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/labstack/echo/v4"
 )
 
 func TestTokenBlocklist_AddToken(t *testing.T) {
@@ -364,5 +370,211 @@ token-with-trailing-space
 
 	if globalTokenBlocklist.Count() != 4 {
 		t.Errorf("expected 4 tokens, got %d", globalTokenBlocklist.Count())
+	}
+}
+
+func TestAuthMiddleware_BlockedToken(t *testing.T) {
+	// Create a test secret for JWT signing
+	secret := []byte("test-secret-key-12345")
+	JWTSecret = secret
+
+	// Reset global blocklist
+	globalTokenBlocklist = NewTokenBlocklist()
+
+	// Create a valid JWT token
+	claims := &jwtCustomClaims{
+		Email:    "test@example.com",
+		Level:    "admin",
+		ImageURL: "https://example.com/image.jpg",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(secret)
+	if err != nil {
+		t.Fatalf("failed to create token: %v", err)
+	}
+
+	// Create Echo instance
+	e := echo.New()
+
+	// Create EchoSecure instance
+	secureAPI := &EchoSecure{
+		e:                  e,
+		secret:             secret,
+		enableAuthenticate: true,
+		enableAuthorize:    false,
+		manCert:            false,
+		config:             SecureConfig{},
+	}
+
+	// Create a test handler
+	testHandler := func(c echo.Context) error {
+		return c.String(http.StatusOK, "success")
+	}
+
+	// Test 1: Request with valid non-blocked token should succeed
+	t.Run("ValidNonBlockedToken", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+tokenString)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := secureAPI.AuthMiddleware(NOAUTH)(testHandler)
+		err := handler(c)
+
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", rec.Code)
+		}
+
+		if rec.Body.String() != "success" {
+			t.Errorf("expected body 'success', got %s", rec.Body.String())
+		}
+	})
+
+	// Test 2: Block the token and verify request is rejected
+	t.Run("BlockedToken", func(t *testing.T) {
+		// Add token to blocklist
+		AddTokenToBlocklist(tokenString)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+tokenString)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := secureAPI.AuthMiddleware(NOAUTH)(testHandler)
+		err := handler(c)
+
+		if err == nil {
+			t.Fatalf("expected error for blocked token, got nil")
+		}
+
+		httpErr, ok := err.(*echo.HTTPError)
+		if !ok {
+			t.Fatalf("expected echo.HTTPError, got %T", err)
+		}
+
+		if httpErr.Code != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", httpErr.Code)
+		}
+
+		if httpErr.Message != "token has been revoked" {
+			t.Errorf("expected message 'token has been revoked', got %v", httpErr.Message)
+		}
+	})
+
+	// Test 3: Remove token from blocklist and verify request succeeds again
+	t.Run("UnblockedToken", func(t *testing.T) {
+		// Remove token from blocklist
+		RemoveTokenFromBlocklist(tokenString)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+tokenString)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := secureAPI.AuthMiddleware(NOAUTH)(testHandler)
+		err := handler(c)
+
+		if err != nil {
+			t.Errorf("expected no error after unblocking, got %v", err)
+		}
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", rec.Code)
+		}
+	})
+}
+
+func TestAuthMiddleware_BlockedTokenFromFile(t *testing.T) {
+	// Create a test secret for JWT signing
+	secret := []byte("test-secret-key-for-file")
+	JWTSecret = secret
+
+	// Create a valid JWT token
+	claims := &jwtCustomClaims{
+		Email:    "filetest@example.com",
+		Level:    "user",
+		ImageURL: "https://example.com/filetest.jpg",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(secret)
+	if err != nil {
+		t.Fatalf("failed to create token: %v", err)
+	}
+
+	// Create a temporary blocklist file with the token
+	tempDir := t.TempDir()
+	blocklistPath := filepath.Join(tempDir, "blocklist.txt")
+
+	content := "# Blocklist file for integration test\n" + tokenString + "\n"
+	err = os.WriteFile(blocklistPath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("failed to create blocklist file: %v", err)
+	}
+
+	// Reset and load blocklist from file
+	globalTokenBlocklist = NewTokenBlocklist()
+	err = LoadBlockedTokensFromFile(blocklistPath)
+	if err != nil {
+		t.Fatalf("failed to load blocklist: %v", err)
+	}
+
+	// Create Echo instance
+	e := echo.New()
+
+	// Create EchoSecure instance
+	secureAPI := &EchoSecure{
+		e:                  e,
+		secret:             secret,
+		enableAuthenticate: true,
+		enableAuthorize:    false,
+		manCert:            false,
+		config: SecureConfig{
+			TokenBlocklistFile: blocklistPath,
+		},
+	}
+
+	// Create a test handler
+	testHandler := func(c echo.Context) error {
+		return c.String(http.StatusOK, "success")
+	}
+
+	// Make request with blocked token
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+tokenString)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := secureAPI.AuthMiddleware(NOAUTH)(testHandler)
+	err = handler(c)
+
+	if err == nil {
+		t.Fatalf("expected error for blocked token loaded from file, got nil")
+	}
+
+	httpErr, ok := err.(*echo.HTTPError)
+	if !ok {
+		t.Fatalf("expected echo.HTTPError, got %T", err)
+	}
+
+	if httpErr.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", httpErr.Code)
+	}
+
+	if httpErr.Message != "token has been revoked" {
+		t.Errorf("expected message 'token has been revoked', got %v", httpErr.Message)
 	}
 }
