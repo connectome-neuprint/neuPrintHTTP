@@ -282,7 +282,7 @@ func (m *mockStoreWithBadHiddenField) GetInstance() string {
 	return "test"
 }
 
-// Test error handling for invalid hidden field type
+// Test graceful handling of invalid hidden field type
 func TestGetDatasets_BadHiddenFieldType(t *testing.T) {
 	// Create Echo instance
 	e := echo.New()
@@ -298,15 +298,25 @@ func TestGetDatasets_BadHiddenFieldType(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	// Handle the request - should return error
+	// Handle the request - should succeed with warning logged
 	err := api.getDatasets(c)
-	if err == nil {
-		t.Error("Expected error for invalid hidden field type, got nil")
+	if err != nil {
+		t.Errorf("Expected no error for invalid hidden field type, got: %v", err)
 	}
 
-	expectedErrorMsg := "hidden field for dataset bad_hidden_dataset is not a boolean"
-	if err.Error() != expectedErrorMsg {
-		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, err.Error())
+	// Check that response is successful
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	// Parse response and verify dataset is included (default behavior)
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	if _, exists := response["bad_hidden_dataset"]; !exists {
+		t.Error("Expected bad_hidden_dataset to be included in response")
 	}
 }
 
@@ -360,7 +370,7 @@ func (m *mockStoreWithBadDatasetInfo) GetInstance() string {
 	return "test"
 }
 
-// Test error handling for non-map dataset info
+// Test graceful handling of non-map dataset info
 func TestGetDatasets_BadDatasetInfoType(t *testing.T) {
 	// Create Echo instance
 	e := echo.New()
@@ -376,14 +386,24 @@ func TestGetDatasets_BadDatasetInfoType(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	// Handle the request - should return error
+	// Handle the request - should succeed with warning logged
 	err := api.getDatasets(c)
-	if err == nil {
-		t.Error("Expected error for non-map dataset info, got nil")
+	if err != nil {
+		t.Errorf("Expected no error for non-map dataset info, got: %v", err)
 	}
 
-	expectedErrorMsg := "dataset info for bad_dataset is not a map"
-	if err.Error() != expectedErrorMsg {
-		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, err.Error())
+	// Check that response is successful
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	// Parse response and verify dataset is included (default behavior)
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	if _, exists := response["bad_dataset"]; !exists {
+		t.Error("Expected bad_dataset to be included in response")
 	}
 }

@@ -171,14 +171,20 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 		for datasetName, datasetInfo := range allData {
 			info, ok := datasetInfo.(map[string]interface{})
 			if !ok {
-				return fmt.Errorf("dataset info for %s is not a map", datasetName)
+				// Log warning but include dataset (default to not hidden)
+				c.Echo().Logger.Warnf("dataset info for %s is not a map, including by default", datasetName)
+				filteredData[datasetName] = datasetInfo
+				continue
 			}
 
 			if hiddenField, exists := info["hidden"]; exists {
 				// Cast to bool and handle error
 				isHidden, ok := hiddenField.(bool)
 				if !ok {
-					return fmt.Errorf("hidden field for dataset %s is not a boolean", datasetName)
+					// Log warning but include dataset (default to not hidden)
+					c.Echo().Logger.Warnf("hidden field for dataset %s is not a boolean, including by default", datasetName)
+					filteredData[datasetName] = datasetInfo
+					continue
 				}
 				// Only include if not hidden, or if hidden=true was requested
 				if !isHidden || includeHidden {
@@ -232,7 +238,7 @@ func (sa storeAPI) getDataInstances(c echo.Context) error {
 	// - Bearer: []
 	allstores := sa.Store.GetStores()
 
-	var res map[string][]instanceInfo
+	res := make(map[string][]instanceInfo)
 	for _, store := range allstores {
 		tname := store.GetType()
 		iname := store.GetInstance()
