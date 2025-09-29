@@ -33,6 +33,7 @@ type Config struct {
 	VimoServer      string        `json:"vimo-server,omitempty"`            // url for the vimo server
 	EnableArrow     bool          `json:"enable-arrow,omitempty"`           // enable Arrow format and Flight support
 	ArrowFlightPort int           `json:"arrow-flight-port,omitempty"`      // port for Arrow Flight gRPC server
+	TokenBlocklist  string        `json:"token-blocklist,omitempty"`        // path to file containing blocked JWT tokens
 }
 
 // LoadConfig parses json configuration and loads options

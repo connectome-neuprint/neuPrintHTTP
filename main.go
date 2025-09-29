@@ -210,14 +210,15 @@ func main() {
 		}
 
 		sconfig := secure.SecureConfig{
-			SSLCert:          options.CertPEM,
-			SSLKey:           options.KeyPEM,
-			ClientID:         options.ClientID,
-			ClientSecret:     options.ClientSecret,
-			AuthorizeChecker: authorizer,
-			Hostname:         options.Hostname,
-			ProxyAuth:        options.ProxyAuth,
-			ProxyInsecure:    options.ProxyInsecure,
+			SSLCert:            options.CertPEM,
+			SSLKey:             options.KeyPEM,
+			ClientID:           options.ClientID,
+			ClientSecret:       options.ClientSecret,
+			AuthorizeChecker:   authorizer,
+			Hostname:           options.Hostname,
+			ProxyAuth:          options.ProxyAuth,
+			ProxyInsecure:      options.ProxyInsecure,
+			TokenBlocklistFile: options.TokenBlocklist,
 		}
 		secureAPI, err = secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
 		if err != nil {

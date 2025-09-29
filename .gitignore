@@ -14,3 +14,7 @@ neuPrintHTTP
 
 # no node_packages
 node_modules
+
+blocklist.txt
+.claude
+config.json
