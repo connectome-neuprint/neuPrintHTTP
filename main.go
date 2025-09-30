@@ -4,7 +4,7 @@
 // under your acocunt information. Then authorize Swagger by typing "Bearer " and
 // pasting the token.
 //
-//	Version: 1.7.9
+//	Version: 1.7.10
 //	Contact: Neuprint Team<neuprint@janelia.hhmi.org>
 //
 //	SecurityDefinitions:
