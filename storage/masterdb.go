@@ -82,7 +82,6 @@ func (db *MasterDB) GetMain(datasets ...string) Cypher {
 
 // GetDataset returns Cypher for a request if a dataset exists.
 func (db *MasterDB) GetDataset(dataset string) (Cypher, error) {
-	fmt.Printf("In GetDataset() checking %v on db.DatasetStores: %v\n", dataset, db.DatasetStores)
 	lowerDataset := strings.ToLower(dataset)
 	store, ok := db.DatasetStores[lowerDataset]
 	if ok {
