@@ -10,6 +10,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/ipc"
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -217,6 +218,13 @@ func TestHTTPArrowEndpoint(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+
+	// Set up DSG auth context so RequireDatasetAccess passes
+	c.Set("dsg_user", &secure.DSGUserCache{
+		Email: "test@example.com",
+		Admin: true,
+	})
+	c.Set("dsg_client", secure.NewDSGClient("http://localhost", 300, nil))
 
 	// Handle the request
 	if err := api.getCustomArrow(c); err != nil {

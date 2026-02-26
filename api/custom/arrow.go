@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/ipc"
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -357,6 +358,11 @@ func (ca cypherAPI) getCustomArrow(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		errJSON := map[string]string{"error": "request object not formatted correctly: " + err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+
+	// per-dataset authorization
+	if err := secure.RequireDatasetAccess(c, req.Dataset, secure.READ); err != nil {
+		return err
 	}
 
 	// Validate request parameters

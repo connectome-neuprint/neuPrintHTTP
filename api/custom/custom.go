@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/connectome-neuprint/neuPrintHTTP/utils"
 	"github.com/labstack/echo/v4"
@@ -124,6 +125,11 @@ func (ca cypherAPI) getCustom(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		errJSON := api.ErrorInfo{Error: "request object not formatted correctly"}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+
+	// per-dataset authorization
+	if err := secure.RequireDatasetAccess(c, req.Dataset, secure.READ); err != nil {
+		return err
 	}
 
 	// set cypher for debugging

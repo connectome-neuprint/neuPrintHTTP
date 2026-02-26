@@ -68,14 +68,12 @@ func main() {
 
 	// create command line argument for port
 	var port = 11000
-	var proxyport = 0
 	var publicRead = false
 	var pidfile = ""
 	var arrowFlightPort = 11001
 	var disableArrow = false
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
-	flag.IntVar(&proxyport, "proxy-port", 0, "proxy port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
 	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
@@ -183,44 +181,24 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Pre(middleware.NonWWWRedirect())
 
-	var secureAPI *secure.SecureAPI
-	var passthrough = func(next echo.HandlerFunc) echo.HandlerFunc {
+	// --- Auth setup ---
+	var dsgClient *secure.DSGClient
+	var secureAPI *secure.EchoSecure
+
+	passthrough := func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			return next(c)
 		}
 	}
 
 	if !options.DisableAuth {
-		secure.ProxyPort = proxyport
-
-		var authorizer secure.Authorizer
-		// call new secure API and set authorization method
-		if options.AuthDatastore != "" {
-			authorizer, err = secure.NewDatastoreAuthorizer(options.AuthDatastore, options.AuthToken)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-		} else {
-			authorizer, err = secure.NewFileAuthorizer(options.AuthFile)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+		if options.DSGUrl == "" {
+			fmt.Println("ERROR: dsg-url is required when auth is enabled")
+			return
 		}
+		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DatasetMap)
 
-		sconfig := secure.SecureConfig{
-			SSLCert:            options.CertPEM,
-			SSLKey:             options.KeyPEM,
-			ClientID:           options.ClientID,
-			ClientSecret:       options.ClientSecret,
-			AuthorizeChecker:   authorizer,
-			Hostname:           options.Hostname,
-			ProxyAuth:          options.ProxyAuth,
-			ProxyInsecure:      options.ProxyInsecure,
-			TokenBlocklistFile: options.TokenBlocklist,
-		}
-		secureAPI, err = secure.InitializeEchoSecure(e, sconfig, []byte(options.Secret), "neuPrintHTTP")
+		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -230,20 +208,23 @@ func main() {
 	// create read only group
 	readGrp := e.Group("/api")
 
-	// Create auth middleware based on settings
-	var authMiddleware func(accessLevel secure.AccessLevel) echo.MiddlewareFunc
+	// Build auth and admin middleware based on settings.
+	var authMiddleware echo.MiddlewareFunc
+	var adminMiddleware echo.MiddlewareFunc
+
 	if options.DisableAuth {
-		authMiddleware = func(accessLevel secure.AccessLevel) echo.MiddlewareFunc {
-			return passthrough
-		}
+		authMiddleware = passthrough
+		adminMiddleware = passthrough
 	} else {
-		authMiddleware = secureAPI.AuthMiddleware
+		authMiddleware = secure.DSGAuthMiddleware(dsgClient)
+		adminMiddleware = secure.DSGAdminMiddleware()
 	}
 
 	if publicRead {
-		readGrp.Use(authMiddleware(secure.NOAUTH))
+		// Public read: no auth required for /api routes
+		readGrp.Use(passthrough)
 	} else {
-		readGrp.Use(authMiddleware(secure.READ))
+		readGrp.Use(authMiddleware)
 	}
 
 	// swagger:operation GET /api/serverinfo apimeta serverinfo
@@ -256,20 +237,20 @@ func main() {
 	// responses:
 	//   200:
 	//     description: "successful operation"
-	e.GET("/api/serverinfo", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/serverinfo", func(c echo.Context) error {
 		info := struct {
 			IsPublic bool
 			Version  string
 		}{publicRead || options.DisableAuth, version.Version}
 		return c.JSON(http.StatusOK, info)
-	}))
+	})
 
-	e.GET("/api/vimoserver", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+	e.GET("/api/vimoserver", func(c echo.Context) error {
 		info := struct {
 			Url string
 		}{options.VimoServer}
 		return c.JSON(http.StatusOK, info)
-	}))
+	})
 
 	// setup default page
 	if options.StaticDir != "" {
@@ -287,13 +268,13 @@ func main() {
 		e.HTTPErrorHandler = customHTTPErrorHandler
 
 	} else {
-		e.GET("/", authMiddleware(secure.NOAUTH)(func(c echo.Context) error {
+		e.GET("/", func(c echo.Context) error {
 			authText := ""
 			if !options.DisableAuth {
 				authText = "-H \"Authorization: Bearer YOURTOKEN\" "
 			}
 			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" "+authText+"https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
-		}))
+		})
 	}
 
 	// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
@@ -326,8 +307,14 @@ func main() {
 		e.Static("/api/npexplorer/nglayers", options.NgDir)
 	}
 
+	// The admin middleware is chained after auth — DSGAdminMiddleware checks
+	// the dsg_user set by DSGAuthMiddleware, so admin routes get both.
+	combinedAdmin := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return adminMiddleware(next)
+	}
+
 	// load connectomic default READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, store, authMiddleware(secure.ADMIN)); err != nil {
+	if err = api.SetupRoutes(e, readGrp, store, combinedAdmin); err != nil {
 		fmt.Print(err)
 		return
 	}
@@ -342,20 +329,14 @@ func main() {
 
 	// start server
 	if options.DisableAuth {
-		// For DisableAuth mode, we still need to initialize a minimal secureAPI if we want to use HTTPS
 		if options.CertPEM != "" && options.KeyPEM != "" {
 			// Create a minimal secure config just for SSL
-			sconfig := secure.SecureConfig{
-				SSLCert:  options.CertPEM,
-				SSLKey:   options.KeyPEM,
-				Hostname: options.Hostname,
-			}
-			noAuthSecureAPI, err := secure.InitializeEchoSecure(e, sconfig, []byte(""), "neuPrintHTTP")
+			secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, "", nil)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
-			noAuthSecureAPI.StartEchoSecure(port)
+			secureAPI.StartEchoSecure(port)
 		} else {
 			// Fall back to HTTP if no SSL certs provided
 			portstr := strconv.Itoa(port)

@@ -11,24 +11,17 @@ require (
 	github.com/apache/arrow-go/v18 v18.1.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/dgraph-io/badger/v3 v3.2103.2
-	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/gorilla/sessions v1.2.1
 	github.com/knightjdr/hclust v1.0.2
-	github.com/labstack/echo-contrib v0.12.0
 	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/gommon v0.3.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.27.0
-	github.com/satori/go.uuid v1.2.0
 	github.com/valyala/fasttemplate v1.2.1
 	golang.org/x/crypto v0.45.0
-	golang.org/x/net v0.47.0
-	golang.org/x/oauth2 v0.27.0
 	google.golang.org/grpc v1.69.2
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.8.2
 )
 
 require (
-	cloud.google.com/go/compute v1.6.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/confluentinc/confluent-kafka-go v1.8.2 // indirect
@@ -42,8 +35,6 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v24.12.23+incompatible // indirect
-	github.com/gorilla/context v1.1.1 // indirect
-	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -55,6 +46,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
