@@ -9,13 +9,20 @@ import (
 )
 
 // dsgLoginHandler redirects the user to DatasetGateway's OAuth entry point.
-func dsgLoginHandler(dsgURL string) echo.HandlerFunc {
+// It passes service and dataset params so DSG can present any pending TOS.
+func dsgLoginHandler(dsgURL, serviceName string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		redirect := c.QueryParam("redirect")
 		if redirect == "" {
-			redirect = "/profile"
+			redirect = "/"
 		}
 		target := dsgURL + "/api/v1/authorize?redirect=" + url.QueryEscape(redirect)
+		if serviceName != "" {
+			target += "&service=" + url.QueryEscape(serviceName)
+		}
+		if dataset := c.QueryParam("dataset"); dataset != "" {
+			target += "&dataset=" + url.QueryEscape(dataset)
+		}
 		return c.Redirect(http.StatusFound, target)
 	}
 }
@@ -35,9 +42,10 @@ func dsgProfileHandler(c echo.Context) error {
 	if level == "" {
 		level = "noauth"
 	}
-	return c.JSON(http.StatusOK, map[string]string{
-		"Email":     user.Email,
-		"AuthLevel": level,
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"Email":      user.Email,
+		"AuthLevel":  level,
+		"TOSRequired": len(user.MissingTOS) > 0,
 	})
 }
 

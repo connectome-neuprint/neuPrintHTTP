@@ -31,7 +31,7 @@ func InitializeEchoSecure(e *echo.Echo, sslCert, sslKey, hostname, dsgURL string
 
 	// Register auth-related routes (no middleware — these must be accessible
 	// before authentication).
-	e.GET("/login", dsgLoginHandler(dsgURL))
+	e.GET("/login", dsgLoginHandler(dsgURL, dsgClient.ServiceName))
 	e.POST("/logout", DSGAuthMiddleware(dsgClient)(dsgLogoutHandler(dsgURL)))
 	e.GET("/profile", DSGAuthMiddleware(dsgClient)(dsgProfileHandler))
 	e.GET("/token", DSGAuthMiddleware(dsgClient)(dsgTokenHandler(dsgURL)))

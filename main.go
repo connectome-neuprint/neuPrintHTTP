@@ -196,7 +196,7 @@ func main() {
 			fmt.Println("ERROR: dsg-url is required when auth is enabled")
 			return
 		}
-		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DatasetMap)
+		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName, options.DatasetMap)
 
 		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
 		if err != nil {

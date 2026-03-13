@@ -48,6 +48,15 @@ type DSGUserCache struct {
 	Groups        []string            `json:"groups"`
 	PermissionsV2 map[string][]string `json:"permissions_v2"`
 	DatasetsAdmin []string            `json:"datasets_admin"`
+	MissingTOS    []MissingTOSEntry   `json:"missing_tos"`
+}
+
+// MissingTOSEntry represents a TOS document the user has not yet accepted.
+type MissingTOSEntry struct {
+	DatasetName string `json:"dataset_name"`
+	TOSID       int    `json:"tos_id"`
+	TOSName     string `json:"tos_name"`
+	Service     string `json:"service"`
 }
 
 type cachedEntry struct {
@@ -57,26 +66,31 @@ type cachedEntry struct {
 
 // DSGClient validates tokens against a DatasetGateway instance.
 type DSGClient struct {
-	BaseURL    string
-	CacheTTL   time.Duration
-	DatasetMap map[string]string // neuprint DB name → DSG dataset slug
-	cache      sync.Map          // token string → *cachedEntry
-	client     *http.Client
+	BaseURL     string
+	CacheTTL    time.Duration
+	ServiceName string            // service name for TOS checks (e.g. "neuprint")
+	DatasetMap  map[string]string // neuprint DB name → DSG dataset slug
+	cache       sync.Map          // token string → *cachedEntry
+	client      *http.Client
 }
 
 // NewDSGClient creates a DSGClient with sensible defaults.
-func NewDSGClient(baseURL string, cacheTTLSeconds int, datasetMap map[string]string) *DSGClient {
+func NewDSGClient(baseURL string, cacheTTLSeconds int, serviceName string, datasetMap map[string]string) *DSGClient {
 	if cacheTTLSeconds <= 0 {
 		cacheTTLSeconds = 300
+	}
+	if serviceName == "" {
+		serviceName = "neuprint"
 	}
 	if datasetMap == nil {
 		datasetMap = map[string]string{}
 	}
 	return &DSGClient{
-		BaseURL:    strings.TrimRight(baseURL, "/"),
-		CacheTTL:   time.Duration(cacheTTLSeconds) * time.Second,
-		DatasetMap: datasetMap,
-		client:     &http.Client{Timeout: 10 * time.Second},
+		BaseURL:     strings.TrimRight(baseURL, "/"),
+		CacheTTL:    time.Duration(cacheTTLSeconds) * time.Second,
+		ServiceName: serviceName,
+		DatasetMap:  datasetMap,
+		client:      &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -92,7 +106,11 @@ func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
 	}
 
 	// Call DatasetGateway
-	req, err := http.NewRequest("GET", d.BaseURL+"/api/v1/user/cache", nil)
+	cacheURL := d.BaseURL + "/api/v1/user/cache"
+	if d.ServiceName != "" {
+		cacheURL += "?service=" + d.ServiceName
+	}
+	req, err := http.NewRequest("GET", cacheURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("dsg: failed to create request: %w", err)
 	}
@@ -119,6 +137,17 @@ func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
 
 	d.cache.Store(token, &cachedEntry{data: &user, fetchedAt: time.Now()})
 	return &user, nil
+}
+
+// HasMissingTOS returns true if the user has pending TOS for the given dataset.
+func (d *DSGClient) HasMissingTOS(user *DSGUserCache, neuprintDB string) bool {
+	slug := d.DatasetSlug(neuprintDB)
+	for _, m := range user.MissingTOS {
+		if m.DatasetName == slug {
+			return true
+		}
+	}
+	return false
 }
 
 // DatasetSlug maps a neuprint database name to a DSG dataset slug.

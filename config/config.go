@@ -27,6 +27,7 @@ type Config struct {
 	ArrowFlightPort int               `json:"arrow-flight-port,omitempty"`      // port for Arrow Flight gRPC server
 	DSGUrl          string            `json:"dsg-url,omitempty"`                // DatasetGateway base URL
 	DSGCacheTTL     int               `json:"dsg-cache-ttl,omitempty"`          // seconds to cache DSG user/cache responses (default 300)
+	DSGServiceName  string            `json:"dsg-service-name,omitempty"`       // service name for DSG TOS checks (default "neuprint")
 	DatasetMap      map[string]string `json:"dataset-map,omitempty"`            // neuprint DB name → DSG dataset slug
 }
 
