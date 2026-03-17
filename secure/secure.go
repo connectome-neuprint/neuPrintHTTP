@@ -34,6 +34,7 @@ func InitializeEchoSecure(e *echo.Echo, sslCert, sslKey, hostname, dsgURL string
 	e.GET("/login", dsgLoginHandler(dsgURL, dsgClient.ServiceName))
 	e.POST("/logout", DSGAuthMiddleware(dsgClient)(dsgLogoutHandler(dsgURL)))
 	e.GET("/profile", DSGAuthMiddleware(dsgClient)(dsgProfileHandler))
+	e.GET("/dataset-access", DSGAuthMiddleware(dsgClient)(dsgDatasetAccessHandler))
 	e.GET("/token", DSGAuthMiddleware(dsgClient)(dsgTokenHandler(dsgURL)))
 
 	return &EchoSecure{

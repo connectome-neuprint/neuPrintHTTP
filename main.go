@@ -72,6 +72,8 @@ func main() {
 	var pidfile = ""
 	var arrowFlightPort = 11001
 	var disableArrow = false
+	var noData = false
+	var mockDataset = ""
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
@@ -79,6 +81,8 @@ func main() {
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
 	flag.BoolVar(&storage.VerboseNumeric, "verbose-numeric", false, "enable verbose numeric type conversion debugging")
 	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")
+	flag.BoolVar(&noData, "no-data", false, "start without a database backend (for testing auth/frontend)")
+	flag.StringVar(&mockDataset, "mock-dataset", "", "comma-separated dataset names to advertise in no-data mode (e.g. fish2,hemibrain)")
 	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server")
 	flag.Parse()
 	if flag.NArg() != 1 {
@@ -134,10 +138,30 @@ func main() {
 	}
 
 	// create datastore based on configuration
-	store, err := config.CreateStore(options)
-	if err != nil {
-		fmt.Println(err)
-		return
+	var store storage.Store
+	if noData {
+		var datasets []string
+		if mockDataset != "" {
+			datasets = strings.Split(mockDataset, ",")
+		}
+		fmt.Printf("Running in no-data mode (mock datasets: %v)\n", datasets)
+		store = &storage.NoStore{Datasets: datasets}
+
+		// Auto-populate dataset map for DSG if not already set
+		if options.DatasetMap == nil {
+			options.DatasetMap = make(map[string]string)
+		}
+		for _, ds := range datasets {
+			if _, exists := options.DatasetMap[ds]; !exists {
+				options.DatasetMap[ds] = ds
+			}
+		}
+	} else {
+		store, err = config.CreateStore(options)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	// Display Arrow status and start Flight server if enabled

@@ -224,7 +224,7 @@ func TestHTTPArrowEndpoint(t *testing.T) {
 		Email: "test@example.com",
 		Admin: true,
 	})
-	c.Set("dsg_client", secure.NewDSGClient("http://localhost", 300, nil))
+	c.Set("dsg_client", secure.NewDSGClient("http://localhost", 300, "", nil))
 
 	// Handle the request
 	if err := api.getCustomArrow(c); err != nil {

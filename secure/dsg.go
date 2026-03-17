@@ -219,6 +219,10 @@ func ExtractToken(c echo.Context) string {
 // RequireDatasetAccess checks that the authenticated user has at least the
 // given AuthorizationLevel on the specified neuprint dataset. Call this from
 // API handlers after the authentication middleware has run.
+//
+// If the user lacks access because they have not accepted required TOS,
+// a 403 with "tos_required" is returned so the frontend can distinguish
+// this from a plain permission denial.
 func RequireDatasetAccess(c echo.Context, dataset string, level AuthorizationLevel) error {
 	userVal := c.Get("dsg_user")
 	if userVal == nil {
@@ -229,6 +233,14 @@ func RequireDatasetAccess(c echo.Context, dataset string, level AuthorizationLev
 	client := c.Get("dsg_client").(*DSGClient)
 	actual := client.DatasetLevel(user, dataset)
 	if actual < level {
+		// Distinguish "needs TOS" from "no permission at all"
+		if client.HasMissingTOS(user, dataset) {
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"message":      "Terms of Service acceptance required for this dataset",
+				"tos_required": true,
+				"dataset":      dataset,
+			})
+		}
 		return echo.NewHTTPError(http.StatusForbidden, "insufficient permissions for dataset")
 	}
 	c.Set("level", StringFromLevel(actual))
