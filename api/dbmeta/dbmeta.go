@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -161,14 +162,32 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// Get the hidden query parameter
 	includeHidden := c.QueryParam("hidden") == "true"
 
+	// Retrieve DSG user/client from context (set by DSGAuthMiddleware).
+	// When auth is disabled or public-read, these will be nil and we
+	// skip per-dataset filtering.
+	var dsgUser *secure.DSGUserCache
+	var dsgClient *secure.DSGClient
+	if u := c.Get("dsg_user"); u != nil {
+		dsgUser, _ = u.(*secure.DSGUserCache)
+	}
+	if cl := c.Get("dsg_client"); cl != nil {
+		dsgClient, _ = cl.(*secure.DSGClient)
+	}
+
 	if allData, err := sa.Store.GetDatasets(); err != nil {
 		return err
 	} else {
-		// Filter datasets based on hidden parameter.
-		// Easier to do here than percolating `hidden` query param to each store.
+		// Filter datasets based on hidden parameter and user permissions.
 		filteredData := make(map[string]interface{})
 
 		for datasetName, datasetInfo := range allData {
+			// Per-dataset authorization: skip datasets the user cannot access.
+			if dsgUser != nil && dsgClient != nil {
+				if dsgClient.DatasetLevel(dsgUser, datasetName) < secure.READ {
+					continue
+				}
+			}
+
 			info, ok := datasetInfo.(map[string]interface{})
 			if !ok {
 				// Log warning but include dataset (default to not hidden)

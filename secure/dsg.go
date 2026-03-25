@@ -151,13 +151,19 @@ func (d *DSGClient) HasMissingTOS(user *DSGUserCache, neuprintDB string) bool {
 }
 
 // DatasetSlug maps a neuprint database name to a DSG dataset slug.
+// It checks the DatasetMap for both the full name (e.g. "vnc:v1.0") and the
+// version-stripped name (e.g. "vnc") before falling back to the bare name.
 func (d *DSGClient) DatasetSlug(neuprintDB string) string {
 	if slug, ok := d.DatasetMap[neuprintDB]; ok {
 		return slug
 	}
 	// Strip version suffix: "hemibrain:v1.2" → "hemibrain"
 	if idx := strings.Index(neuprintDB, ":"); idx >= 0 {
-		return neuprintDB[:idx]
+		base := neuprintDB[:idx]
+		if slug, ok := d.DatasetMap[base]; ok {
+			return slug
+		}
+		return base
 	}
 	return neuprintDB
 }
@@ -241,7 +247,7 @@ func RequireDatasetAccess(c echo.Context, dataset string, level AuthorizationLev
 				"dataset":      dataset,
 			})
 		}
-		return echo.NewHTTPError(http.StatusForbidden, "insufficient permissions for dataset")
+		return echo.NewHTTPError(http.StatusForbidden, "You do not have access to "+dataset+" dataset")
 	}
 	c.Set("level", StringFromLevel(actual))
 	return nil

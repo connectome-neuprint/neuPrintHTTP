@@ -114,7 +114,7 @@ func dsgDatasetAccessHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusForbidden, map[string]interface{}{
 		"dataset": dataset,
-		"message": "You do not have access to this dataset",
+		"message": "You do not have access to " + dataset + " dataset",
 	})
 }
 

@@ -1,6 +1,7 @@
 package secure
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -296,6 +297,81 @@ func TestDsgLoginHandler_DatasetInRedirectValue(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// --- RequireDatasetAccess and dsgDatasetAccessHandler error message tests ---
+
+func TestRequireDatasetAccess_ErrorIncludesDatasetName(t *testing.T) {
+	client := NewDSGClient("http://dsg.test", 300, "neuprint", nil)
+	user := &DSGUserCache{
+		Email:         "test@example.com",
+		PermissionsV2: map[string][]string{},
+	}
+
+	cases := []struct {
+		name    string
+		dataset string
+	}{
+		{"simple name", "hemibrain"},
+		{"versioned name", "vnc:v1.0"},
+		{"uppercase", "VNC"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/custom/custom", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("dsg_user", user)
+			c.Set("dsg_client", client)
+
+			err := RequireDatasetAccess(c, tc.dataset, READ)
+			if err == nil {
+				t.Fatal("expected error for unauthorized dataset")
+			}
+			httpErr, ok := err.(*echo.HTTPError)
+			if !ok {
+				t.Fatalf("expected echo.HTTPError, got %T", err)
+			}
+			msg, _ := httpErr.Message.(string)
+			if !containsSubstring(msg, tc.dataset) {
+				t.Errorf("error message %q should contain dataset name %q", msg, tc.dataset)
+			}
+		})
+	}
+}
+
+func TestDsgDatasetAccessHandler_ErrorIncludesDatasetName(t *testing.T) {
+	client := NewDSGClient("http://dsg.test", 300, "neuprint", nil)
+	user := &DSGUserCache{
+		Email:         "test@example.com",
+		PermissionsV2: map[string][]string{},
+	}
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/dataset-access?dataset=VNC", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("dsg_user", user)
+	c.Set("dsg_client", client)
+
+	err := dsgDatasetAccessHandler(c)
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	msg, _ := body["message"].(string)
+	if !containsSubstring(msg, "VNC") {
+		t.Errorf("message %q should contain dataset name 'VNC'", msg)
 	}
 }
 
