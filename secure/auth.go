@@ -23,6 +23,19 @@ func dsgLoginHandler(dsgURL, serviceName string) echo.HandlerFunc {
 			redirectPath = "/"
 		}
 
+		// If the caller supplied a dataset but the redirect path doesn't
+		// already contain it, append it so the user lands back on the
+		// correct dataset page after TOS acceptance.
+		if dataset := c.QueryParam("dataset"); dataset != "" {
+			u, err := url.Parse(redirectPath)
+			if err == nil && u.Query().Get("dataset") == "" {
+				q := u.Query()
+				q.Set("dataset", dataset)
+				u.RawQuery = q.Encode()
+				redirectPath = u.String()
+			}
+		}
+
 		// Build absolute redirect URL from the incoming request
 		scheme := "https"
 		if c.Request().TLS == nil {
