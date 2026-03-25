@@ -201,8 +201,6 @@ Usage: neuprintHTTP [OPTIONS] CONFIG.json
         disable Arrow format support (enabled by default)
   -public_read
         allow all users read access
-  -proxy-port int
-        proxy port to start server
   -pid-file string
         file for pid
   -verbose
@@ -242,7 +240,7 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 {
     "engine": "neuPrint-bolt",
     "engine-config": {
-        "server": "<NEO4-SERVER>:7687", 
+        "server": "<NEO4-SERVER>:7687",
         "user": "neo4j",
         "password": "<PASSWORD>"
     },
@@ -265,6 +263,35 @@ A sample configuration file can be found in `config-examples/config.json` in thi
     "log-file": "log.json"
 }
 ```
+
+#### DatasetGateway (DSG) Authentication
+
+When authentication is enabled (`"disable-auth": false`), neuPrintHTTP delegates all authentication and per-dataset authorization to a [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) instance. Users authenticate via DSG API keys (`dsg_token`), and per-dataset access is checked against DSG's permissions.
+
+Add these fields to your config to enable DSG auth:
+
+```json
+{
+    "disable-auth": false,
+    "dsg-url": "https://dsg.janelia.org",
+    "dsg-cache-ttl": 300,
+    "dsg-service-name": "neuprint",
+    "dataset-map": {
+        "vnc": "VNC",
+        "manc": "MANC"
+    },
+    "ssl-cert": "/path/to/cert.pem",
+    "ssl-key": "/path/to/key.pem",
+    "hostname": "neuprint.example.com"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `dsg-url` | Yes (when auth enabled) | Base URL of the DatasetGateway service |
+| `dsg-cache-ttl` | No | Seconds to cache DSG user lookups (default: 300) |
+| `dsg-service-name` | No | Service name for TOS checks (default: "neuprint") |
+| `dataset-map` | No | Maps neuprint DB names to DSG dataset slugs when they differ (e.g., neuprint uses lowercase "vnc" but DSG uses "VNC") |
 
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
 older `neuPrint-neo4j` engine is deprecated. See below.
@@ -295,74 +322,12 @@ For more detailed configuration options, refer to `config/config.go`.
 
 This is the easiest way to use neuprint http.  It launches an http server and does not require user authorization.  To use this, just set "disable-auth" to true as above.
 
-### Auth mode
+### Auth Mode
 
-There are several options required to use authorization and authentication with Google.  Notably, the user must register
-the application with Google to enable using google authentication.
-Also, for authoriation one can either specify user information in a static json file (example in this repo)
-or data can be extracted from Google's cloud datastore with a bit more configuration.  See more documentation in config/config.go.
+Authentication and authorization are handled by [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) (DSG). Set `"disable-auth": false` and provide a `"dsg-url"` in your config (see the DSG configuration section above).
 
-If you're using Google Datastore to manage the list of authorized users,
-you can use the Google Cloud Console or the Python API. (See below.)
+Users authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. The dataset list endpoint also filters out datasets the user cannot access.
 
-
-One must also provide https credentials.  To get certificates for local testing, run and add the produced files into the config file.
+HTTPS is required when auth is enabled. To generate test certificates for local development:
 
     % go run $GOROOT/src/crypto/tls/generate_cert.go --host localhost
-
-#### Update authorized users list with Google Cloud Console
-
-For adding or removing a single user, it's most convenient to just use the [Google Cloud Console][gcp-console].
-
-[gcp-console]: https://console.cloud.google.com/datastore/stats?project=dvid-em
-
-1. Start on the "Dashboard" page
-2. Click `neuprint_janelia`
-3. Click "Query Entities"
-4. Click `name=users`
-5. Add or delete properties (one per user)
-6. Click the "Save" button at the bottom of the screen.
-
-#### Update authorized users list with Python
-
-If you're using Google Datastore to manage the list of authorized users,
-it's convenient to programmatically edit the list with the [Google Datastore Python API][datastore-api].
-
-[datastore-api]: https://googleapis.dev/python/datastore/latest/index.html
-
-Start by installing the `google-cloud-datastore` Python package.
-Also make sure you've got the correct Google Cloud Project selected
-(or configure `GOOGLE_APPLICATION_CREDENTIALS`).
-
-```
-conda install -c conda-forge google-cloud-datastore
-gcloud config set project dvid-em
-```
-
-Here's an example:
-
-```python
-from google.cloud.datastore import Client, Key, Entity
-
-client = Client()
-
-# Fetch the list of users from the appropriate access list
-key = client.key('neuprint_janelia', 'users')
-r = client.query(kind='neuprint_janelia', ancestor=key).fetch(1000)
-
-# Extract the "entity", which is dict-like
-entity = list(r)[0]
-
-# Remove a user
-del entity['baduser@gmail.com']
-
-# Add some new users
-new_users = {
-    'newuser1@gmail.com': 'readwrite',
-    'newuser2@gmail.com': 'readwrite'
-}
-entity.update(new_users)
-
-# Upload
-client.put(entity)
-```

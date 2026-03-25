@@ -50,24 +50,21 @@
         }
       }
     ],
-    "appsecret": "<SECRET STRING PROVIDED BY GOOGLE OAUTH>",
     "arrow-flight-port": 11001,
-    "auth-datastore": "<DATASTORE URL FOR CLOUD FUNCTION>",
-    "auth-file": "<PATH TO JSON FILE WITH USERNAMES IF NOT USING OAUTH>",
-    "auth-token": "<LONG LIVED JWT TOKEN PROVIDED BY FLYEM LOGIN SERVER>",
-    "disable-auth": true,
-    "enable-arrow": true,
+    "disable-auth": false,
+    "dsg-url": "<DATASETGATEWAY BASE URL, e.g. https://dsg.janelia.org>",
+    "dsg-cache-ttl": 300,
+    "dsg-service-name": "neuprint",
+    "dataset-map": {
+      "vnc": "VNC",
+      "manc": "MANC"
+    },
     "hostname": "<HOSTNAME FOR THIS SERVER>",
     "log-file": "log.json",
     "ng-dir": "<PATH TO NEUROGLANCER LAYERS DIRECTORY>",
-    "oauthclient-id": "<OAUTH CLIENT ID PROVIDED BY GOOGLE>",
-    "oauthclient-secret": "<OAUTH CLIENT SECRETi PROVIDED BY GOOGLE>",
-    "proxy-auth": "<URLi TO FLYEM LOGIN SERVER>",
-    "proxy-insecure": true,
     "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
     "ssl-cert": "<PATH TO SSL CERTIFICATE FILE>",
     "ssl-key": "<PATH TO SSL KEY FILE>",
     "static-dir": "<PATH TO STATIC FILES, I.E. REACT BUILD>",
-    "token-blocklist": "<PATH TO TEXT FILE OF JWT TOKENS TO BLOCK>",
     "vimo-server": "<VIMO CLOUD FUNC URL>"
 }
