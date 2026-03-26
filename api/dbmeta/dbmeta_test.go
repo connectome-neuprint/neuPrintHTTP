@@ -527,6 +527,81 @@ func TestGetDatasets_DSGMultiplePermissions(t *testing.T) {
 	}
 }
 
+func TestGetDatasets_DSGPendingTOSIncluded(t *testing.T) {
+	// User has permission on hemibrain but has pending TOS on manc
+	// (no PermissionsV2 entry for manc, only a MissingTOS entry).
+	// manc should still appear in the dropdown so the user can select
+	// it and be redirected to accept TOS.
+	user := &secure.DSGUserCache{
+		Email: "test@example.com",
+		PermissionsV2: map[string][]string{
+			"hemibrain": {"view"},
+		},
+		MissingTOS: []secure.MissingTOSEntry{
+			{DatasetName: "manc", TOSID: 1, TOSName: "MANC Terms", Service: "neuprint"},
+		},
+	}
+	datasetMap := map[string]string{"manc": "manc"}
+	result := callGetDatasetsWithDSG(t, user, datasetMap)
+
+	if _, ok := result["hemibrain:v1.2.1"]; !ok {
+		t.Error("hemibrain should be visible (user has view permission)")
+	}
+	if _, ok := result["manc:v1.0"]; !ok {
+		t.Error("manc should be visible (pending TOS — user needs to accept)")
+	}
+	if _, ok := result["vnc:v1.0"]; ok {
+		t.Error("vnc should NOT be visible (no permission and no pending TOS)")
+	}
+}
+
+func TestGetDatasets_DSGPendingTOSWithPermission(t *testing.T) {
+	// User has both PermissionsV2 and MissingTOS for the same dataset.
+	// Dataset should still appear.
+	user := &secure.DSGUserCache{
+		Email: "test@example.com",
+		PermissionsV2: map[string][]string{
+			"hemibrain": {"view"},
+			"manc":      {"view"},
+		},
+		MissingTOS: []secure.MissingTOSEntry{
+			{DatasetName: "manc", TOSID: 1, TOSName: "MANC Terms", Service: "neuprint"},
+		},
+	}
+	result := callGetDatasetsWithDSG(t, user, nil)
+
+	if _, ok := result["hemibrain:v1.2.1"]; !ok {
+		t.Error("hemibrain should be visible")
+	}
+	if _, ok := result["manc:v1.0"]; !ok {
+		t.Error("manc should be visible (has permission + pending TOS)")
+	}
+}
+
+func TestGetDatasets_DSGOnlyTOSNoPerm(t *testing.T) {
+	// User has NO permissions at all but has pending TOS for hemibrain.
+	// This covers the case where DSG provides TOS entries without
+	// granting PermissionsV2 until TOS is accepted.
+	user := &secure.DSGUserCache{
+		Email:         "new-user@example.com",
+		PermissionsV2: map[string][]string{},
+		MissingTOS: []secure.MissingTOSEntry{
+			{DatasetName: "hemibrain", TOSID: 1, TOSName: "Hemibrain Terms", Service: "neuprint"},
+		},
+	}
+	result := callGetDatasetsWithDSG(t, user, nil)
+
+	if _, ok := result["hemibrain:v1.2.1"]; !ok {
+		t.Error("hemibrain should be visible (pending TOS even without PermissionsV2)")
+	}
+	if _, ok := result["vnc:v1.0"]; ok {
+		t.Error("vnc should NOT be visible")
+	}
+	if _, ok := result["manc:v1.0"]; ok {
+		t.Error("manc should NOT be visible")
+	}
+}
+
 // Test graceful handling of non-map dataset info
 func TestGetDatasets_BadDatasetInfoType(t *testing.T) {
 	// Create Echo instance

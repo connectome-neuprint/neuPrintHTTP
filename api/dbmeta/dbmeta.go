@@ -182,8 +182,11 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 
 		for datasetName, datasetInfo := range allData {
 			// Per-dataset authorization: skip datasets the user cannot access.
+			// Include datasets with pending TOS so the user can still select
+			// them and be redirected to accept TOS.
 			if dsgUser != nil && dsgClient != nil {
-				if dsgClient.DatasetLevel(dsgUser, datasetName) < secure.READ {
+				if dsgClient.DatasetLevel(dsgUser, datasetName) < secure.READ &&
+					!dsgClient.HasMissingTOS(dsgUser, datasetName) {
 					continue
 				}
 			}
