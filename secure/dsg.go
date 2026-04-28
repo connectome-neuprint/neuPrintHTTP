@@ -44,6 +44,7 @@ type DSGUserCache struct {
 	ID            int                 `json:"id"`
 	Email         string              `json:"email"`
 	Name          string              `json:"name"`
+	PictureURL    string              `json:"picture_url"`
 	Admin         bool                `json:"admin"`
 	Groups        []string            `json:"groups"`
 	PermissionsV2 map[string][]string `json:"permissions_v2"`

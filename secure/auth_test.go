@@ -388,3 +388,36 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestDSGProfileHandlerIncludesImageURL(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("dsg_user", &DSGUserCache{
+		Email:      "alice@example.org",
+		PictureURL: "https://example.org/alice.png",
+	})
+	c.Set("level", "readwrite")
+
+	if err := dsgProfileHandler(c); err != nil {
+		t.Fatalf("unexpected profile handler error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("could not decode profile response: %v", err)
+	}
+	if body["Email"] != "alice@example.org" {
+		t.Fatalf("expected Email alice@example.org, got %q", body["Email"])
+	}
+	if body["AuthLevel"] != "readwrite" {
+		t.Fatalf("expected AuthLevel readwrite, got %q", body["AuthLevel"])
+	}
+	if body["ImageURL"] != "https://example.org/alice.png" {
+		t.Fatalf("expected ImageURL to be propagated, got %q", body["ImageURL"])
+	}
+}

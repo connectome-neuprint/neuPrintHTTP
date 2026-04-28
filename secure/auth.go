@@ -80,6 +80,7 @@ func dsgProfileHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"Email":     user.Email,
 		"AuthLevel": level,
+		"ImageURL":  user.PictureURL,
 	})
 }
 
