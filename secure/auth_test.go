@@ -57,7 +57,7 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 			dsgURL:               "https://dsg.example.com",
 			serviceName:          "neuprint",
 			wantRedirectContains: "hemibrain",
-			wantDatasetParam:     "hemibrain:v1.2.1",
+			wantDatasetParam:     "hemibrain",
 			wantServiceParam:     "neuprint",
 		},
 		// ---- redirect already carries dataset → no duplication ----
@@ -83,7 +83,7 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 			dsgURL:               "https://dsg.example.com",
 			serviceName:          "neuprint",
 			wantRedirectContains: "tab=graph",
-			wantDatasetParam:     "manc:v1.0",
+			wantDatasetParam:     "manc",
 			wantServiceParam:     "neuprint",
 		},
 		// ---- no service name configured ----
@@ -117,7 +117,7 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 			dsgURL:               "https://dsg.example.com",
 			serviceName:          "neuprint",
 			wantRedirectContains: "dataset=optic-lobe",
-			wantDatasetParam:     "optic-lobe:v1.0",
+			wantDatasetParam:     "optic-lobe",
 			wantServiceParam:     "neuprint",
 		},
 		// ---- deep path with fragment-like suffix ----
@@ -137,7 +137,9 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := dsgLoginHandler(tc.dsgURL, tc.serviceName)
+			client := NewDSGClient(tc.dsgURL, 300, tc.serviceName, nil)
+			client.ServiceName = tc.serviceName
+			handler := dsgLoginHandler(tc.dsgURL, client)
 
 			e := echo.New()
 			target := "/login?" + tc.query.Encode()
@@ -202,8 +204,8 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 // string) contains dataset= so the user lands on the correct page after TOS.
 func TestDsgLoginHandler_DatasetInRedirectValue(t *testing.T) {
 	cases := []struct {
-		name     string
-		query    url.Values
+		name             string
+		query            url.Values
 		wantInRedirect   bool   // expect dataset= inside the redirect URL
 		wantDatasetValue string // expected value of dataset inside redirect URL
 	}{
@@ -254,7 +256,8 @@ func TestDsgLoginHandler_DatasetInRedirectValue(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := dsgLoginHandler("https://dsg.example.com", "neuprint")
+			client := NewDSGClient("https://dsg.example.com", 300, "neuprint", nil)
+			handler := dsgLoginHandler("https://dsg.example.com", client)
 
 			e := echo.New()
 			target := "/login?" + tc.query.Encode()
@@ -361,8 +364,8 @@ func TestDsgDatasetAccessHandler_ErrorIncludesDatasetName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
 	var body map[string]interface{}
@@ -372,6 +375,70 @@ func TestDsgDatasetAccessHandler_ErrorIncludesDatasetName(t *testing.T) {
 	msg, _ := body["message"].(string)
 	if !containsSubstring(msg, "VNC") {
 		t.Errorf("message %q should contain dataset name 'VNC'", msg)
+	}
+	if body["access"] != false {
+		t.Errorf("expected access=false, got %v", body["access"])
+	}
+}
+
+func TestDsgDatasetAccessHandler_ReturnsTOSURL(t *testing.T) {
+	client := NewDSGClient("http://dsg.test", 300, "neuprint", map[string]string{
+		"hemibrain:v1.2.1": "hemibrain",
+	})
+	user := &DSGUserCache{
+		Email:         "test@example.com",
+		PermissionsV2: map[string][]string{},
+		MissingTOS: []MissingTOSEntry{
+			{DatasetName: "hemibrain", TOSID: 123, TOSName: "neuPrint TOS", Service: "neuprint"},
+		},
+	}
+
+	e := echo.New()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/dataset-access?dataset=hemibrain%3Av1.2.1&next=https%3A%2F%2Fneuprint.example.com%2F%3Fdataset%3Dhemibrain%253Av1.2.1",
+		nil,
+	)
+	req.Host = "neuprint.example.com"
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("dsg_user", user)
+	c.Set("dsg_client", client)
+
+	if err := dsgDatasetAccessHandler(c); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	if body["access"] != false {
+		t.Errorf("expected access=false, got %v", body["access"])
+	}
+	if body["tos_required"] != true {
+		t.Errorf("expected tos_required=true, got %v", body["tos_required"])
+	}
+	if body["dsg_dataset"] != "hemibrain" {
+		t.Errorf("dsg_dataset = %q, want hemibrain", body["dsg_dataset"])
+	}
+	tosURL, _ := body["tos_url"].(string)
+	parsed, err := url.Parse(tosURL)
+	if err != nil {
+		t.Fatalf("bad tos_url: %v", err)
+	}
+	q := parsed.Query()
+	if q.Get("service") != "neuprint" {
+		t.Errorf("service = %q, want neuprint", q.Get("service"))
+	}
+	if q.Get("dataset") != "hemibrain" {
+		t.Errorf("dataset = %q, want hemibrain", q.Get("dataset"))
+	}
+	if q.Get("next") != "https://neuprint.example.com/?dataset=hemibrain%3Av1.2.1" {
+		t.Errorf("next = %q", q.Get("next"))
 	}
 }
 

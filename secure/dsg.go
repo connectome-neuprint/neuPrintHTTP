@@ -95,14 +95,17 @@ func NewDSGClient(baseURL string, cacheTTLSeconds int, serviceName string, datas
 	}
 }
 
-// FetchUser validates a token and returns the user cache, or nil if invalid.
-func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
+func (d *DSGClient) fetchUser(token string, forceRefresh bool) (*DSGUserCache, error) {
 	// Check cache
-	if val, ok := d.cache.Load(token); ok {
-		entry := val.(*cachedEntry)
-		if time.Since(entry.fetchedAt) < d.CacheTTL {
-			return entry.data, nil
+	if !forceRefresh {
+		if val, ok := d.cache.Load(token); ok {
+			entry := val.(*cachedEntry)
+			if time.Since(entry.fetchedAt) < d.CacheTTL {
+				return entry.data, nil
+			}
+			d.cache.Delete(token)
 		}
+	} else {
 		d.cache.Delete(token)
 	}
 
@@ -138,6 +141,16 @@ func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
 
 	d.cache.Store(token, &cachedEntry{data: &user, fetchedAt: time.Now()})
 	return &user, nil
+}
+
+// FetchUser validates a token and returns the user cache, or nil if invalid.
+func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
+	return d.fetchUser(token, false)
+}
+
+// FetchUserFresh validates a token while bypassing the local user cache.
+func (d *DSGClient) FetchUserFresh(token string) (*DSGUserCache, error) {
+	return d.fetchUser(token, true)
 }
 
 // HasMissingTOS returns true if the user has pending TOS for the given dataset.
@@ -265,7 +278,14 @@ func DSGAuthMiddleware(client *DSGClient) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
 			}
 
-			user, err := client.FetchUser(token)
+			forceRefresh := c.Path() == "/profile" || c.Path() == "/dataset-access"
+			var user *DSGUserCache
+			var err error
+			if forceRefresh {
+				user, err = client.FetchUserFresh(token)
+			} else {
+				user, err = client.FetchUser(token)
+			}
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
 			}

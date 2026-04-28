@@ -12,11 +12,9 @@ import (
 // The redirect param from the caller is a path; we build an absolute URL
 // so DSG knows where to send the user back.
 //
-// Service and dataset params are only passed when explicitly provided
-// (e.g., for TOS acceptance on a specific dataset). The initial login
-// should NOT pass service — just authenticate. TOS is per-dataset, not
-// per-login.
-func dsgLoginHandler(dsgURL, serviceName string) echo.HandlerFunc {
+// Service and dataset params are passed when a dataset is known so DatasetGateway
+// can intercept for service-specific TOS before returning to neuPrint.
+func dsgLoginHandler(dsgURL string, client *DSGClient) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		redirectPath := c.QueryParam("redirect")
 		if redirectPath == "" {
@@ -26,35 +24,74 @@ func dsgLoginHandler(dsgURL, serviceName string) echo.HandlerFunc {
 		// If the caller supplied a dataset but the redirect path doesn't
 		// already contain it, append it so the user lands back on the
 		// correct dataset page after TOS acceptance.
-		if dataset := c.QueryParam("dataset"); dataset != "" {
-			u, err := url.Parse(redirectPath)
-			if err == nil && u.Query().Get("dataset") == "" {
-				q := u.Query()
-				q.Set("dataset", dataset)
-				u.RawQuery = q.Encode()
-				redirectPath = u.String()
-			}
+		dataset := c.QueryParam("dataset")
+		if dataset != "" {
+			redirectPath = addDatasetQueryParam(redirectPath, dataset)
 		}
 
-		// Build absolute redirect URL from the incoming request
-		scheme := "https"
-		if c.Request().TLS == nil {
-			scheme = "http"
+		// Build absolute redirect URL from the incoming request.
+		absoluteRedirect := redirectPath
+		if u, err := url.Parse(redirectPath); err != nil || !u.IsAbs() {
+			absoluteRedirect = requestBaseURL(c) + redirectPath
 		}
-		absoluteRedirect := scheme + "://" + c.Request().Host + redirectPath
 
 		target := dsgURL + "/api/v1/authorize?redirect=" + url.QueryEscape(absoluteRedirect)
 
-		// Only pass service and dataset when explicitly requested
-		// (for TOS acceptance flows on a specific dataset)
-		if dataset := c.QueryParam("dataset"); dataset != "" {
-			if serviceName != "" {
-				target += "&service=" + url.QueryEscape(serviceName)
+		if dataset != "" {
+			if client.ServiceName != "" {
+				target += "&service=" + url.QueryEscape(client.ServiceName)
 			}
-			target += "&dataset=" + url.QueryEscape(dataset)
+			target += "&dataset=" + url.QueryEscape(client.DatasetSlug(dataset))
 		}
 		return c.Redirect(http.StatusFound, target)
 	}
+}
+
+func requestBaseURL(c echo.Context) string {
+	scheme := "https"
+	if c.Request().TLS == nil {
+		scheme = "http"
+	}
+	return scheme + "://" + c.Request().Host
+}
+
+func addDatasetQueryParam(rawURL, dataset string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Query().Get("dataset") != "" {
+		return rawURL
+	}
+	q := u.Query()
+	q.Set("dataset", dataset)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func serviceReturnURL(c echo.Context, dataset string) string {
+	next := c.QueryParam("next")
+	if next == "" {
+		next = c.Request().Header.Get("Referer")
+	}
+	if next == "" {
+		next = "/"
+	}
+	u, err := url.Parse(next)
+	if err == nil && !u.IsAbs() {
+		next = requestBaseURL(c) + next
+	}
+	return addDatasetQueryParam(next, dataset)
+}
+
+func tosServiceCheckURL(client *DSGClient, dsgDataset, next string) string {
+	u, err := url.Parse(client.BaseURL + "/web/tos/service-check/")
+	if err != nil {
+		return ""
+	}
+	q := u.Query()
+	q.Set("service", client.ServiceName)
+	q.Set("dataset", dsgDataset)
+	q.Set("next", next)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // dsgLogoutHandler redirects to DatasetGateway's logout endpoint.
@@ -97,25 +134,39 @@ func dsgDatasetAccessHandler(c echo.Context) error {
 	client := c.Get("dsg_client").(*DSGClient)
 
 	level := client.DatasetLevel(user, dataset)
+	dsgDataset := client.DatasetSlug(dataset)
 	if level >= READ {
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"dataset": dataset,
-			"access":  StringFromLevel(level),
+			"access":       true,
+			"tos_required": false,
+			"dataset":      dataset,
+			"dsg_dataset":  dsgDataset,
+			"service":      client.ServiceName,
+			"level":        StringFromLevel(level),
 		})
 	}
 
 	// No access — check if TOS is the reason
 	if client.HasMissingTOS(user, dataset) {
-		return c.JSON(http.StatusForbidden, map[string]interface{}{
+		next := serviceReturnURL(c, dataset)
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"access":       false,
 			"dataset":      dataset,
+			"dsg_dataset":  dsgDataset,
+			"service":      client.ServiceName,
 			"tos_required": true,
+			"tos_url":      tosServiceCheckURL(client, dsgDataset, next),
 			"message":      "Terms of Service acceptance required for this dataset",
 		})
 	}
 
-	return c.JSON(http.StatusForbidden, map[string]interface{}{
-		"dataset": dataset,
-		"message": "You do not have access to " + dataset + " dataset",
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"access":       false,
+		"dataset":      dataset,
+		"dsg_dataset":  dsgDataset,
+		"service":      client.ServiceName,
+		"tos_required": false,
+		"message":      "You do not have access to " + dataset + " dataset",
 	})
 }
 
