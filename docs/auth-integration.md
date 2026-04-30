@@ -17,7 +17,9 @@ no dual-mode transition.
 ## Decisions
 
 - **Token type**: dsg_tokens (DSG API keys). neuprint's `/token`
-  endpoint now proxies to DSG's `/api/v1/create_token`.
+  endpoint proxies to DSG's `GET /api/v1/long_lived_token`, which
+  returns the same stable token on every call so neuprint-python
+  users see a token they can paste into config files without churn.
 - **Migration**: Clean cutover. Only dsg_tokens accepted.
 - **Import**: `--datasets` flag specifies which DSG datasets to grant
   on. Idempotent. Detailed per-dataset log of new vs existing users.
@@ -277,12 +279,12 @@ func dsgProfileHandler(c echo.Context) error {
 }
 ```
 
-`GET /token` — proxies to DSG's token creation endpoint:
+`GET /token` — proxies to DSG's stable long-lived token endpoint:
 ```go
 func dsgTokenHandler(dsgURL string) echo.HandlerFunc {
     return func(c echo.Context) error {
         token := ExtractToken(c)
-        req, _ := http.NewRequest("POST", dsgURL+"/api/v1/create_token", nil)
+        req, _ := http.NewRequest("GET", dsgURL+"/api/v1/long_lived_token", nil)
         req.Header.Set("Authorization", "Bearer "+token)
         resp, err := http.DefaultClient.Do(req)
         // ... forward response body and status code to caller

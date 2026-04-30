@@ -170,13 +170,16 @@ func dsgDatasetAccessHandler(c echo.Context) error {
 	})
 }
 
-// dsgTokenHandler proxies a token-creation request to DatasetGateway and
-// returns the new dsg_token to the caller.
+// dsgTokenHandler proxies a token request to DatasetGateway's
+// long_lived_token endpoint and returns the user's stable bearer token to
+// the caller. DSG's long_lived_token is idempotent: it returns the same
+// token row on every call, so the displayed token is safe to paste into
+// neuprint-python configs and stays valid across browser refreshes.
 func dsgTokenHandler(dsgURL string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		token := ExtractToken(c)
 
-		req, err := http.NewRequest("POST", dsgURL+"/api/v1/create_token", nil)
+		req, err := http.NewRequest("GET", dsgURL+"/api/v1/long_lived_token", nil)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build token request")
 		}
