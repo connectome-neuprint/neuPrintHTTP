@@ -1,385 +1,140 @@
-# Migrate neuprintHTTP auth to DatasetGateway
+# neuPrintHTTP DSG auth integration
 
-## Context
+neuPrintHTTP delegates browser login, token issuance, identity, and per-dataset
+authorization to DatasetGateway (DSG). The browser authN trio remains on DSG's
+compatibility surface:
 
-neuprintHTTP is a Go/Echo REST API serving connectomics data from Neo4j.
-It currently authenticates users via its own Google OAuth flow + Gorilla
-session cookies, generates self-contained JWTs (HS256, 50,000hr expiry),
-and authorizes via either a JSON file (`authorized.json`) mapping
-`email → "admin"|"readwrite"|"readonly"` or a Google Datastore HTTP
-endpoint.
+- `GET {dsg-url}/api/v1/authorize?redirect=<absolute-return-url>`
+- `GET {dsg-url}/api/v1/long_lived_token`
+- `GET {dsg-url}/api/v1/logout`
 
-We want to replace all of this with DatasetGateway (DSG), the same
-auth service already used by clio-store and celltyping-light. Tokens
-become `dsg_token` API keys (no more neuprint JWTs). Clean cutover,
-no dual-mode transition.
+Per-dataset authorization uses DSG's native API under `/api/dsg/v1`.
 
-## Decisions
+## Configuration
 
-- **Token type**: dsg_tokens (DSG API keys). neuprint's `/token`
-  endpoint proxies to DSG's `GET /api/v1/long_lived_token`, which
-  returns the same stable token on every call so neuprint-python
-  users see a token they can paste into config files without churn.
-- **Migration**: Clean cutover. Only dsg_tokens accepted.
-- **Import**: `--datasets` flag specifies which DSG datasets to grant
-  on. Idempotent. Detailed per-dataset log of new vs existing users.
-
----
-
-## Part 1: DatasetGateway changes
-
-Only one change needed: a new management command.
-
-### New file: `dsg/core/management/commands/import_neuprint_auth.py`
-
-Follows the pattern of `import_clio_auth.py`.
-
-**Arguments:**
-- `json_file` — path to neuprint's `authorized.json`
-- `--datasets DATASET [DATASET ...]` — required; DSG dataset slug(s)
-  to create grants for
-- `--dry-run` — preview without writing to DB
-
-**Input format** (`authorized.json`):
 ```json
 {
-  "alice@gmail.com": "admin",
-  "bob@gmail.com": "readwrite",
-  "carol@gmail.com": "readonly"
-}
-```
-
-**Permission mapping:**
-
-| authorized.json level | DSG permission | Notes |
-|---|---|---|
-| `"readonly"` | `view` grant on each `--datasets` | |
-| `"readwrite"` | `edit` grant on each `--datasets` | DSG hierarchy: edit implies view |
-| `"admin"` | Sets `user.admin = True` | Global admin across all datasets |
-
-**Logic:**
-1. Load JSON, ensure `view`/`edit`/`admin` Permission objects exist
-2. Ensure `user` Group exists
-3. Create/get each dataset from `--datasets`
-4. For each email in JSON:
-   - `get_or_create` User (set unusable password, defaults)
-   - Add to `user` group
-   - If `"admin"` → set `user.admin = True`
-   - Else create Grant (view or edit) on each dataset via `get_or_create`
-   - Track whether user/grant was created or already existed
-5. Print per-dataset summary log:
-   ```
-   Dataset: hemibrain
-     Added: alice@gmail.com (admin), bob@gmail.com (edit)
-     Already existed: carol@gmail.com (view)
-   ```
-
-**Reference:** `dsg/core/management/commands/import_clio_auth.py`
-(same model imports, same `get_or_create` idempotency pattern)
-
-### Documentation update
-
-Add `import_neuprint_auth` to the management commands table in
-`docs/user-manual.md` (line ~427).
-
----
-
-## Part 2: neuprintHTTP changes
-
-### 2.1 Config changes (`config/config.go`)
-
-**Add fields:**
-```go
-DSGUrl       string            `json:"dsg-url,omitempty"`
-DSGCacheTTL  int               `json:"dsg-cache-ttl,omitempty"`  // seconds, default 300
-DatasetMap   map[string]string `json:"dataset-map,omitempty"`    // neuprint DB → DSG slug
-```
-
-**Remove fields:**
-- `ClientID`, `ClientSecret` (Google OAuth — DSG handles this)
-- `Secret` (JWT signing key)
-- `AuthFile` (authorized.json path)
-- `AuthDatastore`, `AuthToken` (Datastore backend)
-- `ProxyAuth`, `ProxyInsecure` (proxy workaround)
-- `TokenBlocklist` (DSG handles revocation)
-
-**Keep:** `DisableAuth`, `Hostname`, `CertPEM`, `KeyPEM`, SSL/TLS fields
-
-**New config example:**
-```json
-{
+  "disable-auth": false,
   "dsg-url": "https://dsg.janelia.org",
   "dsg-cache-ttl": 300,
-  "dataset-map": {
-    "hemibrain:v1.2.1": "hemibrain",
-    "manc:v1.0": "manc"
-  },
+  "dsg-service-name": "neuprint",
   "hostname": "neuprint.janelia.org"
 }
 ```
 
-### 2.2 New DSG auth module (`secure/dsg.go`)
+| Field | Required | Meaning |
+|---|---|---|
+| `dsg-url` | yes when auth is enabled | Base URL of the DatasetGateway service. |
+| `dsg-cache-ttl` | no | Seconds to cache identity and non-transient dataset decisions. Defaults to 300. |
+| `dsg-service-name` | no | Service name sent to DSG native authorization. Defaults to `neuprint`. |
+| `disable-auth` | no | Bypasses DSG auth when true, for local/testing use only. |
 
-**DSGUserCache struct** — mirrors DSG's `/api/v1/user/cache` response:
-```go
-type DSGUserCache struct {
-    ID            int                 `json:"id"`
-    Email         string              `json:"email"`
-    Name          string              `json:"name"`
-    Admin         bool                `json:"admin"`
-    Groups        []string            `json:"groups"`
-    PermissionsV2 map[string][]string `json:"permissions_v2"`
-    DatasetsAdmin []string            `json:"datasets_admin"`
-}
-```
+Dataset vocabulary differences are registered in DSG with `DatasetAlias` rows.
+The served neuPrint DB name is split at the first colon before authorization:
+`hemibrain:v1.2.1` becomes native entry `{name: "hemibrain", version: "v1.2.1"}`.
+Names without a colon omit `version`.
 
-**DSGClient** — HTTP client with in-memory token cache:
-```go
-type DSGClient struct {
-    BaseURL    string
-    CacheTTL   time.Duration
-    DatasetMap map[string]string // neuprint DB name → DSG dataset slug
-    cache      sync.Map          // token string → *cachedEntry
-    client     *http.Client
-}
-```
+## Native identity
 
-**Key methods:**
+Authentication middleware extracts a token in this order:
 
-`FetchUser(token string) (*DSGUserCache, error)`:
-1. Check cache; return if within TTL
-2. `GET {baseURL}/api/v1/user/cache` with `Authorization: Bearer {token}`
-3. 200 → parse, cache, return
-4. 401 → return nil (invalid token)
-5. Network/other error → return error
-
-`(d *DSGClient) DatasetLevel(user *DSGUserCache, neuprintDB string) AuthorizationLevel`:
-1. If `user.Admin` → ADMIN
-2. Map neuprintDB → DSG slug via `d.DatasetMap` (explicit map, else strip `:version` suffix)
-3. Look up `user.PermissionsV2[slug]`
-4. Contains `"admin"` → ADMIN, `"manage"` or `"edit"` → READWRITE, `"view"` → READ
-5. Missing → NOAUTH
-
-`ExtractToken(c echo.Context) string`:
-1. `Authorization: Bearer {token}` header
+1. `Authorization: Bearer <token>`
 2. `dsg_token` cookie
 3. `dsg_token` query parameter
-4. Return empty string if none found
 
-### 2.3 Middleware and authorization helpers (`secure/dsg.go`)
+It calls:
 
-The old `Authorizer` interface was deleted entirely. Instead,
-`secure/dsg.go` provides:
-
-- `DSGAuthMiddleware(client)` — authentication-only middleware that
-  validates the token and stores `*DSGUserCache` on the context
-- `DSGAdminMiddleware()` — requires `user.Admin == true` (must run
-  after `DSGAuthMiddleware`)
-- `RequireDatasetAccess(c, dataset, level)` — per-dataset authorization
-  check called from individual handlers
-
-Because DSG permissions are **per-dataset** while the old system was
-per-user-global, authorization moved from the middleware layer to
-individual handler functions.
-
-### 2.4 Middleware changes (`secure/secure.go`)
-
-**Current flow:**
-1. Extract Bearer JWT OR session cookie → get email
-2. `Authorizer.Authorize(email, routeLevel)` → global check
-
-**New flow:**
-1. Extract dsg_token from header/cookie/query param
-2. Call `DSGClient.FetchUser(token)` (cached)
-3. Store `*DSGUserCache` in echo context as `"dsg_user"`
-4. Store email in context as `"email"` (for logging compatibility)
-5. **No authorization check at middleware level** — just authentication
-6. Return 401 if no token or invalid token; 502 if DSG unreachable
-
-**Per-dataset authorization moves to handlers.** The helper reads the
-`dsg_client` and `dsg_user` from the echo context (set by middleware):
-
-```go
-func RequireDatasetAccess(c echo.Context, dataset string,
-    level AuthorizationLevel) error {
-    user := c.Get("dsg_user").(*DSGUserCache)
-    client := c.Get("dsg_client").(*DSGClient)
-    actual := client.DatasetLevel(user, dataset)
-    if actual < level {
-        return echo.NewHTTPError(http.StatusForbidden,
-            "insufficient permissions for dataset")
-    }
-    c.Set("level", StringFromLevel(actual))
-    return nil
-}
+```http
+GET {dsg-url}/api/dsg/v1/user
+Authorization: Bearer <token>
 ```
 
-**Route group changes in `main.go`:**
-- `readGrp` middleware: authentication only (token valid?)
-- Admin routes: use `DSGAdminMiddleware()` via `SetAdminRoute`
+Expected shape:
 
-For the `/api/custom/custom` endpoint (and similar), add the
-per-dataset check at the top of the handler:
-
-```go
-// In getCustom handler, after binding req:
-if err := secure.RequireDatasetAccess(c, req.Dataset, secure.READ); err != nil {
-    return err
-}
-```
-
-For admin-only routes (raw cypher), `DSGAdminMiddleware` checks
-`user.Admin`, and handlers additionally call `RequireDatasetAccess`
-with `secure.ADMIN` for per-dataset checks.
-
-### 2.5 Replace OAuth login flow (`secure/auth.go`)
-
-**Remove:**
-- Google OAuth configuration (`configureOAuthClient`)
-- `loginHandler` (direct Google OAuth flow)
-- `oauthCallbackHandler`
-- `fetchProfile`, `fetchProxyProfile`
-- JWT generation (`tokenHandler`)
-- Session management (Gorilla sessions)
-- Token blocklist code
-
-**Replace with:**
-
-`GET /login`:
-```go
-func dsgLoginHandler(dsgURL string) echo.HandlerFunc {
-    return func(c echo.Context) error {
-        redirect := c.QueryParam("redirect")
-        if redirect == "" {
-            redirect = "/profile"
-        }
-        return c.Redirect(http.StatusFound,
-            dsgURL+"/api/v1/authorize?redirect="+url.QueryEscape(redirect))
-    }
-}
-```
-
-`POST /logout`:
-```go
-func dsgLogoutHandler(dsgURL string) echo.HandlerFunc {
-    return func(c echo.Context) error {
-        return c.Redirect(http.StatusFound, dsgURL+"/api/v1/logout")
-    }
-}
-```
-
-`GET /profile` — fetch from DSG user cache already in context:
-```go
-func dsgProfileHandler(c echo.Context) error {
-    user := c.Get("dsg_user").(*DSGUserCache)
-    return c.JSON(http.StatusOK, map[string]interface{}{
-        "Email":     user.Email,
-        "AuthLevel": "...",  // derive from highest permission
-    })
-}
-```
-
-`GET /token` — proxies to DSG's stable long-lived token endpoint:
-```go
-func dsgTokenHandler(dsgURL string) echo.HandlerFunc {
-    return func(c echo.Context) error {
-        token := ExtractToken(c)
-        req, _ := http.NewRequest("GET", dsgURL+"/api/v1/long_lived_token", nil)
-        req.Header.Set("Authorization", "Bearer "+token)
-        resp, err := http.DefaultClient.Do(req)
-        // ... forward response body and status code to caller
-    }
-}
-```
-
-### 2.6 Remove old auth code
-
-**Delete entirely:**
-- `secure/authorize.go` — `FileAuthorize`, `DatastoreAuthorize`,
-  `Authorizer` interface (replaced by DSGClient)
-- Token blocklist (`TokenBlocklist` struct, `globalTokenBlocklist`,
-  `LoadBlockedTokensFromFile`)
-
-**Remove Go dependencies:**
-- `github.com/golang-jwt/jwt/v5` (no more JWT generation/validation)
-- `github.com/gorilla/sessions` (no more session cookies)
-- `github.com/labstack/echo-contrib/session`
-- `golang.org/x/oauth2` (DSG handles OAuth)
-- `github.com/satori/go.uuid` (OAuth state parameter)
-
-### 2.7 Files summary
-
-| File | Action | Details |
-|------|--------|---------|
-| `secure/dsg.go` | **NEW** | DSGClient, FetchUser, DatasetLevel, ExtractToken, RequireDatasetAccess, DSGAuthMiddleware, DSGAdminMiddleware |
-| `secure/secure.go` | **REWRITE** | EchoSecure for TLS startup + route registration; remove JWT parsing, blocklist, Gorilla sessions |
-| `secure/auth.go` | **REWRITE** | DSG login/logout/profile/token handlers; remove Google OAuth, JWT generation |
-| `secure/authorize.go` | **DELETE** | FileAuthorize + DatastoreAuthorize + Authorizer interface no longer needed |
-| `secure/blocklist_test.go` | **DELETE** | Tests for removed JWT blocklist code |
-| `config/config.go` | **MODIFY** | Add DSGUrl, DSGCacheTTL, DatasetMap; remove old auth fields |
-| `main.go` | **MODIFY** | Initialize DSGClient; use DSGAuthMiddleware + DSGAdminMiddleware; update route setup |
-| `api/custom/custom.go` | **MODIFY** | Add `RequireDatasetAccess(c, req.Dataset, READ)` call |
-| `api/custom/arrow.go` | **MODIFY** | Same per-dataset check |
-| `api/custom/arrow_test.go` | **MODIFY** | Add DSG user/client to test context |
-| `api/raw/cypher/cypher.go` | **MODIFY** | Add per-dataset ADMIN check to execCypher and startTrans |
-| `api/npexplorer/npexplorer.go` | **MODIFY** | Add per-dataset READ check to all 11 handlers |
-| `go.mod` | **MODIFY** | Remove JWT, gorilla, echo-contrib, go.uuid, oauth2 deps |
-
----
-
-## Part 3: Permission mapping summary
-
-| neuprint level | DSG permission | `permissions_v2` contains | Middleware/handler check |
-|---|---|---|---|
-| NOAUTH (0) | — | — | Token valid but no dataset check |
-| READ (1) | `view` | `["view"]` | `RequireDatasetAccess(c, ds, READ)` |
-| READWRITE (2) | `edit` or `manage` | `["view", "edit"]` or `["view", "manage"]` | `RequireDatasetAccess(c, ds, READWRITE)` |
-| ADMIN (3) | `admin` or `user.Admin` | `["view","edit","manage","admin"]` | `DSGAdminMiddleware` or per-dataset admin |
-
----
-
-## Part 4: Cookie sharing
-
-If neuprint and DSG are on sibling subdomains (e.g.,
-`neuprint.janelia.org` and `dsg.janelia.org`), configure
-`AUTH_COOKIE_DOMAIN=.janelia.org` in DSG. The `dsg_token` cookie is
-then automatically available to neuprint. Browser users who log in
-via any DSG-integrated service get seamless access to neuprint.
-
-For API/programmatic access, users pass the dsg_token via
-`Authorization: Bearer {token}` header (same as before, just a
-different token value).
-
----
-
-## Verification
-
-### DatasetGateway
-```bash
-cd ~/GitHub/DatasetGate/dsg
-pixi run -e dev pytest core/tests/ -v -k import_neuprint
-```
-
-Test the import command with a sample `authorized.json`:
-```bash
-pixi run -e dev python manage.py import_neuprint_auth \
-    sample_authorized.json --datasets hemibrain manc --dry-run
-```
-
-### neuprintHTTP
-```bash
-cd ~/GitHub/neuprintHTTP
-go build ./...
-go test ./secure/... ./api/...
-```
-
-Test with DSG running locally:
 ```json
 {
-  "dsg-url": "http://localhost:8000",
-  "dsg-cache-ttl": 30,
-  "dataset-map": {"hemibrain:v1.2.1": "hemibrain"},
-  "disable-auth": false,
-  "hostname": "localhost"
+  "id": 123,
+  "email": "user@example.org",
+  "name": "User Name",
+  "picture_url": "https://example.org/avatar.png",
+  "admin": false,
+  "service_account": false
 }
 ```
+
+The middleware stores `dsg_identity`, `dsg_client`, `dsg_token`, and `email` in
+the Echo context. `/profile` bypasses the identity cache to reflect current DSG
+state.
+
+## Native dataset decisions
+
+Handlers call DSG for dataset decisions through:
+
+```http
+POST {dsg-url}/api/dsg/v1/authorize
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "service": "neuprint",
+  "return_url": "https://neuprint.janelia.org/?dataset=hemibrain:v1.2.1",
+  "entries": [
+    {"name": "hemibrain", "version": "v1.2.1", "permission": "view"}
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "entries": [
+    {
+      "name": "hemibrain",
+      "version": "v1.2.1",
+      "decision": "allow",
+      "roles": ["view"]
+    }
+  ]
+}
+```
+
+Decision mapping:
+
+| DSG decision | neuPrint behavior |
+|---|---|
+| `allow` + role `admin` | `ADMIN` |
+| `allow` + role `manage` or `edit` | `READWRITE` |
+| `allow` + role `view` or no roles | `READ` |
+| `tos_required` | denied for the current request; response includes DSG's opaque `tos_url`. This decision is never cached. |
+| `deny` | `NOAUTH` |
+| `service_eval` | `NOAUTH` with a warning log; neuPrint expects DSG linear version evaluation. |
+
+`RequireDatasetAccess` applies the global-admin shortcut before calling DSG, so
+admins retain access to datasets not yet registered in DSG during rollout.
+`/dataset-access` also applies that shortcut first, then force-refreshes the
+queried dataset decision. This force-fresh call plus never caching
+`tos_required` is the TOS-acceptance invalidation path.
+
+The dataset dropdown batches all served dataset names into one native authorize
+call. It includes `allow` and `tos_required` entries, excludes denies, skips the
+authorize call for admins, and leaves hidden-dataset filtering unchanged.
+
+## Rollout checklist
+
+1. In DSG admin, verify/create the `Service` row matching `dsg-service-name`
+   with linear version evaluation.
+2. Register each served neuPrint dataset and version in DSG.
+3. Add `DatasetAlias` rows only where neuPrint's served name/version differs
+   from DSG's canonical dataset/version names.
+4. Remove any legacy name-translation config from the neuPrintHTTP deployment.
+5. Rebuild the neuPrintHTTP container so the Go binary and neuPrintExplorer
+   bundle ship together.
+6. Validate on neuprint-test: public datasets appear for normal users, pending
+   TOS redirects through `tos_url`, post-acceptance reload opens immediately,
+   admins remain unrestricted, and `/login`, `/logout`, and `/token` still use
+   the compatibility authN trio.

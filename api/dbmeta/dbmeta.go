@@ -162,13 +162,13 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// Get the hidden query parameter
 	includeHidden := c.QueryParam("hidden") == "true"
 
-	// Retrieve DSG user/client from context (set by DSGAuthMiddleware).
+	// Retrieve DSG identity/client from context (set by DSGAuthMiddleware).
 	// When auth is disabled or public-read, these will be nil and we
 	// skip per-dataset filtering.
-	var dsgUser *secure.DSGUserCache
+	var dsgIdentity *secure.DSGIdentity
 	var dsgClient *secure.DSGClient
-	if u := c.Get("dsg_user"); u != nil {
-		dsgUser, _ = u.(*secure.DSGUserCache)
+	if u := c.Get("dsg_identity"); u != nil {
+		dsgIdentity, _ = u.(*secure.DSGIdentity)
 	}
 	if cl := c.Get("dsg_client"); cl != nil {
 		dsgClient, _ = cl.(*secure.DSGClient)
@@ -180,13 +180,36 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 		// Filter datasets based on hidden parameter and user permissions.
 		filteredData := make(map[string]interface{})
 
+		var decisions map[string]*secure.DSGDecision
+		if dsgIdentity != nil && dsgClient != nil && !dsgIdentity.Admin {
+			token, _ := c.Get("dsg_token").(string)
+			if token == "" {
+				token = secure.ExtractToken(c)
+			}
+			if token == "" {
+				return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+			}
+			datasets := make([]string, 0, len(allData))
+			for datasetName := range allData {
+				datasets = append(datasets, datasetName)
+			}
+			var err error
+			decisions, err = dsgClient.AuthorizeDatasets(
+				token, datasets, datasetListReturnURL(c), false,
+			)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+			}
+		}
+
 		for datasetName, datasetInfo := range allData {
-			// Per-dataset authorization: skip datasets the user cannot access.
-			// Include datasets with pending TOS so the user can still select
-			// them and be redirected to accept TOS.
-			if dsgUser != nil && dsgClient != nil {
-				if dsgClient.DatasetLevel(dsgUser, datasetName) < secure.READ &&
-					!dsgClient.HasMissingTOS(dsgUser, datasetName) {
+			// Per-dataset authorization: skip datasets the identity cannot access.
+			// Include pending TOS datasets so the user can select them and be
+			// redirected by /dataset-access.
+			if dsgIdentity != nil && dsgClient != nil && !dsgIdentity.Admin {
+				decision := decisions[datasetName]
+				if decision == nil ||
+					(decision.Decision != "allow" && decision.Decision != "tos_required") {
 					continue
 				}
 			}
@@ -220,6 +243,13 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 
 		return c.JSON(http.StatusOK, filteredData)
 	}
+}
+
+func datasetListReturnURL(c echo.Context) string {
+	if referer := c.Request().Header.Get("Referer"); referer != "" {
+		return referer
+	}
+	return "/"
 }
 
 type instanceInfo struct {

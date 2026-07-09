@@ -1,7 +1,9 @@
 package dbmeta
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -371,7 +373,7 @@ func (m *mockStoreWithBadDatasetInfo) GetInstance() string {
 	return "test"
 }
 
-// --- DSG permission filtering tests ---
+// --- DSG decision filtering tests ---
 
 // mockDSGStore returns a fixed set of datasets for DSG filtering tests.
 type mockDSGStore struct{ mockStoreImpl }
@@ -381,28 +383,106 @@ func (m *mockDSGStore) GetDatasets() (map[string]interface{}, error) {
 		"hemibrain:v1.2.1": map[string]interface{}{
 			"last-mod": "2024-06-01",
 		},
-		"vnc:v1.0": map[string]interface{}{
+		"public:v1": map[string]interface{}{
 			"last-mod": "2024-07-01",
 		},
-		"manc:v1.0": map[string]interface{}{
+		"tos:v1": map[string]interface{}{
 			"last-mod": "2024-08-01",
+		},
+		"denied:v1": map[string]interface{}{
+			"last-mod": "2024-09-01",
+		},
+		"closed-public-version:v1": map[string]interface{}{
+			"last-mod": "2024-10-01",
+		},
+		"sa-granted:v1": map[string]interface{}{
+			"last-mod": "2024-11-01",
 		},
 	}, nil
 }
 
-// helper: create a DSGClient with a dataset map and call getDatasets with the
-// given user in context.  Returns the parsed response map.
-func callGetDatasetsWithDSG(t *testing.T, user *secure.DSGUserCache, datasetMap map[string]string) map[string]interface{} {
+type dbmetaRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f dbmetaRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func dbmetaJSONHTTPResponse(status int, body interface{}) *http.Response {
+	var buf bytes.Buffer
+	_ = json.NewEncoder(&buf).Encode(body)
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(&buf),
+	}
+}
+
+func callGetDatasetsWithDSG(
+	t *testing.T,
+	identity *secure.DSGIdentity,
+	token string,
+) (map[string]interface{}, int) {
 	t.Helper()
 
-	client := secure.NewDSGClient("http://dsg.test", 300, "neuprint", datasetMap)
+	authorizeCalls := 0
+	transport := dbmetaRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/dsg/v1/authorize" {
+			return dbmetaJSONHTTPResponse(http.StatusNotFound, map[string]string{"error": "not found"}), nil
+		}
+		authorizeCalls++
+		var body struct {
+			Entries []struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			} `json:"entries"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		bearer := r.Header.Get("Authorization")
+		resp := struct {
+			Entries []map[string]interface{} `json:"entries"`
+		}{Entries: make([]map[string]interface{}, 0, len(body.Entries))}
+		for _, entry := range body.Entries {
+			decision := map[string]interface{}{
+				"name":     entry.Name,
+				"version":  entry.Version,
+				"decision": "deny",
+				"roles":    []string{},
+			}
+			if bearer == "Bearer sa-token" {
+				if entry.Name == "sa-granted" {
+					decision["decision"] = "allow"
+					decision["roles"] = []string{"view"}
+				}
+			} else {
+				switch entry.Name {
+				case "hemibrain", "public":
+					decision["decision"] = "allow"
+					decision["roles"] = []string{"view"}
+				case "tos":
+					decision["decision"] = "tos_required"
+					decision["roles"] = []string{"view"}
+					decision["tos_url"] = "https://dsg.example.com/tos"
+				}
+			}
+			resp.Entries = append(resp.Entries, decision)
+		}
+		return dbmetaJSONHTTPResponse(http.StatusOK, resp), nil
+	})
+
+	client := secure.NewDSGClient("http://dsg.test", 300, "neuprint")
+	client.SetHTTPClient(&http.Client{Transport: transport})
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.Set("dsg_user", user)
-	c.Set("dsg_client", client)
+	if identity != nil {
+		c.Set("dsg_identity", identity)
+		c.Set("dsg_client", client)
+		c.Set("dsg_token", token)
+	}
 
 	api := storeAPI{Store: &mockDSGStore{}}
 	if err := api.getDatasets(c); err != nil {
@@ -416,189 +496,76 @@ func callGetDatasetsWithDSG(t *testing.T, user *secure.DSGUserCache, datasetMap 
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("bad JSON: %v", err)
 	}
-	return result
+	return result, authorizeCalls
 }
 
-func TestGetDatasets_DSGFiltersUnauthorized(t *testing.T) {
-	// User has view permission on hemibrain only.
-	user := &secure.DSGUserCache{
-		Email: "test@example.com",
-		PermissionsV2: map[string][]string{
-			"hemibrain": {"view"},
-		},
+func TestGetDatasets_NativeDecisionsFilterDropdown(t *testing.T) {
+	result, calls := callGetDatasetsWithDSG(
+		t, &secure.DSGIdentity{Email: "test@example.com"}, "user-token",
+	)
+	if calls != 1 {
+		t.Fatalf("expected one batch authorize call, got %d", calls)
 	}
-	// dataset-map: strip version → DSG slug happens automatically
-	result := callGetDatasetsWithDSG(t, user, nil)
 
 	if _, ok := result["hemibrain:v1.2.1"]; !ok {
 		t.Error("hemibrain:v1.2.1 should be visible")
 	}
-	if _, ok := result["vnc:v1.0"]; ok {
-		t.Error("vnc:v1.0 should be filtered out — user has no vnc permission")
+	if _, ok := result["public:v1"]; !ok {
+		t.Error("public:v1 should be visible via native allow")
 	}
-	if _, ok := result["manc:v1.0"]; ok {
-		t.Error("manc:v1.0 should be filtered out — user has no manc permission")
+	if _, ok := result["tos:v1"]; !ok {
+		t.Error("tos:v1 should be visible while TOS is pending")
+	}
+	if _, ok := result["denied:v1"]; ok {
+		t.Error("denied:v1 should be filtered out")
+	}
+	if _, ok := result["closed-public-version:v1"]; ok {
+		t.Error("closed-public-version:v1 should be filtered out")
+	}
+	if _, ok := result["sa-granted:v1"]; ok {
+		t.Error("sa-granted:v1 should be filtered out for the human token")
+	}
+}
+
+func TestGetDatasets_NativeServiceAccountSeesOnlyGranted(t *testing.T) {
+	result, calls := callGetDatasetsWithDSG(
+		t,
+		&secure.DSGIdentity{Email: "", ServiceAccount: true},
+		"sa-token",
+	)
+	if calls != 1 {
+		t.Fatalf("expected one batch authorize call, got %d", calls)
+	}
+
+	if _, ok := result["sa-granted:v1"]; !ok {
+		t.Error("sa-granted:v1 should be visible to the service account token")
 	}
 	if len(result) != 1 {
-		t.Errorf("expected 1 dataset, got %d: %v", len(result), result)
+		t.Errorf("service account should see exactly one explicit grant, got %d: %v", len(result), result)
 	}
 }
 
-func TestGetDatasets_DSGAdminSeesAll(t *testing.T) {
-	user := &secure.DSGUserCache{
-		Email: "admin@example.com",
-		Admin: true,
-	}
-	result := callGetDatasetsWithDSG(t, user, nil)
-
-	if len(result) != 3 {
-		t.Errorf("admin should see all 3 datasets, got %d: %v", len(result), result)
-	}
-}
-
-func TestGetDatasets_DSGDatasetMapUsed(t *testing.T) {
-	// User has permission on DSG slug "VNC" (uppercase).
-	// The neuprint DB name is "vnc:v1.0", which strips to "vnc".
-	// Without a dataset-map entry, DatasetLevel won't find "VNC".
-	// With the map "vnc" → "VNC", it should match.
-	user := &secure.DSGUserCache{
-		Email: "test@example.com",
-		PermissionsV2: map[string][]string{
-			"VNC": {"view"},
-		},
+func TestGetDatasets_NativeAdminSeesAll(t *testing.T) {
+	result, calls := callGetDatasetsWithDSG(
+		t, &secure.DSGIdentity{Email: "admin@example.com", Admin: true}, "admin-token",
+	)
+	if calls != 0 {
+		t.Fatalf("admin dropdown should not call authorize, got %d calls", calls)
 	}
 
-	// Without dataset-map: vnc should be filtered out
-	result := callGetDatasetsWithDSG(t, user, nil)
-	if _, ok := result["vnc:v1.0"]; ok {
-		t.Error("without dataset-map, vnc:v1.0 should be filtered (slug 'vnc' != 'VNC')")
-	}
-
-	// With dataset-map: vnc → VNC — should now be visible
-	result = callGetDatasetsWithDSG(t, user, map[string]string{"vnc": "VNC"})
-	if _, ok := result["vnc:v1.0"]; !ok {
-		t.Error("with dataset-map vnc→VNC, vnc:v1.0 should be visible")
+	if len(result) != 6 {
+		t.Errorf("admin should see all 6 datasets, got %d: %v", len(result), result)
 	}
 }
 
 func TestGetDatasets_NoDSGContext_NoFiltering(t *testing.T) {
-	// When dsg_user/dsg_client are absent (auth disabled), all datasets pass.
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	// deliberately NOT setting dsg_user or dsg_client
+	result, calls := callGetDatasetsWithDSG(t, nil, "")
 
-	api := storeAPI{Store: &mockDSGStore{}}
-	if err := api.getDatasets(c); err != nil {
-		t.Fatalf("getDatasets error: %v", err)
+	if calls != 0 {
+		t.Fatalf("auth-disabled path should not call authorize, got %d calls", calls)
 	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
-		t.Fatalf("bad JSON: %v", err)
-	}
-	if len(result) != 3 {
-		t.Errorf("with no DSG context, all 3 datasets should be returned, got %d", len(result))
-	}
-}
-
-func TestGetDatasets_DSGMultiplePermissions(t *testing.T) {
-	// User has access to hemibrain and manc but not vnc — mirrors the
-	// reported bug scenario.
-	user := &secure.DSGUserCache{
-		Email: "wtkatz@alumni.stanford.edu",
-		PermissionsV2: map[string][]string{
-			"hemibrain": {"view"},
-			"MANC":      {"view"},
-		},
-	}
-	datasetMap := map[string]string{"manc": "MANC"}
-	result := callGetDatasetsWithDSG(t, user, datasetMap)
-
-	if _, ok := result["hemibrain:v1.2.1"]; !ok {
-		t.Error("hemibrain should be visible")
-	}
-	if _, ok := result["manc:v1.0"]; !ok {
-		t.Error("manc should be visible via dataset-map → MANC")
-	}
-	if _, ok := result["vnc:v1.0"]; ok {
-		t.Error("vnc should NOT be visible — user has no vnc permission")
-	}
-}
-
-func TestGetDatasets_DSGPendingTOSIncluded(t *testing.T) {
-	// User has permission on hemibrain but has pending TOS on manc
-	// (no PermissionsV2 entry for manc, only a MissingTOS entry).
-	// manc should still appear in the dropdown so the user can select
-	// it and be redirected to accept TOS.
-	user := &secure.DSGUserCache{
-		Email: "test@example.com",
-		PermissionsV2: map[string][]string{
-			"hemibrain": {"view"},
-		},
-		MissingTOS: []secure.MissingTOSEntry{
-			{DatasetName: "manc", TOSID: 1, TOSName: "MANC Terms", Service: "neuprint"},
-		},
-	}
-	datasetMap := map[string]string{"manc": "manc"}
-	result := callGetDatasetsWithDSG(t, user, datasetMap)
-
-	if _, ok := result["hemibrain:v1.2.1"]; !ok {
-		t.Error("hemibrain should be visible (user has view permission)")
-	}
-	if _, ok := result["manc:v1.0"]; !ok {
-		t.Error("manc should be visible (pending TOS — user needs to accept)")
-	}
-	if _, ok := result["vnc:v1.0"]; ok {
-		t.Error("vnc should NOT be visible (no permission and no pending TOS)")
-	}
-}
-
-func TestGetDatasets_DSGPendingTOSWithPermission(t *testing.T) {
-	// User has both PermissionsV2 and MissingTOS for the same dataset.
-	// Dataset should still appear.
-	user := &secure.DSGUserCache{
-		Email: "test@example.com",
-		PermissionsV2: map[string][]string{
-			"hemibrain": {"view"},
-			"manc":      {"view"},
-		},
-		MissingTOS: []secure.MissingTOSEntry{
-			{DatasetName: "manc", TOSID: 1, TOSName: "MANC Terms", Service: "neuprint"},
-		},
-	}
-	result := callGetDatasetsWithDSG(t, user, nil)
-
-	if _, ok := result["hemibrain:v1.2.1"]; !ok {
-		t.Error("hemibrain should be visible")
-	}
-	if _, ok := result["manc:v1.0"]; !ok {
-		t.Error("manc should be visible (has permission + pending TOS)")
-	}
-}
-
-func TestGetDatasets_DSGOnlyTOSNoPerm(t *testing.T) {
-	// User has NO permissions at all but has pending TOS for hemibrain.
-	// This covers the case where DSG provides TOS entries without
-	// granting PermissionsV2 until TOS is accepted.
-	user := &secure.DSGUserCache{
-		Email:         "new-user@example.com",
-		PermissionsV2: map[string][]string{},
-		MissingTOS: []secure.MissingTOSEntry{
-			{DatasetName: "hemibrain", TOSID: 1, TOSName: "Hemibrain Terms", Service: "neuprint"},
-		},
-	}
-	result := callGetDatasetsWithDSG(t, user, nil)
-
-	if _, ok := result["hemibrain:v1.2.1"]; !ok {
-		t.Error("hemibrain should be visible (pending TOS even without PermissionsV2)")
-	}
-	if _, ok := result["vnc:v1.0"]; ok {
-		t.Error("vnc should NOT be visible")
-	}
-	if _, ok := result["manc:v1.0"]; ok {
-		t.Error("manc should NOT be visible")
+	if len(result) != 6 {
+		t.Errorf("with no DSG context, all 6 datasets should be returned, got %d", len(result))
 	}
 }
 

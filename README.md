@@ -276,10 +276,6 @@ Add these fields to your config to enable DSG auth:
     "dsg-url": "https://dsg.janelia.org",
     "dsg-cache-ttl": 300,
     "dsg-service-name": "neuprint",
-    "dataset-map": {
-        "vnc": "VNC",
-        "manc": "MANC"
-    },
     "ssl-cert": "/path/to/cert.pem",
     "ssl-key": "/path/to/key.pem",
     "hostname": "neuprint.example.com"
@@ -289,9 +285,8 @@ Add these fields to your config to enable DSG auth:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `dsg-url` | Yes (when auth enabled) | Base URL of the DatasetGateway service |
-| `dsg-cache-ttl` | No | Seconds to cache DSG user lookups (default: 300) |
-| `dsg-service-name` | No | Service name for TOS checks (default: "neuprint") |
-| `dataset-map` | No | Maps neuprint DB names to DSG dataset slugs when they differ (e.g., neuprint uses lowercase "vnc" but DSG uses "VNC") |
+| `dsg-cache-ttl` | No | Seconds to cache DSG identity and dataset decisions (default: 300) |
+| `dsg-service-name` | No | Service name sent to DSG native authorization (default: "neuprint") |
 
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
 older `neuPrint-neo4j` engine is deprecated. See below.

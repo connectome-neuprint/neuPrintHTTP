@@ -55,10 +55,6 @@
     "dsg-url": "<DATASETGATEWAY BASE URL, e.g. https://dsg.janelia.org>",
     "dsg-cache-ttl": 300,
     "dsg-service-name": "neuprint",
-    "dataset-map": {
-      "vnc": "VNC",
-      "manc": "MANC"
-    },
     "hostname": "<HOSTNAME FOR THIS SERVER>",
     "log-file": "log.json",
     "ng-dir": "<PATH TO NEUROGLANCER LAYERS DIRECTORY>",

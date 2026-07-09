@@ -146,16 +146,6 @@ func main() {
 		}
 		fmt.Printf("Running in no-data mode (mock datasets: %v)\n", datasets)
 		store = &storage.NoStore{Datasets: datasets}
-
-		// Auto-populate dataset map for DSG if not already set
-		if options.DatasetMap == nil {
-			options.DatasetMap = make(map[string]string)
-		}
-		for _, ds := range datasets {
-			if _, exists := options.DatasetMap[ds]; !exists {
-				options.DatasetMap[ds] = ds
-			}
-		}
 	} else {
 		store, err = config.CreateStore(options)
 		if err != nil {
@@ -220,7 +210,7 @@ func main() {
 			fmt.Println("ERROR: dsg-url is required when auth is enabled")
 			return
 		}
-		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName, options.DatasetMap)
+		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName)
 
 		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
 		if err != nil {
@@ -331,8 +321,8 @@ func main() {
 		e.Static("/api/npexplorer/nglayers", options.NgDir)
 	}
 
-	// The admin middleware is chained after auth — DSGAdminMiddleware checks
-	// the dsg_user set by DSGAuthMiddleware, so admin routes get both.
+	// The admin middleware is chained after auth, so admin routes get both
+	// authentication and the DSG admin gate.
 	combinedAdmin := func(next echo.HandlerFunc) echo.HandlerFunc {
 		return adminMiddleware(next)
 	}

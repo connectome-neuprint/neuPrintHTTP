@@ -3,6 +3,7 @@ package custom
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -84,6 +85,53 @@ func (m *mockStoreImpl) GetInstance() string {
 	return "test"
 }
 
+type customRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f customRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func customJSONHTTPResponse(status int, body interface{}) *http.Response {
+	var buf bytes.Buffer
+	_ = json.NewEncoder(&buf).Encode(body)
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(&buf),
+	}
+}
+
+func nativeAllowClient(t *testing.T) *secure.DSGClient {
+	t.Helper()
+	client := secure.NewDSGClient("http://dsg.test", 300, "neuprint")
+	client.SetHTTPClient(&http.Client{Transport: customRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/dsg/v1/user":
+			return customJSONHTTPResponse(http.StatusOK, map[string]interface{}{
+				"id":              1,
+				"email":           "test@example.com",
+				"name":            "Test User",
+				"picture_url":     "",
+				"admin":           false,
+				"service_account": false,
+			}), nil
+		case "/api/dsg/v1/authorize":
+			return customJSONHTTPResponse(http.StatusOK, map[string]interface{}{
+				"entries": []map[string]interface{}{
+					{
+						"name":     "test",
+						"decision": "allow",
+						"roles":    []string{"view"},
+					},
+				},
+			}), nil
+		default:
+			return customJSONHTTPResponse(http.StatusNotFound, map[string]string{"error": "not found"}), nil
+		}
+	})})
+	return client
+}
+
 // Test the Neo4j to Arrow conversion for primitive types
 func TestConvertCypherToArrow(t *testing.T) {
 	// Create a sample CypherResult
@@ -134,17 +182,17 @@ func TestConvertNodeMapsToArrow(t *testing.T) {
 		Columns: []string{"n", "value"},
 		Data: [][]interface{}{
 			{map[string]interface{}{
-				"bodyId": json.Number("1234"),
+				"bodyId":   json.Number("1234"),
 				"cellType": "neuron",
-				"active": true,
+				"active":   true,
 			}, json.Number("100")},
 			{map[string]interface{}{
-				"bodyId": json.Number("5678"),
+				"bodyId":   json.Number("5678"),
 				"cellType": "glia",
-				"active": false,
+				"active":   false,
 			}, json.Number("200")},
 			{map[string]interface{}{
-				"bodyId": json.Number("9012"),
+				"bodyId":   json.Number("9012"),
 				"cellType": "neuron",
 				// Missing 'active' property - should be handled properly
 			}, json.Number("300")},
@@ -184,27 +232,63 @@ func TestConvertNodeMapsToArrow(t *testing.T) {
 
 	// Just verify we can access the record
 	record := arrowData.Records[0]
-	
+
 	// Verify we have the right number of columns
 	if record.NumCols() != 2 {
 		t.Errorf("Expected 2 columns, got %d", record.NumCols())
 	}
-	
+
 	// We'll skip detailed inspection of the map column since it requires specific methods
 	// that may not be available in all Arrow versions
+}
+
+func TestHTTPCustomEndpointBearerAuth(t *testing.T) {
+	e := echo.New()
+	mockCypherStore := MockCypher{}
+	mockStore := &mockStoreImpl{
+		cypherStore: mockCypherStore,
+	}
+	api := cypherAPI{Store: mockStore}
+
+	reqBody := customReq{
+		Cypher:  "MATCH (n) RETURN n.id",
+		Dataset: "test",
+	}
+	jsonBytes, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/custom/custom", bytes.NewBuffer(jsonBytes))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer tok-user")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := secure.DSGAuthMiddleware(nativeAllowClient(t))(api.getCustom)
+	if err := handler(c); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var body storage.CypherResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	if len(body.Columns) == 0 {
+		t.Fatalf("expected custom endpoint result columns")
+	}
 }
 
 // Test the HTTP Arrow endpoint
 func TestHTTPArrowEndpoint(t *testing.T) {
 	// Create a new Echo instance
 	e := echo.New()
-	
+
 	// Create a mock store with a GetDataset function
 	mockCypherStore := MockCypher{}
 	mockStore := &mockStoreImpl{
 		cypherStore: mockCypherStore,
 	}
-	
+
 	// Create the API
 	api := cypherAPI{Store: mockStore}
 
@@ -220,11 +304,11 @@ func TestHTTPArrowEndpoint(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	// Set up DSG auth context so RequireDatasetAccess passes
-	c.Set("dsg_user", &secure.DSGUserCache{
+	c.Set("dsg_identity", &secure.DSGIdentity{
 		Email: "test@example.com",
 		Admin: true,
 	})
-	c.Set("dsg_client", secure.NewDSGClient("http://localhost", 300, "", nil))
+	c.Set("dsg_client", secure.NewDSGClient("http://localhost", 300, ""))
 
 	// Handle the request
 	if err := api.getCustomArrow(c); err != nil {
@@ -265,7 +349,7 @@ func TestHTTPArrowEndpoint(t *testing.T) {
 		if record.NumCols() != 4 {
 			t.Errorf("Expected 4 columns, got %d", record.NumCols())
 		}
-		
+
 		// Verify the Arrow data types
 		// With our improved type inference, json.Number values should be detected as INT64
 		if record.Schema().Field(0).Type.ID() != arrow.INT64 {

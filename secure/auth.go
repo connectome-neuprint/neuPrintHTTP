@@ -11,22 +11,11 @@ import (
 // dsgLoginHandler redirects the user to DatasetGateway's OAuth entry point.
 // The redirect param from the caller is a path; we build an absolute URL
 // so DSG knows where to send the user back.
-//
-// Service and dataset params are passed when a dataset is known so DatasetGateway
-// can intercept for service-specific TOS before returning to neuPrint.
-func dsgLoginHandler(dsgURL string, client *DSGClient) echo.HandlerFunc {
+func dsgLoginHandler(dsgURL string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		redirectPath := c.QueryParam("redirect")
 		if redirectPath == "" {
 			redirectPath = "/"
-		}
-
-		// If the caller supplied a dataset but the redirect path doesn't
-		// already contain it, append it so the user lands back on the
-		// correct dataset page after TOS acceptance.
-		dataset := c.QueryParam("dataset")
-		if dataset != "" {
-			redirectPath = addDatasetQueryParam(redirectPath, dataset)
 		}
 
 		// Build absolute redirect URL from the incoming request.
@@ -36,13 +25,6 @@ func dsgLoginHandler(dsgURL string, client *DSGClient) echo.HandlerFunc {
 		}
 
 		target := dsgURL + "/api/v1/authorize?redirect=" + url.QueryEscape(absoluteRedirect)
-
-		if dataset != "" {
-			if client.ServiceName != "" {
-				target += "&service=" + url.QueryEscape(client.ServiceName)
-			}
-			target += "&dataset=" + url.QueryEscape(client.DatasetSlug(dataset))
-		}
 		return c.Redirect(http.StatusFound, target)
 	}
 }
@@ -53,17 +35,6 @@ func requestBaseURL(c echo.Context) string {
 		scheme = "http"
 	}
 	return scheme + "://" + c.Request().Host
-}
-
-func addDatasetQueryParam(rawURL, dataset string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Query().Get("dataset") != "" {
-		return rawURL
-	}
-	q := u.Query()
-	q.Set("dataset", dataset)
-	u.RawQuery = q.Encode()
-	return u.String()
 }
 
 func serviceReturnURL(c echo.Context, dataset string) string {
@@ -78,18 +49,12 @@ func serviceReturnURL(c echo.Context, dataset string) string {
 	if err == nil && !u.IsAbs() {
 		next = requestBaseURL(c) + next
 	}
-	return addDatasetQueryParam(next, dataset)
-}
-
-func tosServiceCheckURL(client *DSGClient, dsgDataset, next string) string {
-	u, err := url.Parse(client.BaseURL + "/web/tos/service-check/")
-	if err != nil {
-		return ""
+	u, err = url.Parse(next)
+	if err != nil || u.Query().Get("dataset") != "" {
+		return next
 	}
 	q := u.Query()
-	q.Set("service", client.ServiceName)
-	q.Set("dataset", dsgDataset)
-	q.Set("next", next)
+	q.Set("dataset", dataset)
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -101,23 +66,23 @@ func dsgLogoutHandler(dsgURL string) echo.HandlerFunc {
 	}
 }
 
-// dsgProfileHandler returns the authenticated user's profile from the
-// DSGUserCache already stored in the echo context by DSGAuthMiddleware.
+// dsgProfileHandler returns the authenticated identity profile already stored
+// in the echo context by DSGAuthMiddleware.
 // This is an app-level auth check only. Per-dataset authorization and
 // TOS checks are handled by RequireDatasetAccess.
 func dsgProfileHandler(c echo.Context) error {
-	user := c.Get("dsg_user").(*DSGUserCache)
+	identity := c.Get("dsg_identity").(*DSGIdentity)
 
 	// Authenticated users get at least readwrite; admins get admin.
 	level := "readwrite"
-	if user.Admin {
+	if identity.Admin {
 		level = "admin"
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"Email":     user.Email,
+		"Email":     identity.Email,
 		"AuthLevel": level,
-		"ImageURL":  user.PictureURL,
+		"ImageURL":  identity.PictureURL,
 	})
 }
 
@@ -130,32 +95,50 @@ func dsgDatasetAccessHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "dataset parameter required")
 	}
 
-	user := c.Get("dsg_user").(*DSGUserCache)
+	identity := c.Get("dsg_identity").(*DSGIdentity)
 	client := c.Get("dsg_client").(*DSGClient)
 
-	level := client.DatasetLevel(user, dataset)
-	dsgDataset := client.DatasetSlug(dataset)
+	if identity.Admin {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"access":       true,
+			"tos_required": false,
+			"dataset":      dataset,
+			"service":      client.ServiceName,
+			"level":        StringFromLevel(ADMIN),
+		})
+	}
+
+	token, _ := c.Get("dsg_token").(string)
+	if token == "" {
+		token = ExtractToken(c)
+	}
+	if token == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+	}
+
+	decision, err := client.DatasetDecision(token, dataset, serviceReturnURL(c, dataset), true)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+	}
+	level := decision.Level()
 	if level >= READ {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"access":       true,
 			"tos_required": false,
 			"dataset":      dataset,
-			"dsg_dataset":  dsgDataset,
 			"service":      client.ServiceName,
 			"level":        StringFromLevel(level),
 		})
 	}
 
-	// No access — check if TOS is the reason
-	if client.HasMissingTOS(user, dataset) {
-		next := serviceReturnURL(c, dataset)
+	if decision.TOSRequired() {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"access":       false,
 			"dataset":      dataset,
-			"dsg_dataset":  dsgDataset,
 			"service":      client.ServiceName,
+			"level":        StringFromLevel(level),
 			"tos_required": true,
-			"tos_url":      tosServiceCheckURL(client, dsgDataset, next),
+			"tos_url":      decision.TOSURL,
 			"message":      "Terms of Service acceptance required for this dataset",
 		})
 	}
@@ -163,8 +146,8 @@ func dsgDatasetAccessHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"access":       false,
 		"dataset":      dataset,
-		"dsg_dataset":  dsgDataset,
 		"service":      client.ServiceName,
+		"level":        StringFromLevel(level),
 		"tos_required": false,
 		"message":      "You do not have access to " + dataset + " dataset",
 	})

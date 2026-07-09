@@ -1,9 +1,11 @@
 package secure
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -39,84 +41,128 @@ func StringFromLevel(level AuthorizationLevel) string {
 	}
 }
 
-// DSGUserCache mirrors the DatasetGateway /api/v1/user/cache response.
-type DSGUserCache struct {
-	ID            int                 `json:"id"`
-	Email         string              `json:"email"`
-	Name          string              `json:"name"`
-	PictureURL    string              `json:"picture_url"`
-	Admin         bool                `json:"admin"`
-	Groups        []string            `json:"groups"`
-	PermissionsV2 map[string][]string `json:"permissions_v2"`
-	DatasetsAdmin []string            `json:"datasets_admin"`
-	MissingTOS    []MissingTOSEntry   `json:"missing_tos"`
+// DSGIdentity is the DSG-native authenticated principal shape.
+type DSGIdentity struct {
+	ID             int    `json:"id"`
+	Email          string `json:"email"`
+	Name           string `json:"name"`
+	PictureURL     string `json:"picture_url"`
+	Admin          bool   `json:"admin"`
+	ServiceAccount bool   `json:"service_account"`
 }
 
-// MissingTOSEntry represents a TOS document the user has not yet accepted.
-type MissingTOSEntry struct {
-	DatasetName string `json:"dataset_name"`
-	TOSID       int    `json:"tos_id"`
-	TOSName     string `json:"tos_name"`
-	Service     string `json:"service"`
+// DSGDecision is a DSG-native authorization decision for one dataset entry.
+type DSGDecision struct {
+	Name     string   `json:"name"`
+	Version  string   `json:"version,omitempty"`
+	Decision string   `json:"decision"`
+	Roles    []string `json:"roles"`
+	TOSURL   string   `json:"tos_url,omitempty"`
 }
 
-type cachedEntry struct {
-	data      *DSGUserCache
+func (d *DSGDecision) Level() AuthorizationLevel {
+	if d == nil {
+		return NOAUTH
+	}
+	switch d.Decision {
+	case "allow":
+		return levelFromRoles(d.Roles)
+	case "service_eval":
+		log.Printf("dsg: service_eval decision for %s:%s denied locally", d.Name, d.Version)
+		return NOAUTH
+	default:
+		return NOAUTH
+	}
+}
+
+func (d *DSGDecision) TOSRequired() bool {
+	return d != nil && d.Decision == "tos_required"
+}
+
+type cachedIdentityEntry struct {
+	data      *DSGIdentity
 	fetchedAt time.Time
 }
 
-// DSGClient validates tokens against a DatasetGateway instance.
+type cachedDecisionEntry struct {
+	data      *DSGDecision
+	fetchedAt time.Time
+}
+
+type decisionCacheKey struct {
+	token   string
+	name    string
+	version string
+}
+
+type authorizeEntry struct {
+	Name       string `json:"name"`
+	Version    string `json:"version,omitempty"`
+	Permission string `json:"permission"`
+}
+
+type authorizeRequest struct {
+	Service   string           `json:"service"`
+	ReturnURL string           `json:"return_url"`
+	Entries   []authorizeEntry `json:"entries"`
+}
+
+type authorizeResponse struct {
+	Entries []DSGDecision `json:"entries"`
+}
+
+// DSGClient validates tokens and dataset decisions against DatasetGateway.
 type DSGClient struct {
-	BaseURL     string
-	CacheTTL    time.Duration
-	ServiceName string            // service name for TOS checks (e.g. "neuprint")
-	DatasetMap  map[string]string // neuprint DB name → DSG dataset slug
-	cache       sync.Map          // token string → *cachedEntry
-	client      *http.Client
+	BaseURL       string
+	CacheTTL      time.Duration
+	ServiceName   string
+	identityCache sync.Map
+	decisionCache sync.Map
+	client        *http.Client
 }
 
 // NewDSGClient creates a DSGClient with sensible defaults.
-func NewDSGClient(baseURL string, cacheTTLSeconds int, serviceName string, datasetMap map[string]string) *DSGClient {
+func NewDSGClient(baseURL string, cacheTTLSeconds int, serviceName string) *DSGClient {
 	if cacheTTLSeconds <= 0 {
 		cacheTTLSeconds = 300
 	}
 	if serviceName == "" {
 		serviceName = "neuprint"
 	}
-	if datasetMap == nil {
-		datasetMap = map[string]string{}
-	}
 	return &DSGClient{
 		BaseURL:     strings.TrimRight(baseURL, "/"),
 		CacheTTL:    time.Duration(cacheTTLSeconds) * time.Second,
 		ServiceName: serviceName,
-		DatasetMap:  datasetMap,
 		client:      &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-func (d *DSGClient) fetchUser(token string, forceRefresh bool) (*DSGUserCache, error) {
-	// Check cache
+// SetHTTPClient swaps the HTTP client. It is intended for tests.
+func (d *DSGClient) SetHTTPClient(client *http.Client) {
+	if client != nil {
+		d.client = client
+	}
+}
+
+func (d *DSGClient) fetchIdentity(token string, forceRefresh bool) (*DSGIdentity, error) {
+	if token == "" {
+		return nil, nil
+	}
 	if !forceRefresh {
-		if val, ok := d.cache.Load(token); ok {
-			entry := val.(*cachedEntry)
+		if val, ok := d.identityCache.Load(token); ok {
+			entry := val.(*cachedIdentityEntry)
 			if time.Since(entry.fetchedAt) < d.CacheTTL {
 				return entry.data, nil
 			}
-			d.cache.Delete(token)
+			d.identityCache.Delete(token)
 		}
 	} else {
-		d.cache.Delete(token)
+		d.identityCache.Delete(token)
 	}
 
-	// Call DatasetGateway
-	cacheURL := d.BaseURL + "/api/v1/user/cache"
-	if d.ServiceName != "" {
-		cacheURL += "?service=" + d.ServiceName
-	}
-	req, err := http.NewRequest("GET", cacheURL, nil)
+	req, err := http.NewRequest("GET", d.BaseURL+"/api/dsg/v1/user", nil)
 	if err != nil {
-		return nil, fmt.Errorf("dsg: failed to create request: %w", err)
+		return nil, fmt.Errorf("dsg: failed to create identity request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -126,82 +172,160 @@ func (d *DSGClient) fetchUser(token string, forceRefresh bool) (*DSGUserCache, e
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, nil // invalid token
+	if resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden ||
+		resp.StatusCode == http.StatusNotFound {
+		return nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("dsg: unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("dsg: unexpected identity status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var user DSGUserCache
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("dsg: failed to decode response: %w", err)
+	var identity DSGIdentity
+	if err := json.NewDecoder(resp.Body).Decode(&identity); err != nil {
+		return nil, fmt.Errorf("dsg: failed to decode identity response: %w", err)
 	}
 
-	d.cache.Store(token, &cachedEntry{data: &user, fetchedAt: time.Now()})
-	return &user, nil
+	d.identityCache.Store(token, &cachedIdentityEntry{data: &identity, fetchedAt: time.Now()})
+	return &identity, nil
 }
 
-// FetchUser validates a token and returns the user cache, or nil if invalid.
-func (d *DSGClient) FetchUser(token string) (*DSGUserCache, error) {
-	return d.fetchUser(token, false)
+// Identity validates a token and returns the principal identity, or nil if invalid.
+func (d *DSGClient) Identity(token string) (*DSGIdentity, error) {
+	return d.fetchIdentity(token, false)
 }
 
-// FetchUserFresh validates a token while bypassing the local user cache.
-func (d *DSGClient) FetchUserFresh(token string) (*DSGUserCache, error) {
-	return d.fetchUser(token, true)
+// IdentityFresh validates a token while bypassing the local identity cache.
+func (d *DSGClient) IdentityFresh(token string) (*DSGIdentity, error) {
+	return d.fetchIdentity(token, true)
 }
 
-// HasMissingTOS returns true if the user has pending TOS for the given dataset.
-func (d *DSGClient) HasMissingTOS(user *DSGUserCache, neuprintDB string) bool {
-	slug := d.DatasetSlug(neuprintDB)
-	for _, m := range user.MissingTOS {
-		if m.DatasetName == slug {
-			return true
+// DatasetDecision returns the DSG decision for one neuPrint dataset name.
+func (d *DSGClient) DatasetDecision(token, dataset, returnURL string, forceRefresh bool) (*DSGDecision, error) {
+	decisions, err := d.AuthorizeDatasets(token, []string{dataset}, returnURL, forceRefresh)
+	if err != nil {
+		return nil, err
+	}
+	return decisions[dataset], nil
+}
+
+// AuthorizeDatasets returns DSG decisions for the supplied neuPrint dataset names.
+func (d *DSGClient) AuthorizeDatasets(token string, datasets []string, returnURL string, forceRefresh bool) (map[string]*DSGDecision, error) {
+	results := make(map[string]*DSGDecision, len(datasets))
+	if len(datasets) == 0 {
+		return results, nil
+	}
+
+	type miss struct {
+		dataset string
+		key     decisionCacheKey
+		entry   authorizeEntry
+	}
+	misses := make([]miss, 0, len(datasets))
+
+	for _, dataset := range datasets {
+		key, entry := decisionKeyAndEntry(token, dataset)
+		if forceRefresh {
+			d.decisionCache.Delete(key)
+		}
+		if !forceRefresh {
+			if val, ok := d.decisionCache.Load(key); ok {
+				cached := val.(*cachedDecisionEntry)
+				if time.Since(cached.fetchedAt) < d.CacheTTL {
+					results[dataset] = cached.data
+					continue
+				}
+				d.decisionCache.Delete(key)
+			}
+		}
+		misses = append(misses, miss{dataset: dataset, key: key, entry: entry})
+	}
+
+	if len(misses) == 0 {
+		return results, nil
+	}
+
+	body := authorizeRequest{
+		Service:   d.ServiceName,
+		ReturnURL: returnURL,
+		Entries:   make([]authorizeEntry, 0, len(misses)),
+	}
+	for _, miss := range misses {
+		body.Entries = append(body.Entries, miss.entry)
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("dsg: failed to encode authorize request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", d.BaseURL+"/api/dsg/v1/authorize", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("dsg: failed to create authorize request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("dsg: authorize service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("dsg: unexpected authorize status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var decoded authorizeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return nil, fmt.Errorf("dsg: failed to decode authorize response: %w", err)
+	}
+	if len(decoded.Entries) != len(misses) {
+		return nil, fmt.Errorf("dsg: authorize returned %d entries for %d requests", len(decoded.Entries), len(misses))
+	}
+
+	now := time.Now()
+	for i := range decoded.Entries {
+		decision := decoded.Entries[i]
+		decisionCopy := decision
+		results[misses[i].dataset] = &decisionCopy
+		if decision.Decision != "tos_required" {
+			d.decisionCache.Store(
+				misses[i].key,
+				&cachedDecisionEntry{data: &decisionCopy, fetchedAt: now},
+			)
 		}
 	}
-	return false
+
+	return results, nil
 }
 
-// DatasetSlug maps a neuprint database name to a DSG dataset slug.
-// It checks the DatasetMap for both the full name (e.g. "vnc:v1.0") and the
-// version-stripped name (e.g. "vnc") before falling back to the bare name.
-func (d *DSGClient) DatasetSlug(neuprintDB string) string {
-	if slug, ok := d.DatasetMap[neuprintDB]; ok {
-		return slug
+func decisionKeyAndEntry(token, dataset string) (decisionCacheKey, authorizeEntry) {
+	name, version := splitNeuPrintDataset(dataset)
+	key := decisionCacheKey{token: token, name: name, version: version}
+	entry := authorizeEntry{Name: name, Permission: "view"}
+	if version != "" {
+		entry.Version = version
 	}
-	// Strip version suffix: "hemibrain:v1.2" → "hemibrain"
-	if idx := strings.Index(neuprintDB, ":"); idx >= 0 {
-		base := neuprintDB[:idx]
-		if slug, ok := d.DatasetMap[base]; ok {
-			return slug
-		}
-		return base
-	}
-	return neuprintDB
+	return key, entry
 }
 
-// DatasetLevel returns the neuprint AuthorizationLevel for a user on a dataset.
-func (d *DSGClient) DatasetLevel(user *DSGUserCache, neuprintDB string) AuthorizationLevel {
-	if user.Admin {
-		return ADMIN
+func splitNeuPrintDataset(dataset string) (string, string) {
+	name, version, found := strings.Cut(dataset, ":")
+	if !found {
+		return dataset, ""
 	}
-	slug := d.DatasetSlug(neuprintDB)
-	perms, ok := user.PermissionsV2[slug]
-	if !ok {
-		return NOAUTH
-	}
+	return name, version
+}
+
+func levelFromRoles(roles []string) AuthorizationLevel {
 	level := NOAUTH
-	for _, p := range perms {
-		switch p {
+	for _, role := range roles {
+		switch role {
 		case "admin":
 			return ADMIN
-		case "manage":
-			if level < ADMIN {
-				level = READWRITE
-			}
-		case "edit":
+		case "manage", "edit":
 			if level < READWRITE {
 				level = READWRITE
 			}
@@ -210,6 +334,9 @@ func (d *DSGClient) DatasetLevel(user *DSGUserCache, neuprintDB string) Authoriz
 				level = READ
 			}
 		}
+	}
+	if level < READ {
+		return READ
 	}
 	return level
 }
@@ -236,28 +363,45 @@ func ExtractToken(c echo.Context) string {
 	return ""
 }
 
-// RequireDatasetAccess checks that the authenticated user has at least the
-// given AuthorizationLevel on the specified neuprint dataset. Call this from
+// RequireDatasetAccess checks that the authenticated identity has at least the
+// given AuthorizationLevel on the specified neuPrint dataset. Call this from
 // API handlers after the authentication middleware has run.
-//
-// If the user lacks access because they have not accepted required TOS,
-// a 403 with "tos_required" is returned so the frontend can distinguish
-// this from a plain permission denial.
 func RequireDatasetAccess(c echo.Context, dataset string, level AuthorizationLevel) error {
-	userVal := c.Get("dsg_user")
-	if userVal == nil {
+	identityVal := c.Get("dsg_identity")
+	if identityVal == nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
 	}
-	user := userVal.(*DSGUserCache)
+	identity := identityVal.(*DSGIdentity)
+	if identity.Admin {
+		c.Set("level", StringFromLevel(ADMIN))
+		return nil
+	}
 
-	client := c.Get("dsg_client").(*DSGClient)
-	actual := client.DatasetLevel(user, dataset)
+	clientVal := c.Get("dsg_client")
+	if clientVal == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+	}
+	client := clientVal.(*DSGClient)
+
+	token, _ := c.Get("dsg_token").(string)
+	if token == "" {
+		token = ExtractToken(c)
+	}
+	if token == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+	}
+
+	decision, err := client.DatasetDecision(token, dataset, currentRequestURL(c), false)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+	}
+	actual := decision.Level()
 	if actual < level {
-		// Distinguish "needs TOS" from "no permission at all"
-		if client.HasMissingTOS(user, dataset) {
+		if decision.TOSRequired() {
 			return c.JSON(http.StatusForbidden, map[string]interface{}{
 				"message":      "Terms of Service acceptance required for this dataset",
 				"tos_required": true,
+				"tos_url":      decision.TOSURL,
 				"dataset":      dataset,
 			})
 		}
@@ -267,9 +411,21 @@ func RequireDatasetAccess(c echo.Context, dataset string, level AuthorizationLev
 	return nil
 }
 
+func currentRequestURL(c echo.Context) string {
+	req := c.Request()
+	if req == nil {
+		return "/"
+	}
+	scheme := "https"
+	if req.TLS == nil {
+		scheme = "http"
+	}
+	return scheme + "://" + req.Host + req.URL.RequestURI()
+}
+
 // DSGAuthMiddleware validates the dsg_token and populates the echo context
-// with the authenticated user. It performs authentication only — per-dataset
-// authorization is done by handlers via RequireDatasetAccess.
+// with the authenticated identity. It performs authentication only —
+// per-dataset authorization is done by handlers via RequireDatasetAccess.
 func DSGAuthMiddleware(client *DSGClient) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -278,41 +434,41 @@ func DSGAuthMiddleware(client *DSGClient) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
 			}
 
-			forceRefresh := c.Path() == "/profile" || c.Path() == "/dataset-access"
-			var user *DSGUserCache
+			var identity *DSGIdentity
 			var err error
-			if forceRefresh {
-				user, err = client.FetchUserFresh(token)
+			if c.Path() == "/profile" {
+				identity, err = client.IdentityFresh(token)
 			} else {
-				user, err = client.FetchUser(token)
+				identity, err = client.Identity(token)
 			}
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
 			}
-			if user == nil {
+			if identity == nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 			}
 
-			c.Set("dsg_user", user)
+			c.Set("dsg_identity", identity)
 			c.Set("dsg_client", client)
-			c.Set("email", user.Email)
+			c.Set("dsg_token", token)
+			c.Set("email", identity.Email)
 
 			return next(c)
 		}
 	}
 }
 
-// DSGAdminMiddleware requires the authenticated user to be a global admin.
+// DSGAdminMiddleware requires the authenticated identity to be a global admin.
 // Must be used after DSGAuthMiddleware.
 func DSGAdminMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			userVal := c.Get("dsg_user")
-			if userVal == nil {
+			identityVal := c.Get("dsg_identity")
+			if identityVal == nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
 			}
-			user := userVal.(*DSGUserCache)
-			if !user.Admin {
+			identity := identityVal.(*DSGIdentity)
+			if !identity.Admin {
 				return echo.NewHTTPError(http.StatusForbidden, "admin access required")
 			}
 			return next(c)
