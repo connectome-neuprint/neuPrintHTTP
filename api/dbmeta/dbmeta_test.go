@@ -530,7 +530,10 @@ func TestGetDatasets_NativeDecisionsFilterDropdown(t *testing.T) {
 func TestGetDatasets_NativeServiceAccountSeesOnlyGranted(t *testing.T) {
 	result, calls := callGetDatasetsWithDSG(
 		t,
-		&secure.DSGIdentity{Email: "", ServiceAccount: true},
+		&secure.DSGIdentity{
+			Email:          "agent-reader@service-account.dsg.local",
+			ServiceAccount: true,
+		},
 		"sa-token",
 	)
 	if calls != 1 {
