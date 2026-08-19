@@ -40,23 +40,23 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	endPoint := "custom"
 	mainapi.SupportedEndpoints[endPoint] = true
 
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom)
-	
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCustom, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCustom, api.GuardedRoute)
+
 	// Arrow IPC stream endpoint
 	arrowEndpoint := "arrow"
 	mainapi.SupportedEndpoints[arrowEndpoint] = true
-	mainapi.SetRoute(api.GET, PREFIX+"/"+arrowEndpoint, q.getCustomArrow)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+arrowEndpoint, q.getCustomArrow)
-	
+	mainapi.SetRoute(api.GET, PREFIX+"/"+arrowEndpoint, q.getCustomArrow, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+arrowEndpoint, q.getCustomArrow, api.GuardedRoute)
+
 	// Add swagger documentation for the Arrow endpoint
 	mainapi.AddSwaggerDefinition("ArrowResponse", "Apache Arrow IPC Stream format response containing query results")
 	mainapi.AddSwaggerTag("arrow", "Apache Arrow", "Endpoints returning data in Apache Arrow format")
-	
+
 	// Create and return the ConnectomeCustom object
 	customAPI := &ConnectomeCustom{api: mainapi}
 	mainapi.Package = customAPI
-	
+
 	return nil
 }
 

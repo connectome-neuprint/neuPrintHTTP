@@ -24,23 +24,29 @@ type cypherAPI struct {
 }
 
 var TransactionNum = 1
-var CypherTransaction map[int]storage.CypherTransaction
+
+type transactionState struct {
+	transaction storage.CypherTransaction
+	dataset     string
+}
+
+var CypherTransaction map[int]transactionState
 var mux sync.Mutex
 
-func setTransaction(trans storage.CypherTransaction) int {
+func setTransaction(trans storage.CypherTransaction, dataset string) int {
 	mux.Lock()
 	defer mux.Unlock()
-	CypherTransaction[TransactionNum] = trans
+	CypherTransaction[TransactionNum] = transactionState{transaction: trans, dataset: dataset}
 	TransactionNum += 1
 	return TransactionNum - 1
 }
-func getTransaction(transid int) (storage.CypherTransaction, error) {
+func getTransaction(transid int) (transactionState, error) {
 	mux.Lock()
 	defer mux.Unlock()
 
 	trans, ok := CypherTransaction[transid]
 	if !ok {
-		return nil, fmt.Errorf("Transaction id not found")
+		return transactionState{}, fmt.Errorf("Transaction id not found")
 	}
 	return trans, nil
 }
@@ -53,7 +59,7 @@ func deleteTransaction(transid int) {
 // setupAPI sets up the optionally supported custom endpoints
 func setupAPI(mainapi *api.ConnectomeAPI) error {
 	q := &cypherAPI{mainapi.Store}
-	CypherTransaction = make(map[int]storage.CypherTransaction)
+	CypherTransaction = make(map[int]transactionState)
 
 	// custom endpoint
 	endPoint := "cypher"
@@ -147,7 +153,7 @@ func (ca cypherAPI) startTrans(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	transid := setTransaction(trans)
+	transid := setTransaction(trans, req.Dataset)
 	resp := &transResp{transid}
 
 	return c.JSON(http.StatusOK, resp)
@@ -182,14 +188,17 @@ func (ca cypherAPI) commitTrans(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	trans, err := getTransaction(tid)
+	state, err := getTransaction(tid)
 	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
+	if err := secure.RequireDatasetAccess(c, state.dataset, secure.ADMIN); err != nil {
+		return err
+	}
 
 	defer deleteTransaction(tid)
-	if err := trans.Commit(); err != nil {
+	if err := state.transaction.Commit(); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
@@ -227,14 +236,17 @@ func (ca cypherAPI) killTrans(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	trans, err := getTransaction(tid)
+	state, err := getTransaction(tid)
 	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
+	if err := secure.RequireDatasetAccess(c, state.dataset, secure.ADMIN); err != nil {
+		return err
+	}
 
 	defer deleteTransaction(tid)
-	if err := trans.Kill(); err != nil {
+	if err := state.transaction.Kill(); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
@@ -315,11 +327,18 @@ func (ca cypherAPI) execTranCypher(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 
-	trans, err := getTransaction(tid)
+	state, err := getTransaction(tid)
 	if err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
+	if req.Dataset != "" && req.Dataset != state.dataset {
+		return c.JSON(http.StatusBadRequest, api.ErrorInfo{Error: "transaction dataset does not match request"})
+	}
+	if err := secure.RequireDatasetAccess(c, state.dataset, secure.ADMIN); err != nil {
+		return err
+	}
+	c.Set("dataset", state.dataset)
 
 	// set cypher for debugging
 	c.Set("debug", req.Cypher)
@@ -333,7 +352,7 @@ func (ca cypherAPI) execTranCypher(c echo.Context) error {
 		}
 	}
 
-	if data, err := trans.CypherRequest(req.Cypher, false); err != nil {
+	if data, err := state.transaction.CypherRequest(req.Cypher, false); err != nil {
 		errJSON := api.ErrorInfo{Error: err.Error()}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	} else {

@@ -27,22 +27,22 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 		// version endpoint
 		endpoint := "version"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getVersion)
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getVersion, api.GuardedRoute)
 		mainapi.SupportedEndpoints[endpoint] = true
 
 		// database endpoint
 		endpoint = "database"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatabase)
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatabase, api.GuardedRoute)
 		mainapi.SupportedEndpoints[endpoint] = true
 
 		// datasets endpoint
 		endpoint = "datasets"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatasets)
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDatasets, api.NamedExceptionRoute)
 		mainapi.SupportedEndpoints[endpoint] = true
 
 		// instances endpoint
 		endpoint = "instances"
-		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDataInstances)
+		mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDataInstances, api.GuardedRoute)
 		mainapi.SupportedEndpoints[endpoint] = true
 	} else {
 		// meta interface is required by default
@@ -78,6 +78,9 @@ func (sa storeAPI) getVersion(c echo.Context) error {
 	// security:
 	// - Bearer: []
 
+	if err := requireAnyStoreReadAccess(c, sa.Store); err != nil {
+		return err
+	}
 	if data, err := sa.Store.GetVersion(); err != nil {
 		return err
 	} else {
@@ -115,6 +118,9 @@ func (sa storeAPI) getDatabase(c echo.Context) error {
 	// security:
 	// - Bearer: []
 
+	if err := requireAnyStoreReadAccess(c, sa.Store); err != nil {
+		return err
+	}
 	if loc, desc, err := sa.Store.GetDatabase(); err != nil {
 		return err
 	} else {
@@ -162,9 +168,8 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// Get the hidden query parameter
 	includeHidden := c.QueryParam("hidden") == "true"
 
-	// Retrieve DSG identity/client from context (set by DSGAuthMiddleware).
-	// When auth is disabled or public-read, these will be nil and we
-	// skip per-dataset filtering.
+	// Retrieve DSG identity/client from context. Anonymous callers intentionally
+	// see this named-exception listing pending the dataset-visibility follow-up.
 	var dsgIdentity *secure.DSGIdentity
 	var dsgClient *secure.DSGClient
 	if u := c.Get("dsg_identity"); u != nil {
@@ -288,6 +293,9 @@ func (sa storeAPI) getDataInstances(c echo.Context) error {
 	//                 description: "dataset supported by instance"
 	// security:
 	// - Bearer: []
+	if err := requireAnyStoreReadAccess(c, sa.Store); err != nil {
+		return err
+	}
 	allstores := sa.Store.GetStores()
 
 	res := make(map[string][]instanceInfo)
@@ -310,4 +318,16 @@ func (sa storeAPI) getDataInstances(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, res)
+}
+
+func requireAnyStoreReadAccess(c echo.Context, store storage.Store) error {
+	datasets, err := store.GetDatasets()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "dataset inventory is unavailable")
+	}
+	names := make([]string, 0, len(datasets))
+	for dataset := range datasets {
+		names = append(names, dataset)
+	}
+	return secure.RequireAnyDatasetAccess(c, names, secure.READ)
 }

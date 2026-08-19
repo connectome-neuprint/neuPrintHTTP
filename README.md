@@ -199,8 +199,6 @@ Usage: neuprintHTTP [OPTIONS] CONFIG.json
         port for Arrow Flight gRPC server (default 11001)
   -disable-arrow
         disable Arrow format support (enabled by default)
-  -public_read
-        allow all users read access
   -pid-file string
         file for pid
   -verbose
@@ -266,7 +264,7 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 
 #### DatasetGateway (DSG) Authentication
 
-When authentication is enabled (`"disable-auth": false`), neuPrintHTTP delegates all authentication and per-dataset authorization to a [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) instance. Users authenticate via DSG API keys (`dsg_token`), and per-dataset access is checked against DSG's permissions.
+neuPrintHTTP delegates per-dataset authorization to a [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) instance. A request with no credential may read a DSG-public dataset; closed datasets require authentication. Any supplied credential is validated and is never silently treated as anonymous. Public access is read-only: all mutations require an explicit dataset grant, while DSG global administrators retain their existing bypass.
 
 Add these fields to your config to enable DSG auth:
 
@@ -285,7 +283,7 @@ Add these fields to your config to enable DSG auth:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `dsg-url` | Yes (when auth enabled) | Base URL of the DatasetGateway service |
-| `dsg-cache-ttl` | No | Seconds to cache DSG identity and dataset decisions (default: 300) |
+| `dsg-cache-ttl` | No | Seconds to cache DSG identity and non-TOS dataset decisions (default: 300). A public-to-closed change can remain readable anonymously until this TTL expires. |
 | `dsg-service-name` | No | Service name sent to DSG native authorization (default: "neuprint") |
 
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
@@ -315,13 +313,13 @@ For more detailed configuration options, refer to `config/config.go`.
 
 ### No Auth Mode
 
-This is the easiest way to use neuprint http.  It launches an http server and does not require user authorization.  To use this, just set "disable-auth" to true as above.
+This development-only mode disables all authorization. Set `"disable-auth"` to true to install a synthetic global-admin identity for every API request; no DSG calls are made and all read, write, raw-keyvalue, and admin guards pass. The server emits a prominent startup warning whenever this mode is active. The default is false.
 
 ### Auth Mode
 
 Authentication and authorization are handled by [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) (DSG). Set `"disable-auth": false` and provide a `"dsg-url"` in your config (see the DSG configuration section above).
 
-Users authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. The dataset list endpoint also filters out datasets the user cannot access.
+Users may authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. Anonymous callers can read only datasets DSG marks public. The dataset-list metadata endpoint remains visible as a documented compatibility exception pending dataset-visibility filtering work.
 
 HTTPS is required when auth is enabled. To generate test certificates for local development:
 

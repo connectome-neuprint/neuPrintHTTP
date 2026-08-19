@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -27,7 +28,7 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	endPoint := "mesh"
 	mainapi.SupportedEndpoints[endPoint] = true
 
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:dataset/:roi", q.getMesh)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:dataset/:roi", q.getMesh, api.GuardedRoute)
 	mainapi.SetAdminRoute(api.POST, PREFIX+"/"+endPoint+"/:dataset/:roi", q.setMesh)
 	return nil
 }
@@ -66,6 +67,9 @@ func (ma masterAPI) getMesh(c echo.Context) error {
 	if dataset == "" || roiname == "" {
 		errJSON := api.ErrorInfo{Error: "parameters not properly provided in uri"}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+	if err := secure.RequireDatasetAccess(c, dataset, secure.READ); err != nil {
+		return err
 	}
 
 	store, err := ma.Store.FindStore("roimeshes", dataset)
@@ -126,6 +130,9 @@ func (ma masterAPI) setMesh(c echo.Context) error {
 	if dataset == "" || roiname == "" {
 		errJSON := api.ErrorInfo{Error: "parameters not properly provided in uri"}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+	if err := secure.RequireDatasetAccess(c, dataset, secure.ADMIN); err != nil {
+		return err
 	}
 
 	store, err := ma.Store.FindStore("roimeshes", dataset)

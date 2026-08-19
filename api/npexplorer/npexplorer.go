@@ -28,41 +28,41 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	q := &cypherAPI{mainapi.Store}
 
 	endPoint := "findneurons"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getFindNeurons)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getFindNeurons)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getFindNeurons, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getFindNeurons, api.GuardedRoute)
 	endPoint = "neuronmetavals"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMetaVals)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMetaVals, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMetaVals, api.GuardedRoute)
 	endPoint = "neuronmeta"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMeta)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMeta)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getNeuronMeta, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getNeuronMeta, api.GuardedRoute)
 	endPoint = "roiconnectivity"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIConnectivity)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIConnectivity)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIConnectivity, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIConnectivity, api.GuardedRoute)
 	endPoint = "rankedtable"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getRankedTable)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getRankedTable)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getRankedTable, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getRankedTable, api.GuardedRoute)
 	endPoint = "simpleconnections"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getSimpleConnections)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getSimpleConnections)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getSimpleConnections, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getSimpleConnections, api.GuardedRoute)
 	endPoint = "roisinneuron"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIsInNeuron)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIsInNeuron)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getROIsInNeuron, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getROIsInNeuron, api.GuardedRoute)
 	endPoint = "commonconnectivity"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCommonConnectivity)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCommonConnectivity)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCommonConnectivity, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCommonConnectivity, api.GuardedRoute)
 	endPoint = "autapses"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getAutapses)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getAutapses)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getAutapses, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getAutapses, api.GuardedRoute)
 	endPoint = "distribution"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getDistribution)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getDistribution)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getDistribution, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getDistribution, api.GuardedRoute)
 	endPoint = "completeness"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCompleteness)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCompleteness)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint, q.getCompleteness, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint, q.getCompleteness, api.GuardedRoute)
 	endPoint = "celltype"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:dataset/:type", q.getCellType)
-	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint+"/:dataset/:type", q.getCellType)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:dataset/:type", q.getCellType, api.GuardedRoute)
+	mainapi.SetRoute(api.POST, PREFIX+"/"+endPoint+"/:dataset/:type", q.getCellType, api.GuardedRoute)
 	return nil
 }
 

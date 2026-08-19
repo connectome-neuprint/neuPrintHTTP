@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -27,7 +28,7 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 	endPoint := "key"
 	mainapi.SupportedEndpoints[endPoint] = true
 
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:instance/:key", q.getKV)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endPoint+"/:instance/:key", q.getKV, api.GuardedRoute)
 	mainapi.SetAdminRoute(api.POST, PREFIX+"/"+endPoint+"/:instance/:key", q.setKV)
 	return nil
 }
@@ -72,6 +73,9 @@ func (ma masterAPI) getKV(c echo.Context) error {
 	if !ok {
 		errJSON := api.ErrorInfo{Error: "provided instance not found"}
 		return c.JSON(http.StatusBadRequest, errJSON)
+	}
+	if err := requireStoreDatasetAccess(c, store, secure.READ); err != nil {
+		return err
 	}
 	kvstore, ok := store.(storage.KeyValue)
 	if !ok {
@@ -133,6 +137,9 @@ func (ma masterAPI) setKV(c echo.Context) error {
 		errJSON := api.ErrorInfo{Error: "provided instance not found"}
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
+	if err := requireStoreDatasetAccess(c, store, secure.ADMIN); err != nil {
+		return err
+	}
 	kvstore, ok := store.(storage.KeyValue)
 	if !ok {
 		errJSON := api.ErrorInfo{Error: "database doesn't support keyvalue"}
@@ -151,4 +158,16 @@ func (ma masterAPI) setKV(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errJSON)
 	}
 	return c.String(http.StatusOK, "")
+}
+
+func requireStoreDatasetAccess(c echo.Context, store storage.SimpleStore, level secure.AuthorizationLevel) error {
+	datasets, err := store.GetDatasets()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "dataset ownership is unavailable")
+	}
+	names := make([]string, 0, len(datasets))
+	for dataset := range datasets {
+		names = append(names, dataset)
+	}
+	return secure.RequireDatasetsAccess(c, names, level)
 }

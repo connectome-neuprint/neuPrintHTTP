@@ -16,7 +16,7 @@ type Config struct {
 	KafkaServers    []string      `json:"kafka-servers,omitempty"`          // kafka servers for logging -- must build with kafka flag
 	LoggerFile      string        `json:"log-file,omitempty"`               // location for log file
 	Timeout         int           `json:"timeout,omitempty"`                // timeout in seconds for neo4j requests (default 60 seconds)
-	DisableAuth     bool          `json:"disable-auth,omitempty"`           // set true to disable auth
+	DisableAuth     bool          `json:"disable-auth,omitempty"`           // dev only: synthetic global admin; disables all authorization
 	Hostname        string        `json:"hostname,omitempty"`               // name of server
 	CertPEM         string        `json:"ssl-cert,omitempty"`               // https certificate
 	KeyPEM          string        `json:"ssl-key,omitempty"`                // https private key

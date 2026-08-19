@@ -3,177 +3,91 @@ package custom
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow/flight"
 	"github.com/apache/arrow-go/v18/arrow/memory"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
-// MockCypher is reused from arrow_test.go
-// It provides a simple implementation of the Cypher interface for testing
+// These are direct service tests rather than loopback-network tests. That
+// keeps the Flight contract testable in restricted build sandboxes where
+// binding even an ephemeral localhost port is forbidden.
+type fakeServerStream struct{}
 
-// mockFlightServer creates a local Flight server for testing
-func setupMockFlightServer(t *testing.T) (string, func()) {
-	// Create a mock store
-	mockCypherStore := MockCypher{}
-	mockStore := &mockStoreImpl{
-		cypherStore: mockCypherStore,
-	}
+func (fakeServerStream) SetHeader(metadata.MD) error  { return nil }
+func (fakeServerStream) SendHeader(metadata.MD) error { return nil }
+func (fakeServerStream) SetTrailer(metadata.MD)       {}
+func (fakeServerStream) Context() context.Context     { return context.Background() }
+func (fakeServerStream) SendMsg(interface{}) error    { return nil }
+func (fakeServerStream) RecvMsg(interface{}) error    { return io.EOF }
 
-	// We don't actually use the FlightService from our implementation
-	// because we're directly setting up the test server
+type fakeDoActionStream struct {
+	fakeServerStream
+	results []*flight.Result
+}
 
-	// Start the server
-	server := flight.NewFlightServer()
-	err := server.Init("localhost:0") // Use port 0 to automatically select an available port
-	if err != nil {
-		t.Fatalf("Failed to initialize flight server: %v", err)
-	}
+func (s *fakeDoActionStream) Send(result *flight.Result) error {
+	s.results = append(s.results, result)
+	return nil
+}
 
-	// Initialize the server implementation
-	svc := &neuPrintFlightServer{
-		store:     mockStore,
+type fakeDoGetStream struct {
+	fakeServerStream
+	data []*flight.FlightData
+}
+
+func (s *fakeDoGetStream) Send(data *flight.FlightData) error {
+	s.data = append(s.data, data)
+	return nil
+}
+
+func testFlightService() *neuPrintFlightServer {
+	return &neuPrintFlightServer{
+		store:     &mockStoreImpl{cypherStore: MockCypher{}},
 		allocator: memory.DefaultAllocator,
-	}
-
-	// Register the service
-	server.RegisterFlightService(svc)
-
-	// Start the server
-	go server.Serve()
-
-	// Get the server address
-	addr := server.Addr().String()
-
-	// Return the server address and a cleanup function
-	return addr, func() {
-		server.Shutdown()
 	}
 }
 
-// Test DoAction functionality
 func TestFlightDoAction(t *testing.T) {
-	// Set up the flight server
-	addr, cleanup := setupMockFlightServer(t)
-	defer cleanup()
-
-	// Create a client
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to server: %v", err)
-	}
-	defer conn.Close()
-
-	client := flight.NewFlightServiceClient(conn)
-
-	// Create a test request
 	query := "MATCH (n) RETURN n.id LIMIT 10"
 	dataset := "test"
-	reqBody, _ := json.Marshal(map[string]string{
-		"cypher":  query,
-		"dataset": dataset,
-	})
-	actionRequest := &flight.Action{
-		Type: "ExecuteQuery",
-		Body: reqBody,
-	}
+	reqBody, _ := json.Marshal(map[string]string{"cypher": query, "dataset": dataset})
+	stream := &fakeDoActionStream{}
 
-	// Call DoAction
-	stream, err := client.DoAction(context.Background(), actionRequest)
+	err := testFlightService().DoAction(&flight.Action{Type: "ExecuteQuery", Body: reqBody}, stream)
 	if err != nil {
 		t.Fatalf("DoAction failed: %v", err)
 	}
-
-	// Read the response
-	result, err := stream.Recv()
-	if err != nil {
-		t.Fatalf("Failed to receive action result: %v", err)
+	if len(stream.results) != 1 {
+		t.Fatalf("results=%d, want 1", len(stream.results))
 	}
-
-	// Verify the response contains a ticket ID
-	ticketID := string(result.Body)
+	ticketID := string(stream.results[0].Body)
 	expectedPrefix := "query-" + dataset
 	if len(ticketID) <= len(expectedPrefix) || ticketID[:len(expectedPrefix)] != expectedPrefix {
-		t.Errorf("Expected ticket ID to start with %q, got %q", expectedPrefix, ticketID)
+		t.Errorf("expected ticket ID to start with %q, got %q", expectedPrefix, ticketID)
 	}
 }
 
-// Test GetFlightInfo functionality
 func TestFlightGetFlightInfo(t *testing.T) {
-	// Set up the flight server
-	addr, cleanup := setupMockFlightServer(t)
-	defer cleanup()
-
-	// Create a client
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to server: %v", err)
-	}
-	defer conn.Close()
-
-	client := flight.NewFlightServiceClient(conn)
-
-	// Create a test descriptor
-	descriptor := &flight.FlightDescriptor{
-		Type: 2, // CMD type
-		Cmd:  []byte("MATCH (n) RETURN n.id LIMIT 10"),
-	}
-
-	// Call GetFlightInfo
-	info, err := client.GetFlightInfo(context.Background(), descriptor)
+	descriptor := &flight.FlightDescriptor{Type: 2, Cmd: []byte("MATCH (n) RETURN n.id LIMIT 10")}
+	info, err := testFlightService().GetFlightInfo(context.Background(), descriptor)
 	if err != nil {
 		t.Fatalf("GetFlightInfo failed: %v", err)
 	}
-
-	// Verify the response
-	if info == nil {
-		t.Fatalf("Expected FlightInfo, got nil")
-	}
-
-	if len(info.Endpoint) == 0 {
-		t.Errorf("Expected endpoints, got none")
+	if info == nil || len(info.Endpoint) == 0 {
+		t.Fatalf("unexpected FlightInfo: %v", info)
 	}
 }
 
-// Test DoGet functionality
 func TestFlightDoGet(t *testing.T) {
-	// Set up the flight server
-	addr, cleanup := setupMockFlightServer(t)
-	defer cleanup()
-
-	// Create a client
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to server: %v", err)
-	}
-	defer conn.Close()
-
-	client := flight.NewFlightServiceClient(conn)
-
-	// Create a test ticket
-	ticket := &flight.Ticket{
-		Ticket: []byte("query-test-MATCH (n) RETURN n.id LIMIT 10"),
-	}
-
-	// Call DoGet
-	stream, err := client.DoGet(context.Background(), ticket)
-	if err != nil {
+	stream := &fakeDoGetStream{}
+	ticket := &flight.Ticket{Ticket: []byte("query-test-MATCH (n) RETURN n.id LIMIT 10")}
+	if err := testFlightService().DoGet(ticket, stream); err != nil {
 		t.Fatalf("DoGet failed: %v", err)
 	}
-
-	// Read the schema
-	msg, err := stream.Recv()
-	if err != nil {
-		t.Fatalf("Failed to receive schema message: %v", err)
+	if len(stream.data) != 1 || len(stream.data[0].DataHeader) == 0 {
+		t.Fatalf("expected one schema message, got %+v", stream.data)
 	}
-
-	// Verify we got a schema
-	if len(msg.DataHeader) == 0 {
-		t.Errorf("Expected schema header, got empty data")
-	}
-
-	// We're just checking if we got a response with data
-	// The exact schema validation depends on the implementation details
 }

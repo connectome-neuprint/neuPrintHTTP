@@ -7,6 +7,7 @@ import (
 	"math/rand"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
+	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/knightjdr/hclust"
 	"github.com/labstack/echo/v4"
@@ -58,19 +59,19 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 
 	// roi conenctivity cache
 	endpoint := "roiconnectivity"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROIConnectivity)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROIConnectivity, api.GuardedRoute)
 	mainapi.SupportedEndpoints[endpoint] = true
 	cachedResults[ROIConn] = make(map[string]interface{})
 
 	// roi completeness cache (TODO: connection completeness)
 	endpoint = "roicompleteness"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROICompleteness)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getROICompleteness, api.GuardedRoute)
 	mainapi.SupportedEndpoints[endpoint] = true
 	cachedResults[ROIComp] = make(map[string]interface{})
 
 	// cell type of the data
 	endpoint = "dailytype"
-	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDailyType)
+	mainapi.SetRoute(api.GET, PREFIX+"/"+endpoint, q.getDailyType, api.GuardedRoute)
 	mainapi.SupportedEndpoints[endpoint] = true
 	cachedResults[DailyType] = make(map[string]interface{})
 
@@ -100,7 +101,7 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 				} else {
 					fmt.Printf("Cached daily type for dataset %s\n", dataset)
 				}
-				
+
 				// Mark this dataset as refreshed
 				refreshMux.Lock()
 				datasetLastRefresh[dataset] = now
@@ -111,38 +112,38 @@ func setupAPI(mainapi *api.ConnectomeAPI) error {
 		// Check for stale cache every hour
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			datasets, err := mainapi.Store.GetDatasets()
 			if err != nil {
 				continue
 			}
-			
+
 			now := time.Now()
 			for dataset := range datasets {
 				refreshMux.RLock()
 				lastRefresh, exists := datasetLastRefresh[dataset]
 				refreshMux.RUnlock()
-				
+
 				if !exists {
 					continue // Skip if we don't have refresh info
 				}
-				
+
 				// Add random jitter: 24 hours + (0-10) * 10 minutes
 				jitterMinutes := rand.Intn(11) * 10 // 0, 10, 20, ..., 100 minutes
 				refreshThreshold := 24*time.Hour + time.Duration(jitterMinutes)*time.Minute
-				
+
 				if now.Sub(lastRefresh) >= refreshThreshold {
-					fmt.Printf("Cache expired for dataset %s (age: %v), clearing cache\n", 
+					fmt.Printf("Cache expired for dataset %s (age: %v), clearing cache\n",
 						dataset, now.Sub(lastRefresh))
-					
+
 					// Clear this dataset's cache
 					cacheMux.Lock()
 					delete(cachedResults[ROIConn], dataset)
-					delete(cachedResults[ROIComp], dataset) 
+					delete(cachedResults[ROIComp], dataset)
 					delete(cachedResults[DailyType], dataset)
 					cacheMux.Unlock()
-					
+
 					// Don't update refresh time - let it refresh on next access
 				}
 			}
@@ -173,12 +174,12 @@ func (ca cypherAPI) roiConnectivity(dataset string) (res interface{}, err error)
 	cacheMux.Lock()
 	cachedResults[ROIConn][dataset] = res
 	cacheMux.Unlock()
-	
+
 	// Update refresh timestamp when we populate cache
 	refreshMux.Lock()
 	datasetLastRefresh[dataset] = time.Now()
 	refreshMux.Unlock()
-	
+
 	return
 }
 
@@ -223,6 +224,9 @@ func (ca cypherAPI) getROIConnectivity(c echo.Context) error {
 	// - Bearer: []
 
 	dataset := c.QueryParam("dataset")
+	if err := secure.RequireDatasetAccess(c, dataset, secure.READ); err != nil {
+		return err
+	}
 
 	res, err := ca.roiConnectivity(dataset)
 	if err != nil {
@@ -430,7 +434,7 @@ func (ca cypherAPI) roiCompleteness(dataset string) (res interface{}, err error)
 	cacheMux.Lock()
 	cachedResults[ROIComp][dataset] = res
 	cacheMux.Unlock()
-	
+
 	// Update refresh timestamp when we populate cache
 	refreshMux.Lock()
 	datasetLastRefresh[dataset] = time.Now()
@@ -478,6 +482,9 @@ func (ca cypherAPI) getROICompleteness(c echo.Context) error {
 	// - Bearer: []
 
 	dataset := c.QueryParam("dataset")
+	if err := secure.RequireDatasetAccess(c, dataset, secure.READ); err != nil {
+		return err
+	}
 
 	res, err := ca.roiCompleteness(dataset)
 	if err != nil {
@@ -536,7 +543,7 @@ func (ca cypherAPI) dailyType(dataset string) (res []byte, err error) {
 	cacheMux.Lock()
 	cachedResults[DailyType][dataset] = res
 	cacheMux.Unlock()
-	
+
 	// Update refresh timestamp when we populate cache
 	refreshMux.Lock()
 	datasetLastRefresh[dataset] = time.Now()
@@ -590,6 +597,9 @@ func (ca cypherAPI) getDailyType(c echo.Context) error {
 	// - Bearer: []
 
 	dataset := c.QueryParam("dataset")
+	if err := secure.RequireDatasetAccess(c, dataset, secure.READ); err != nil {
+		return err
+	}
 
 	res, err := ca.dailyType(dataset)
 	if err != nil {

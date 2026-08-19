@@ -143,8 +143,9 @@ func TestRequireDatasetAccess_TOSResponseIncludesURL(t *testing.T) {
 	c.Set("dsg_client", client)
 	c.Set("dsg_token", "tok-user")
 
-	if err := RequireDatasetAccess(c, "hemibrain:v1.2.1", READ); err != nil {
-		t.Fatalf("handler returned error: %v", err)
+	err := RequireDatasetAccess(c, "hemibrain:v1.2.1", READ)
+	if err != echo.ErrForbidden {
+		t.Fatalf("handler error = %v, want echo.ErrForbidden after writing TOS response", err)
 	}
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)

@@ -26,9 +26,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -44,6 +46,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+const publicReadRemovalMessage = "-public_read has been removed: anonymous read access to DSG-public datasets is now always on, and closed datasets always require authorization; remove this flag from the service command"
 
 func customUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] CONFIG.json\n", os.Args[0])
@@ -64,11 +68,76 @@ func neuprintLogo() {
 
 }
 
+func flagWasProvided(args []string, name string) bool {
+	for _, arg := range args {
+		trimmed := strings.TrimLeft(arg, "-")
+		if trimmed == arg {
+			continue
+		}
+		flagName, _, _ := strings.Cut(trimmed, "=")
+		if flagName == name {
+			return true
+		}
+	}
+	return false
+}
+
+func writeDisableAuthWarning(w io.Writer) {
+	fmt.Fprintln(w, "************************************************************")
+	fmt.Fprintln(w, "WARNING: disable-auth is ON; ALL AUTHORIZATION IS DISABLED")
+	fmt.Fprintln(w, "************************************************************")
+}
+
+func registerBaseAPIRoutes(readGrp *echo.Group, options config.Config) {
+	// swagger:operation GET /api/serverinfo apimeta serverinfo
+	//
+	// Reports whether this server serves anonymous reads for DSG-public data.
+	// IsPublic is retained for API compatibility and is always true, including
+	// zero-public-dataset deployments and disable-auth mode.
+	api.SetGroupRoute(readGrp, api.GET, "/serverinfo", func(c echo.Context) error {
+		info := struct {
+			IsPublic bool
+			Version  string
+		}{true, version.Version}
+		return c.JSON(http.StatusOK, info)
+	}, api.NamedExceptionRoute)
+
+	api.SetGroupRoute(readGrp, api.GET, "/vimoserver", func(c echo.Context) error {
+		info := struct {
+			Url string
+		}{options.VimoServer}
+		return c.JSON(http.StatusOK, info)
+	}, api.NamedExceptionRoute)
+
+	if options.SwaggerDir != "" {
+		readGrp.Static("/help", options.SwaggerDir)
+		api.DeclareRoutePolicy(http.MethodGet, "/api/help*", api.NamedExceptionRoute)
+	}
+
+	if options.NgDir != "" {
+		api.SetGroupRoute(readGrp, api.GET, "/npexplorer/nglayers/:dataset", func(c echo.Context) error {
+			filename := c.Param("dataset")
+			if filename == "" || filepath.Base(filename) != filename {
+				return echo.NewHTTPError(http.StatusBadRequest, "invalid neuroglancer layer name")
+			}
+			dataset := strings.TrimSuffix(filename, ".json")
+			dataset = strings.TrimSuffix(dataset, "-actions")
+			if dataset == "" {
+				return echo.NewHTTPError(http.StatusBadRequest, "invalid neuroglancer dataset")
+			}
+			if err := secure.RequireDatasetAccess(c, dataset, secure.READ); err != nil {
+				return err
+			}
+			return c.File(filepath.Join(options.NgDir, filename))
+		}, api.GuardedRoute)
+	}
+}
+
 func main() {
 
 	// create command line argument for port
 	var port = 11000
-	var publicRead = false
+	var removedPublicRead = false
 	var pidfile = ""
 	var arrowFlightPort = 11001
 	var disableArrow = false
@@ -77,7 +146,7 @@ func main() {
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
-	flag.BoolVar(&publicRead, "public_read", false, "allow all users read access")
+	flag.BoolVar(&removedPublicRead, "public_read", false, "removed; anonymous DSG-public reads are always enabled")
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
 	flag.BoolVar(&storage.VerboseNumeric, "verbose-numeric", false, "enable verbose numeric type conversion debugging")
 	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")
@@ -85,6 +154,10 @@ func main() {
 	flag.StringVar(&mockDataset, "mock-dataset", "", "comma-separated dataset names to advertise in no-data mode (e.g. fish2,hemibrain)")
 	flag.IntVar(&arrowFlightPort, "arrow-flight-port", 11001, "port for Arrow Flight gRPC server")
 	flag.Parse()
+	if flagWasProvided(os.Args[1:], "public_read") {
+		fmt.Fprintln(os.Stderr, publicReadRemovalMessage)
+		os.Exit(2)
+	}
 	if flag.NArg() != 1 {
 		flag.Usage()
 		return
@@ -95,6 +168,9 @@ func main() {
 	if err != nil {
 		fmt.Print(err)
 		return
+	}
+	if options.DisableAuth {
+		writeDisableAuthWarning(os.Stderr)
 	}
 
 	// Set Arrow configuration
@@ -199,19 +275,13 @@ func main() {
 	var dsgClient *secure.DSGClient
 	var secureAPI *secure.EchoSecure
 
-	passthrough := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			return next(c)
-		}
+	if !options.DisableAuth && options.DSGUrl == "" {
+		fmt.Println("ERROR: dsg-url is required when auth is enabled")
+		return
 	}
+	dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName)
 
 	if !options.DisableAuth {
-		if options.DSGUrl == "" {
-			fmt.Println("ERROR: dsg-url is required when auth is enabled")
-			return
-		}
-		dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName)
-
 		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
 		if err != nil {
 			fmt.Println(err)
@@ -221,50 +291,10 @@ func main() {
 
 	// create read only group
 	readGrp := e.Group("/api")
+	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth))
 
-	// Build auth and admin middleware based on settings.
-	var authMiddleware echo.MiddlewareFunc
-	var adminMiddleware echo.MiddlewareFunc
-
-	if options.DisableAuth {
-		authMiddleware = passthrough
-		adminMiddleware = passthrough
-	} else {
-		authMiddleware = secure.DSGAuthMiddleware(dsgClient)
-		adminMiddleware = secure.DSGAdminMiddleware()
-	}
-
-	if publicRead {
-		// Public read: no auth required for /api routes
-		readGrp.Use(passthrough)
-	} else {
-		readGrp.Use(authMiddleware)
-	}
-
-	// swagger:operation GET /api/serverinfo apimeta serverinfo
-	//
-	// Returns whether the server is public
-	//
-	// If it is public,  no authorization is required
-	//
-	// ---
-	// responses:
-	//   200:
-	//     description: "successful operation"
-	e.GET("/api/serverinfo", func(c echo.Context) error {
-		info := struct {
-			IsPublic bool
-			Version  string
-		}{publicRead || options.DisableAuth, version.Version}
-		return c.JSON(http.StatusOK, info)
-	})
-
-	e.GET("/api/vimoserver", func(c echo.Context) error {
-		info := struct {
-			Url string
-		}{options.VimoServer}
-		return c.JSON(http.StatusOK, info)
-	})
+	adminMiddleware := secure.DSGAdminMiddleware()
+	registerBaseAPIRoutes(readGrp, options)
 
 	// setup default page
 	if options.StaticDir != "" {
@@ -302,25 +332,6 @@ func main() {
 	//   200:
 	//     description: "successful operation"
 
-	if options.SwaggerDir != "" {
-		e.Static("/api/help", options.SwaggerDir)
-	}
-
-	// swagger:operation GET /api/npexplorer/nglayers
-	//
-	// layer settings for neuroglancer view
-	//
-	// JSON files containing neuroglancer layer settings per dataset
-	//
-	// ---
-	// responses:
-	//   200:
-	//     description: "successful operation"
-
-	if options.NgDir != "" {
-		e.Static("/api/npexplorer/nglayers", options.NgDir)
-	}
-
 	// The admin middleware is chained after auth, so admin routes get both
 	// authentication and the DSG admin gate.
 	combinedAdmin := func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -345,7 +356,7 @@ func main() {
 	if options.DisableAuth {
 		if options.CertPEM != "" && options.KeyPEM != "" {
 			// Create a minimal secure config just for SSL
-			secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, "", nil)
+			secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, "", dsgClient)
 			if err != nil {
 				fmt.Println(err)
 				return
