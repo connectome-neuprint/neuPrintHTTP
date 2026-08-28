@@ -62,7 +62,9 @@ func serviceReturnURL(c echo.Context, dataset string) string {
 // dsgLogoutHandler redirects to DatasetGateway's logout endpoint.
 func dsgLogoutHandler(dsgURL string) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		return c.Redirect(http.StatusFound, dsgURL+"/api/v1/logout")
+		absoluteRedirect := requestBaseURL(c) + "/"
+		target := dsgURL + "/api/v1/logout?redirect=" + url.QueryEscape(absoluteRedirect)
+		return c.Redirect(http.StatusFound, target)
 	}
 }
 

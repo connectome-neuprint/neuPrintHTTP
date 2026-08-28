@@ -89,6 +89,58 @@ func TestDsgLoginHandler_RedirectURL(t *testing.T) {
 	}
 }
 
+func TestDsgLogoutRoutes_RedirectWithoutAuthentication(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		cookie string
+	}{
+		{name: "GET without cookie", method: http.MethodGet},
+		{name: "GET with stale cookie", method: http.MethodGet, cookie: "garbage-stale-token"},
+		{name: "POST without cookie", method: http.MethodPost},
+		{name: "POST with stale cookie", method: http.MethodPost, cookie: "garbage-stale-token"},
+	}
+
+	const dsgURL = "https://dsg.janelia.org"
+	const redirectURL = "https://neuprint.janelia.org/"
+	wantLocation := dsgURL + "/api/v1/logout?redirect=" + url.QueryEscape(redirectURL)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := newFakeDSG(t)
+			fake.identityStatus = http.StatusUnauthorized
+			e := echo.New()
+			if _, err := InitializeEchoSecure(e, "", "", "", dsgURL, fake.client()); err != nil {
+				t.Fatalf("InitializeEchoSecure returned error: %v", err)
+			}
+
+			req := httptest.NewRequest(tc.method, "https://neuprint.janelia.org/logout", nil)
+			if tc.cookie != "" {
+				req.AddCookie(&http.Cookie{Name: "dsg_token", Value: tc.cookie})
+			}
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusFound {
+				t.Fatalf("expected 302, got %d", rec.Code)
+			}
+			if got := rec.Header().Get("Location"); got != wantLocation {
+				t.Fatalf("Location = %q, want %q", got, wantLocation)
+			}
+			location, err := url.Parse(rec.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("unparseable Location: %v", err)
+			}
+			if got := location.Query().Get("redirect"); got != redirectURL {
+				t.Fatalf("redirect = %q, want %q", got, redirectURL)
+			}
+			if fake.userCalls != 0 {
+				t.Fatalf("logout route made %d DSG auth calls, want 0", fake.userCalls)
+			}
+		})
+	}
+}
+
 func TestRequireDatasetAccess_ErrorIncludesDatasetName(t *testing.T) {
 	fake := newFakeDSG(t)
 	fake.decide = func(entry authorizeEntry) DSGDecision {
