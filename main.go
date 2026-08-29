@@ -88,17 +88,40 @@ func writeDisableAuthWarning(w io.Writer) {
 	fmt.Fprintln(w, "************************************************************")
 }
 
-func registerBaseAPIRoutes(readGrp *echo.Group, options config.Config) {
+func registerBaseAPIRoutes(readGrp *echo.Group, options config.Config, store storage.Store) {
 	// swagger:operation GET /api/serverinfo apimeta serverinfo
 	//
-	// Reports whether this server serves anonymous reads for DSG-public data.
-	// IsPublic is retained for API compatibility and is always true, including
-	// zero-public-dataset deployments and disable-auth mode.
+	// Reports server capabilities and optional site announcement information.
+	// IsPublic is true when authorization is disabled or DSG currently permits
+	// anonymous reads for at least one configured dataset.
 	api.SetGroupRoute(readGrp, api.GET, "/serverinfo", func(c echo.Context) error {
+		isPublic := options.DisableAuth
+		if !isPublic {
+			datasets, err := store.GetDatasets()
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "dataset inventory is unavailable")
+			}
+			names := make([]string, 0, len(datasets))
+			for dataset := range datasets {
+				names = append(names, dataset)
+			}
+			viewable, err := secure.AnonymousViewableDatasets(c, names)
+			if err != nil {
+				return err
+			}
+			isPublic = len(viewable) > 0
+		}
 		info := struct {
-			IsPublic bool
-			Version  string
-		}{true, version.Version}
+			IsPublic       bool
+			Version        string
+			Announcement   string `json:"announcement,omitempty"`
+			AnnouncementID string `json:"announcement-id,omitempty"`
+		}{
+			IsPublic:       isPublic,
+			Version:        version.Version,
+			Announcement:   options.Announcement,
+			AnnouncementID: options.AnnouncementID,
+		}
 		return c.JSON(http.StatusOK, info)
 	}, api.NamedExceptionRoute)
 
@@ -291,10 +314,10 @@ func main() {
 
 	// create read only group
 	readGrp := e.Group("/api")
-	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth))
+	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth, options.Hostname))
 
 	adminMiddleware := secure.DSGAdminMiddleware()
-	registerBaseAPIRoutes(readGrp, options)
+	registerBaseAPIRoutes(readGrp, options, store)
 
 	// setup default page
 	if options.StaticDir != "" {

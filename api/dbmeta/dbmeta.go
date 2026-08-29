@@ -143,7 +143,7 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	//   in: query
 	//   type: boolean
 	//   required: false
-	//   description: "Include hidden datasets when set to true"
+	//   description: "Include hidden datasets when set to true (global admins only)"
 	// responses:
 	//   200:
 	//     description: "successful operation"
@@ -165,11 +165,8 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	// security:
 	// - Bearer: []
 
-	// Get the hidden query parameter
-	includeHidden := c.QueryParam("hidden") == "true"
-
-	// Retrieve DSG identity/client from context. Anonymous callers intentionally
-	// see this named-exception listing pending the dataset-visibility follow-up.
+	// Retrieve DSG identity/client from context. This remains a named-exception
+	// route so anonymous callers can reach the per-dataset visibility filter.
 	var dsgIdentity *secure.DSGIdentity
 	var dsgClient *secure.DSGClient
 	if u := c.Get("dsg_identity"); u != nil {
@@ -178,6 +175,7 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 	if cl := c.Get("dsg_client"); cl != nil {
 		dsgClient, _ = cl.(*secure.DSGClient)
 	}
+	includeHidden := c.QueryParam("hidden") == "true" && dsgIdentity != nil && dsgIdentity.Admin
 
 	if allData, err := sa.Store.GetDatasets(); err != nil {
 		return err
@@ -185,18 +183,29 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 		// Filter datasets based on hidden parameter and user permissions.
 		filteredData := make(map[string]interface{})
 
+		datasets := make([]string, 0, len(allData))
+		for datasetName := range allData {
+			datasets = append(datasets, datasetName)
+		}
+
 		var decisions map[string]*secure.DSGDecision
-		if dsgIdentity != nil && dsgClient != nil && !dsgIdentity.Admin {
+		var anonymousViewable map[string]bool
+		if dsgIdentity == nil {
+			var err error
+			anonymousViewable, err = secure.AnonymousViewableDatasets(c, datasets)
+			if err != nil {
+				return err
+			}
+		} else if !dsgIdentity.Admin {
+			if dsgClient == nil {
+				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+			}
 			token, _ := c.Get("dsg_token").(string)
 			if token == "" {
 				token = secure.ExtractToken(c)
 			}
 			if token == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
-			}
-			datasets := make([]string, 0, len(allData))
-			for datasetName := range allData {
-				datasets = append(datasets, datasetName)
 			}
 			var err error
 			decisions, err = dsgClient.AuthorizeDatasets(
@@ -211,7 +220,11 @@ func (sa storeAPI) getDatasets(c echo.Context) error {
 			// Per-dataset authorization: skip datasets the identity cannot access.
 			// Include pending TOS datasets so the user can select them and be
 			// redirected by /dataset-access.
-			if dsgIdentity != nil && dsgClient != nil && !dsgIdentity.Admin {
+			if dsgIdentity == nil {
+				if !anonymousViewable[datasetName] {
+					continue
+				}
+			} else if !dsgIdentity.Admin {
 				decision := decisions[datasetName]
 				if decision == nil ||
 					(decision.Decision != "allow" && decision.Decision != "tos_required") {

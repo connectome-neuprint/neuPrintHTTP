@@ -285,41 +285,77 @@ func (d *DSGClient) AuthorizeDatasets(token string, datasets []string, returnURL
 	return results, nil
 }
 
-// AnonymousDatasetDecision returns DSG's public-only decision for one dataset.
-// Its wire request deliberately omits the Authorization header and its cache is
-// separate from every authenticated principal's decision cache.
-func (d *DSGClient) AnonymousDatasetDecision(dataset, returnURL string) (*DSGDecision, error) {
-	_, entry := decisionKeyAndEntry("", dataset)
-	key := anonymousDecisionCacheKey{name: entry.Name, version: entry.Version}
-	if val, ok := d.anonymousDecisionCache.Load(key); ok {
-		cached := val.(*cachedDecisionEntry)
-		if time.Since(cached.fetchedAt) < d.CacheTTL {
-			return cached.data, nil
-		}
-		d.anonymousDecisionCache.Delete(key)
+// AnonymousDatasetDecisions returns DSG's public-only decisions for the supplied
+// datasets. Wire requests deliberately omit the Authorization header, and the
+// cache is separate from every authenticated principal's decision cache.
+func (d *DSGClient) AnonymousDatasetDecisions(datasets []string, returnURL string) (map[string]*DSGDecision, error) {
+	results := make(map[string]*DSGDecision, len(datasets))
+	if len(datasets) == 0 {
+		return results, nil
 	}
 
-	decoded, err := d.authorize(authorizeRequest{
+	type miss struct {
+		dataset string
+		key     anonymousDecisionCacheKey
+		entry   authorizeEntry
+	}
+	misses := make([]miss, 0, len(datasets))
+	for _, dataset := range datasets {
+		_, entry := decisionKeyAndEntry("", dataset)
+		key := anonymousDecisionCacheKey{name: entry.Name, version: entry.Version}
+		if val, ok := d.anonymousDecisionCache.Load(key); ok {
+			cached := val.(*cachedDecisionEntry)
+			if time.Since(cached.fetchedAt) < d.CacheTTL {
+				results[dataset] = cached.data
+				continue
+			}
+			d.anonymousDecisionCache.Delete(key)
+		}
+		misses = append(misses, miss{dataset: dataset, key: key, entry: entry})
+	}
+
+	if len(misses) == 0 {
+		return results, nil
+	}
+
+	body := authorizeRequest{
 		Service:   d.ServiceName,
 		ReturnURL: returnURL,
-		Entries:   []authorizeEntry{entry},
-	}, "")
+		Entries:   make([]authorizeEntry, 0, len(misses)),
+	}
+	for _, miss := range misses {
+		body.Entries = append(body.Entries, miss.entry)
+	}
+	decoded, err := d.authorize(body, "")
 	if err != nil {
 		return nil, err
 	}
-	if len(decoded.Entries) != 1 {
-		return nil, fmt.Errorf("dsg: authorize returned %d entries for 1 request", len(decoded.Entries))
+	if len(decoded.Entries) != len(misses) {
+		return nil, fmt.Errorf("dsg: authorize returned %d entries for %d requests", len(decoded.Entries), len(misses))
 	}
 
-	decision := decoded.Entries[0]
-	decisionCopy := decision
-	if decision.Decision != "tos_required" {
-		d.anonymousDecisionCache.Store(
-			key,
-			&cachedDecisionEntry{data: &decisionCopy, fetchedAt: time.Now()},
-		)
+	now := time.Now()
+	for i := range decoded.Entries {
+		decision := decoded.Entries[i]
+		decisionCopy := decision
+		results[misses[i].dataset] = &decisionCopy
+		if decision.Decision != "tos_required" {
+			d.anonymousDecisionCache.Store(
+				misses[i].key,
+				&cachedDecisionEntry{data: &decisionCopy, fetchedAt: now},
+			)
+		}
 	}
-	return &decisionCopy, nil
+	return results, nil
+}
+
+// AnonymousDatasetDecision returns DSG's public-only decision for one dataset.
+func (d *DSGClient) AnonymousDatasetDecision(dataset, returnURL string) (*DSGDecision, error) {
+	decisions, err := d.AnonymousDatasetDecisions([]string{dataset}, returnURL)
+	if err != nil {
+		return nil, err
+	}
+	return decisions[dataset], nil
 }
 
 func (d *DSGClient) authorize(body authorizeRequest, token string) (authorizeResponse, error) {
@@ -481,7 +517,7 @@ func datasetDecisionForContext(c echo.Context, dataset string) (*DSGDecision, bo
 			token = ExtractToken(c)
 		}
 		if token == "" {
-			return nil, false, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+			return nil, false, invalidTokenError(configuredHostname(c))
 		}
 		decision, err = client.DatasetDecision(token, dataset, currentRequestURL(c), false)
 	}
@@ -544,15 +580,31 @@ func RequireAnyDatasetAccess(c echo.Context, datasets []string, level Authorizat
 	}
 	sorted := append([]string(nil), datasets...)
 	sort.Strings(sorted)
-	var firstTOS *DSGDecision
-	var firstTOSDataset string
-	anonymous := c.Get("dsg_identity") == nil
-	for _, dataset := range sorted {
-		decision, decisionAnonymous, err := datasetDecisionForContext(c, dataset)
+	if c.Get("dsg_identity") == nil {
+		visibility, err := anonymousDatasetVisibilityForContext(c, sorted)
 		if err != nil {
 			return err
 		}
-		anonymous = decisionAnonymous
+		for _, dataset := range sorted {
+			decision := visibility.decisions[dataset]
+			if decision.Level() >= level {
+				c.Set("level", StringFromLevel(decision.Level()))
+				return nil
+			}
+		}
+		if visibility.firstTOS != nil {
+			return finishDatasetAccess(c, visibility.firstTOSDataset, level, visibility.firstTOS, true)
+		}
+		return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
+	}
+
+	var firstTOS *DSGDecision
+	var firstTOSDataset string
+	for _, dataset := range sorted {
+		decision, _, err := datasetDecisionForContext(c, dataset)
+		if err != nil {
+			return err
+		}
 		if decision.Level() >= level {
 			c.Set("level", StringFromLevel(decision.Level()))
 			return nil
@@ -563,12 +615,58 @@ func RequireAnyDatasetAccess(c echo.Context, datasets []string, level Authorizat
 		}
 	}
 	if firstTOS != nil {
-		return finishDatasetAccess(c, firstTOSDataset, level, firstTOS, anonymous)
-	}
-	if anonymous {
-		return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
+		return finishDatasetAccess(c, firstTOSDataset, level, firstTOS, false)
 	}
 	return echo.NewHTTPError(http.StatusForbidden, "You do not have access to any dataset")
+}
+
+type anonymousDatasetVisibility struct {
+	decisions       map[string]*DSGDecision
+	viewable        map[string]bool
+	firstTOSDataset string
+	firstTOS        *DSGDecision
+}
+
+func anonymousDatasetVisibilityForContext(c echo.Context, datasets []string) (*anonymousDatasetVisibility, error) {
+	visibility := &anonymousDatasetVisibility{
+		decisions: make(map[string]*DSGDecision, len(datasets)),
+		viewable:  make(map[string]bool, len(datasets)),
+	}
+	if len(datasets) == 0 {
+		return visibility, nil
+	}
+	client, ok := c.Get("dsg_client").(*DSGClient)
+	if !ok || client == nil {
+		return nil, echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+	}
+
+	sorted := append([]string(nil), datasets...)
+	sort.Strings(sorted)
+	decisions, err := client.AnonymousDatasetDecisions(sorted, currentRequestURL(c))
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
+	}
+	visibility.decisions = decisions
+	for _, dataset := range sorted {
+		decision := decisions[dataset]
+		if decision.Level() >= READ {
+			visibility.viewable[dataset] = true
+		} else if visibility.firstTOS == nil && decision.TOSRequired() {
+			visibility.firstTOSDataset = dataset
+			visibility.firstTOS = decision
+		}
+	}
+	return visibility, nil
+}
+
+// AnonymousViewableDatasets returns the datasets that DSG currently permits an
+// unauthenticated caller to read. Denials and TOS-required decisions are omitted.
+func AnonymousViewableDatasets(c echo.Context, datasets []string) (map[string]bool, error) {
+	visibility, err := anonymousDatasetVisibilityForContext(c, datasets)
+	if err != nil {
+		return nil, err
+	}
+	return visibility.viewable, nil
 }
 
 func currentRequestURL(c echo.Context) string {
@@ -583,12 +681,31 @@ func currentRequestURL(c echo.Context) string {
 	return scheme + "://" + req.Host + req.URL.RequestURI()
 }
 
+const invalidTokenMessageBase = "invalid or expired token — neuPrint has moved to a new authorization system"
+
+func invalidTokenMessage(hostname string) string {
+	if hostname == "" {
+		return invalidTokenMessageBase
+	}
+	return fmt.Sprintf("%s; log in at https://%s/account to obtain a new token", invalidTokenMessageBase, hostname)
+}
+
+func invalidTokenError(hostname string) *echo.HTTPError {
+	return echo.NewHTTPError(http.StatusUnauthorized, invalidTokenMessage(hostname))
+}
+
+func configuredHostname(c echo.Context) string {
+	hostname, _ := c.Get("configured_hostname").(string)
+	return hostname
+}
+
 // DSGOptionalAuthMiddleware authenticates attempted credentials and otherwise
 // proceeds anonymously. Disable-auth mode installs a synthetic global admin so
 // every authorization guard takes the existing admin short-circuit.
-func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool) echo.MiddlewareFunc {
+func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool, hostname string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			c.Set("configured_hostname", hostname)
 			if client == nil {
 				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
 			}
@@ -610,14 +727,14 @@ func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool) echo.Middlew
 				return next(c)
 			}
 			if !valid {
-				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+				return invalidTokenError(hostname)
 			}
 			identity, err := client.Identity(token)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
 			}
 			if identity == nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+				return invalidTokenError(hostname)
 			}
 			c.Set("dsg_identity", identity)
 			c.Set("dsg_token", token)
@@ -630,15 +747,16 @@ func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool) echo.Middlew
 // DSGAuthMiddleware validates the dsg_token and populates the echo context
 // with the authenticated identity. It performs authentication only —
 // per-dataset authorization is done by handlers via RequireDatasetAccess.
-func DSGAuthMiddleware(client *DSGClient) echo.MiddlewareFunc {
+func DSGAuthMiddleware(client *DSGClient, hostname string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			c.Set("configured_hostname", hostname)
 			token, attempted, valid := credentialFromRequest(c)
 			if !attempted {
 				return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
 			}
 			if !valid {
-				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+				return invalidTokenError(hostname)
 			}
 
 			var identity *DSGIdentity
@@ -652,7 +770,7 @@ func DSGAuthMiddleware(client *DSGClient) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusBadGateway, "auth service unavailable")
 			}
 			if identity == nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
+				return invalidTokenError(hostname)
 			}
 
 			c.Set("dsg_identity", identity)

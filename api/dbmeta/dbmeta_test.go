@@ -16,6 +16,14 @@ import (
 // mockStoreImpl implements the storage.Store interface for testing
 type mockStoreImpl struct{}
 
+func installDisableAuthContext(c echo.Context) {
+	c.Set("dsg_client", secure.NewDSGClient("", 300, "neuprint"))
+	c.Set("dsg_identity", &secure.DSGIdentity{
+		Email: "disable-auth@localhost",
+		Admin: true,
+	})
+}
+
 func (m *mockStoreImpl) GetDataset(dataset string) (storage.Cypher, error) {
 	return nil, nil
 }
@@ -98,6 +106,7 @@ func TestGetDatasets_WithoutHiddenParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	installDisableAuthContext(c)
 
 	// Handle the request
 	if err := api.getDatasets(c); err != nil {
@@ -147,6 +156,7 @@ func TestGetDatasets_WithHiddenTrue(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets?hidden=true", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	installDisableAuthContext(c)
 
 	// Handle the request
 	if err := api.getDatasets(c); err != nil {
@@ -196,6 +206,7 @@ func TestGetDatasets_WithHiddenFalse(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets?hidden=false", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	installDisableAuthContext(c)
 
 	// Handle the request
 	if err := api.getDatasets(c); err != nil {
@@ -300,6 +311,7 @@ func TestGetDatasets_BadHiddenFieldType(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	installDisableAuthContext(c)
 
 	// Handle the request - should succeed with warning logged
 	err := api.getDatasets(c)
@@ -398,6 +410,10 @@ func (m *mockDSGStore) GetDatasets() (map[string]interface{}, error) {
 		"sa-granted:v1": map[string]interface{}{
 			"last-mod": "2024-11-01",
 		},
+		"hidden-granted:v1": map[string]interface{}{
+			"last-mod": "2024-12-01",
+			"hidden":   true,
+		},
 	}, nil
 }
 
@@ -421,6 +437,7 @@ func callGetDatasetsWithDSG(
 	t *testing.T,
 	identity *secure.DSGIdentity,
 	token string,
+	includeHidden bool,
 ) (map[string]interface{}, int) {
 	t.Helper()
 
@@ -451,7 +468,7 @@ func callGetDatasetsWithDSG(
 				"roles":    []string{},
 			}
 			if bearer == "Bearer sa-token" {
-				if entry.Name == "sa-granted" {
+				if entry.Name == "sa-granted" || entry.Name == "hidden-granted" {
 					decision["decision"] = "allow"
 					decision["roles"] = []string{"view"}
 				}
@@ -475,12 +492,16 @@ func callGetDatasetsWithDSG(
 	client.SetHTTPClient(&http.Client{Transport: transport})
 
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
+	requestURL := "/api/dbmeta/datasets"
+	if includeHidden {
+		requestURL += "?hidden=true"
+	}
+	req := httptest.NewRequest(http.MethodGet, requestURL, nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	c.Set("dsg_client", client)
 	if identity != nil {
 		c.Set("dsg_identity", identity)
-		c.Set("dsg_client", client)
 		c.Set("dsg_token", token)
 	}
 
@@ -501,7 +522,7 @@ func callGetDatasetsWithDSG(
 
 func TestGetDatasets_NativeDecisionsFilterDropdown(t *testing.T) {
 	result, calls := callGetDatasetsWithDSG(
-		t, &secure.DSGIdentity{Email: "test@example.com"}, "user-token",
+		t, &secure.DSGIdentity{Email: "test@example.com"}, "user-token", false,
 	)
 	if calls != 1 {
 		t.Fatalf("expected one batch authorize call, got %d", calls)
@@ -535,6 +556,7 @@ func TestGetDatasets_NativeServiceAccountSeesOnlyGranted(t *testing.T) {
 			ServiceAccount: true,
 		},
 		"sa-token",
+		false,
 	)
 	if calls != 1 {
 		t.Fatalf("expected one batch authorize call, got %d", calls)
@@ -550,25 +572,69 @@ func TestGetDatasets_NativeServiceAccountSeesOnlyGranted(t *testing.T) {
 
 func TestGetDatasets_NativeAdminSeesAll(t *testing.T) {
 	result, calls := callGetDatasetsWithDSG(
-		t, &secure.DSGIdentity{Email: "admin@example.com", Admin: true}, "admin-token",
+		t, &secure.DSGIdentity{Email: "admin@example.com", Admin: true}, "admin-token", false,
 	)
 	if calls != 0 {
 		t.Fatalf("admin dropdown should not call authorize, got %d calls", calls)
 	}
 
 	if len(result) != 6 {
-		t.Errorf("admin should see all 6 datasets, got %d: %v", len(result), result)
+		t.Errorf("admin should see all 6 non-hidden datasets by default, got %d: %v", len(result), result)
 	}
 }
 
-func TestGetDatasets_NoDSGContext_NoFiltering(t *testing.T) {
-	result, calls := callGetDatasetsWithDSG(t, nil, "")
+func TestGetDatasets_AnonymousSeesOnlyPublicDatasets(t *testing.T) {
+	result, calls := callGetDatasetsWithDSG(t, nil, "", false)
 
+	if calls != 1 {
+		t.Fatalf("anonymous listing should use one batch authorize call, got %d", calls)
+	}
+	if len(result) != 2 {
+		t.Fatalf("anonymous caller should see exactly two DSG-public datasets, got %d: %v", len(result), result)
+	}
+	for _, dataset := range []string{"hemibrain:v1.2.1", "public:v1"} {
+		if _, ok := result[dataset]; !ok {
+			t.Errorf("anonymous caller should see %s", dataset)
+		}
+	}
+	for _, dataset := range []string{"tos:v1", "denied:v1", "closed-public-version:v1", "sa-granted:v1", "hidden-granted:v1"} {
+		if _, ok := result[dataset]; ok {
+			t.Errorf("anonymous caller should not see %s", dataset)
+		}
+	}
+}
+
+func TestGetDatasets_DisableAuthAdminSeesAllNonHiddenDatasets(t *testing.T) {
+	identity := &secure.DSGIdentity{Email: "disable-auth@localhost", Admin: true}
+	result, calls := callGetDatasetsWithDSG(t, identity, "", false)
 	if calls != 0 {
-		t.Fatalf("auth-disabled path should not call authorize, got %d calls", calls)
+		t.Fatalf("disable-auth path should not call authorize, got %d calls", calls)
 	}
 	if len(result) != 6 {
-		t.Errorf("with no DSG context, all 6 datasets should be returned, got %d", len(result))
+		t.Errorf("disable-auth admin should see all 6 non-hidden datasets, got %d: %v", len(result), result)
+	}
+}
+
+func TestGetDatasets_HiddenTrueRequiresAdmin(t *testing.T) {
+	serviceAccount := &secure.DSGIdentity{
+		Email:          "agent-reader@service-account.dsg.local",
+		ServiceAccount: true,
+	}
+	result, calls := callGetDatasetsWithDSG(t, serviceAccount, "sa-token", true)
+	if calls != 1 {
+		t.Fatalf("non-admin listing should use one batch authorize call, got %d", calls)
+	}
+	if _, ok := result["hidden-granted:v1"]; ok {
+		t.Fatal("granted non-admin should not see hidden dataset with hidden=true")
+	}
+
+	admin := &secure.DSGIdentity{Email: "admin@example.com", Admin: true}
+	result, calls = callGetDatasetsWithDSG(t, admin, "admin-token", true)
+	if calls != 0 {
+		t.Fatalf("admin listing should not call authorize, got %d calls", calls)
+	}
+	if _, ok := result["hidden-granted:v1"]; !ok || len(result) != 7 {
+		t.Fatalf("admin hidden listing should include all 7 datasets: %v", result)
 	}
 }
 
@@ -587,6 +653,7 @@ func TestGetDatasets_BadDatasetInfoType(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/dbmeta/datasets", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	installDisableAuthContext(c)
 
 	// Handle the request - should succeed with warning logged
 	err := api.getDatasets(c)

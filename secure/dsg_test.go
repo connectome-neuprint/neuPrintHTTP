@@ -385,7 +385,7 @@ func TestDSGOptionalAuthCredentialStateMatrix(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 			called := false
-			err := DSGOptionalAuthMiddleware(client, false)(func(c echo.Context) error {
+			err := DSGOptionalAuthMiddleware(client, false, "neuprint.test")(func(c echo.Context) error {
 				called = true
 				_, identified := c.Get("dsg_identity").(*DSGIdentity)
 				if identified != tc.identified {
@@ -410,7 +410,8 @@ func TestDSGOptionalAuthCredentialStateMatrix(t *testing.T) {
 				}
 			} else {
 				assertHTTPErrorCode(t, err, tc.status)
-				if err.(*echo.HTTPError).Message != "invalid or expired token" {
+				wantMessage := "invalid or expired token — neuPrint has moved to a new authorization system; log in at https://neuprint.test/account to obtain a new token"
+				if err.(*echo.HTTPError).Message != wantMessage {
 					t.Fatalf("invalid credential message=%v", err.(*echo.HTTPError).Message)
 				}
 				if called {
@@ -424,6 +425,46 @@ func TestDSGOptionalAuthCredentialStateMatrix(t *testing.T) {
 	}
 }
 
+func TestInvalidTokenMessageHostnameCases(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		hostname string
+		want     string
+	}{
+		{
+			name:     "configured hostname includes account URL",
+			hostname: "neuprint.example.org",
+			want:     "invalid or expired token — neuPrint has moved to a new authorization system; log in at https://neuprint.example.org/account to obtain a new token",
+		},
+		{
+			name: "empty hostname omits account URL",
+			want: "invalid or expired token — neuPrint has moved to a new authorization system",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := invalidTokenMessage(tc.hostname); got != tc.want {
+				t.Fatalf("invalidTokenMessage(%q) = %q, want %q", tc.hostname, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMissingContextTokenUsesConfiguredHostname(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "https://request-host.example/api/test", nil)
+	c := e.NewContext(req, httptest.NewRecorder())
+	c.Set("dsg_identity", &DSGIdentity{Email: "user@example.com"})
+	c.Set("dsg_client", newFakeDSG(t).client())
+	c.Set("configured_hostname", "configured.example.org")
+
+	err := RequireDatasetAccess(c, "dataset", READ)
+	assertHTTPErrorCode(t, err, http.StatusUnauthorized)
+	want := "invalid or expired token — neuPrint has moved to a new authorization system; log in at https://configured.example.org/account to obtain a new token"
+	if got := err.(*echo.HTTPError).Message; got != want {
+		t.Fatalf("invalid credential message=%v, want %q", got, want)
+	}
+}
+
 func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 	t.Run("disable auth injects synthetic global admin with zero DSG calls", func(t *testing.T) {
 		fake := newFakeDSG(t)
@@ -433,7 +474,7 @@ func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 		req.Header.Set("Authorization", "Basic malformed-is-ignored-in-disable-mode")
 		c := e.NewContext(req, httptest.NewRecorder())
 
-		err := DSGOptionalAuthMiddleware(client, true)(func(c echo.Context) error {
+		err := DSGOptionalAuthMiddleware(client, true, "")(func(c echo.Context) error {
 			identity := c.Get("dsg_identity").(*DSGIdentity)
 			if !identity.Admin || identity.Email != "disable-auth@localhost" {
 				t.Fatalf("synthetic identity = %+v", identity)
@@ -456,7 +497,7 @@ func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 		client := fake.client()
 		e := echo.New()
 		c := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/mutation", nil), httptest.NewRecorder())
-		err := DSGOptionalAuthMiddleware(client, false)(func(c echo.Context) error {
+		err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
 			return RequireDatasetAccess(c, "public", ADMIN)
 		})(c)
 		assertHTTPErrorCode(t, err, http.StatusUnauthorized)
@@ -484,7 +525,7 @@ func TestCredentialedFailuresNeverFallbackToAnonymous(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 			req.Header.Set("Authorization", "Bearer credentialed")
 			c := e.NewContext(req, httptest.NewRecorder())
-			err := DSGOptionalAuthMiddleware(client, false)(func(echo.Context) error {
+			err := DSGOptionalAuthMiddleware(client, false, "")(func(echo.Context) error {
 				t.Fatal("credentialed DSG failure reached anonymous handler")
 				return nil
 			})(c)
@@ -512,7 +553,7 @@ func TestAuthenticatedDenyDoesNotRetryAnonymous(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.Header.Set("Authorization", "Bearer credentialed")
 	c := e.NewContext(req, httptest.NewRecorder())
-	err := DSGOptionalAuthMiddleware(client, false)(func(c echo.Context) error {
+	err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
 		return RequireDatasetAccess(c, "closed", READ)
 	})(c)
 	assertHTTPErrorCode(t, err, http.StatusForbidden)
@@ -542,7 +583,7 @@ func TestCredentialedMalformedAuthorizeIsBadGatewayWithoutFallback(t *testing.T)
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.Header.Set("Authorization", "Bearer credentialed")
 	c := e.NewContext(req, httptest.NewRecorder())
-	err := DSGOptionalAuthMiddleware(client, false)(func(c echo.Context) error {
+	err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
 		return RequireDatasetAccess(c, "dataset", READ)
 	})(c)
 	assertHTTPErrorCode(t, err, http.StatusBadGateway)
@@ -592,6 +633,66 @@ func TestAnonymousDatasetAccessDecisionMatrix(t *testing.T) {
 				if httpErr := err.(*echo.HTTPError); httpErr.Message != "authentication required" {
 					t.Fatalf("anonymous denial message=%v", httpErr.Message)
 				}
+			}
+		})
+	}
+}
+
+func TestAnonymousRequireAnyDatasetAccessSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		decisions   map[string]DSGDecision
+		wantCode    int
+		wantTOSJSON bool
+	}{
+		{
+			name: "one public dataset permits metadata read",
+			decisions: map[string]DSGDecision{
+				"public": {Decision: "allow", Roles: []string{"view"}},
+			},
+		},
+		{
+			name:     "no public datasets requires authentication",
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name: "TOS-required dataset preserves forbidden response",
+			decisions: map[string]DSGDecision{
+				"tos": {Decision: "tos_required", TOSURL: "https://dsg.test/tos"},
+			},
+			wantCode:    http.StatusForbidden,
+			wantTOSJSON: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := newFakeDSG(t)
+			fake.decide = func(entry authorizeEntry) DSGDecision {
+				decision := tc.decisions[entry.Name]
+				decision.Name = entry.Name
+				decision.Version = entry.Version
+				if decision.Decision == "" {
+					decision.Decision = "deny"
+				}
+				return decision
+			}
+			e := echo.New()
+			recorder := httptest.NewRecorder()
+			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/dbmeta/database", nil), recorder)
+			c.Set("dsg_client", fake.client())
+			err := RequireAnyDatasetAccess(c, []string{"closed", "public", "tos"}, READ)
+			if tc.wantCode == 0 {
+				if err != nil {
+					t.Fatalf("RequireAnyDatasetAccess returned error: %v", err)
+				}
+			} else if tc.wantTOSJSON {
+				if err != echo.ErrForbidden || recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), `"tos_required":true`) {
+					t.Fatalf("err=%v status=%d body=%s", err, recorder.Code, recorder.Body.String())
+				}
+			} else {
+				assertHTTPErrorCode(t, err, tc.wantCode)
+			}
+			if fake.authorizeCalls != 1 || fake.authPresent[0] {
+				t.Fatalf("anonymous filter calls=%d auth headers=%v", fake.authorizeCalls, fake.authPresent)
 			}
 		})
 	}
@@ -671,7 +772,7 @@ func assertHTTPErrorCode(t *testing.T, err error, code int) {
 func TestDSGAuthMiddleware(t *testing.T) {
 	fake := newFakeDSG(t)
 	client := fake.client()
-	middleware := DSGAuthMiddleware(client)
+	middleware := DSGAuthMiddleware(client, "")
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/custom/custom", nil)
@@ -704,7 +805,7 @@ func TestDSGAuthMiddlewareUnavailable(t *testing.T) {
 	client.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return nil, io.ErrUnexpectedEOF
 	})})
-	middleware := DSGAuthMiddleware(client)
+	middleware := DSGAuthMiddleware(client, "")
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/custom/custom", nil)

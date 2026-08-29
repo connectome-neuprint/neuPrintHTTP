@@ -28,6 +28,8 @@ type Config struct {
 	DSGUrl          string        `json:"dsg-url,omitempty"`                // DatasetGateway base URL
 	DSGCacheTTL     int           `json:"dsg-cache-ttl,omitempty"`          // seconds to cache DSG identity and decisions (default 300)
 	DSGServiceName  string        `json:"dsg-service-name,omitempty"`       // service name for DSG TOS checks (default "neuprint")
+	Announcement    string        `json:"announcement,omitempty"`           // optional site-wide announcement text
+	AnnouncementID  string        `json:"announcement-id,omitempty"`        // dismissal key for the current announcement
 }
 
 // LoadConfig parses json configuration and loads options

@@ -261,7 +261,7 @@ func TestHTTPCustomEndpointBearerAuth(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	handler := secure.DSGAuthMiddleware(nativeAllowClient(t))(api.getCustom)
+	handler := secure.DSGAuthMiddleware(nativeAllowClient(t), "")(api.getCustom)
 	if err := handler(c); err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}

@@ -107,9 +107,10 @@ func setupAPIForTest(t *testing.T, client *secure.DSGClient, disableAuth bool) *
 
 	e := echo.New()
 	group := e.Group("/api")
-	group.Use(secure.DSGOptionalAuthMiddleware(client, disableAuth))
-	registerBaseAPIRoutes(group, config.Config{SwaggerDir: tmpDir, NgDir: tmpDir})
-	if err := api.SetupRoutes(e, group, &storage.NoStore{Datasets: []string{"closed", "public", "tos"}}, secure.DSGAdminMiddleware()); err != nil {
+	group.Use(secure.DSGOptionalAuthMiddleware(client, disableAuth, ""))
+	store := &storage.NoStore{Datasets: []string{"closed", "public", "tos"}}
+	registerBaseAPIRoutes(group, config.Config{SwaggerDir: tmpDir, NgDir: tmpDir, DisableAuth: disableAuth}, store)
+	if err := api.SetupRoutes(e, group, store, secure.DSGAdminMiddleware()); err != nil {
 		t.Fatalf("SetupRoutes: %v", err)
 	}
 	return e
@@ -268,25 +269,72 @@ func TestMutationWriteContractThroughRegisteredRoute(t *testing.T) {
 
 func TestServerInfoCapabilitySemantics(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		disableAuth bool
+		name              string
+		datasets          []string
+		anonymousDecision map[string]string
+		disableAuth       bool
+		wantPublic        bool
+		wantAuthorize     int
 	}{
-		{"normal", false},
-		{"zero public datasets", false},
-		{"disable auth", true},
+		{"at least one public dataset", []string{"closed", "public"}, map[string]string{"public": "allow"}, false, true, 1},
+		{"zero public datasets", []string{"closed"}, nil, false, false, 1},
+		{"disable auth", []string{"closed"}, nil, true, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			fixture := &mainDSGFixture{}
+			fixture := &mainDSGFixture{anonymousDecision: tc.anonymousDecision}
 			e := echo.New()
 			group := e.Group("/api")
-			group.Use(secure.DSGOptionalAuthMiddleware(fixture.client(), tc.disableAuth))
-			registerBaseAPIRoutes(group, config.Config{})
+			group.Use(secure.DSGOptionalAuthMiddleware(fixture.client(), tc.disableAuth, ""))
+			registerBaseAPIRoutes(group, config.Config{DisableAuth: tc.disableAuth}, &storage.NoStore{Datasets: tc.datasets})
 			recorder := httptest.NewRecorder()
 			e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/serverinfo", nil))
-			if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"IsPublic":true`) {
+			if recorder.Code != http.StatusOK {
 				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 			}
+			var info struct {
+				IsPublic bool
+				Version  string
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil {
+				t.Fatalf("invalid serverinfo JSON: %v", err)
+			}
+			if info.IsPublic != tc.wantPublic || info.Version == "" {
+				t.Fatalf("serverinfo=%+v, want IsPublic=%v and a version", info, tc.wantPublic)
+			}
+			if fixture.authorizeCalls != tc.wantAuthorize {
+				t.Fatalf("authorize calls=%d, want %d", fixture.authorizeCalls, tc.wantAuthorize)
+			}
 		})
+	}
+}
+
+func TestServerInfoAnnouncementFields(t *testing.T) {
+	var options config.Config
+	if err := json.Unmarshal([]byte(`{"disable-auth":true,"announcement":"Tokens have moved","announcement-id":"auth-migration-1"}`), &options); err != nil {
+		t.Fatal(err)
+	}
+	e := echo.New()
+	group := e.Group("/api")
+	group.Use(secure.DSGOptionalAuthMiddleware((&mainDSGFixture{}).client(), true, ""))
+	registerBaseAPIRoutes(group, options, &storage.NoStore{})
+
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/serverinfo", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var info map[string]interface{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if info["announcement"] != "Tokens have moved" || info["announcement-id"] != "auth-migration-1" {
+		t.Fatalf("announcement fields missing from serverinfo: %v", info)
+	}
+	if _, ok := info["IsPublic"]; !ok {
+		t.Fatalf("backward-compatible IsPublic key missing: %v", info)
+	}
+	if _, ok := info["Version"]; !ok {
+		t.Fatalf("backward-compatible Version key missing: %v", info)
 	}
 }
 
