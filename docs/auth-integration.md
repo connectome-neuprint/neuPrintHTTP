@@ -28,6 +28,8 @@ Per-dataset authorization uses DSG's native API under `/api/dsg/v1`.
 | `dsg-cache-ttl` | no | Seconds to cache identity and non-TOS dataset decisions. Defaults to 300. The anonymous public-to-closed revocation window equals this TTL. |
 | `dsg-service-name` | no | Service name sent to DSG native authorization. Defaults to `neuprint`. |
 | `disable-auth` | no | Disables all authorization when true, for local/testing use only. Defaults to false and emits a prominent startup warning. |
+| `hostname` | no | Public hostname used in enriched invalid/expired-token 401 messages, which point at `https://<hostname>/account`; the URL hint is omitted when empty. |
+| `announcement`, `announcement-id` | no | Optional site-wide announcement surfaced on `GET /api/serverinfo`; both must be non-empty for the Explorer banner to show. See the README's "Site-wide Announcements" section. |
 
 Dataset vocabulary differences are registered in DSG with `DatasetAlias` rows.
 The served neuPrint DB name is split at the first colon before authorization:
@@ -146,9 +148,10 @@ DSG global administrators remain exempt through the global-admin shortcut.
 Every `/api` route declares one of three policies: dataset guarded, admin, or a
 named metadata-only exception. The current exceptions are `/api/serverinfo`,
 `/api/vimoserver`, `/api/version`, `/api/available`, `/api/help/*`, and
-`/api/dbmeta/datasets` (including its versioned alias). The dataset listing is
-the one follow-up visibility exception; all data routes, including raw
-key-value reads, authorize against their owning dataset.
+`/api/dbmeta/datasets` (including its versioned alias). The dataset listing
+stays a named exception so anonymous callers can reach the handler, but the
+handler filters what it returns per caller (see below); all data routes,
+including raw key-value reads, authorize against their owning dataset.
 
 With `disable-auth` enabled, the middleware installs a marked synthetic global
 administrator (`disable-auth@localhost`). Every guard then takes the normal
@@ -157,9 +160,10 @@ making zero DSG calls.
 
 For authenticated non-admin users, the dataset dropdown batches all served
 dataset names into one native authorize call. It includes `allow` and
-`tos_required` entries, excludes denies, skips the authorize call for admins,
-and leaves hidden-dataset filtering unchanged. Anonymous listing visibility is
-the named follow-up exception described above.
+`tos_required` entries, excludes denies, and skips the authorize call for
+admins. Anonymous callers get one batched credential-free authorize call and
+see only DSG-public datasets. Hidden datasets are listed only for global
+admins: `?hidden=true` is ignored for everyone else.
 
 ## Rollout checklist
 

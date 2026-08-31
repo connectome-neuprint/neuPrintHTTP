@@ -285,6 +285,35 @@ Add these fields to your config to enable DSG auth:
 | `dsg-url` | Yes (when auth enabled) | Base URL of the DatasetGateway service |
 | `dsg-cache-ttl` | No | Seconds to cache DSG identity and non-TOS dataset decisions (default: 300). A public-to-closed change can remain readable anonymously until this TTL expires. |
 | `dsg-service-name` | No | Service name sent to DSG native authorization (default: "neuprint") |
+| `hostname` | No | Public hostname of this server. When set, invalid/expired-token 401 responses point the caller at `https://<hostname>/account` to obtain a new token; when empty, the URL hint is omitted from the message. |
+
+#### Site-wide Announcements
+
+Two optional config fields let operators broadcast a site-wide message
+(for example a maintenance notice or an auth-migration notice) through
+the neuPrintExplorer UI:
+
+```json
+{
+    "announcement": "neuPrint has moved to a new authorization system. Existing API tokens no longer work — log in and visit your Account page to generate a new token.",
+    "announcement-id": "auth-migration-2026-08"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `announcement` | No | Announcement text, served verbatim as the `announcement` key of `GET /api/serverinfo`. |
+| `announcement-id` | No | Stable identifier for the current announcement, served as `announcement-id`. neuPrintExplorer persists a user's dismissal in browser localStorage keyed by this value, so publishing a new id re-shows the banner to users who dismissed an earlier one. |
+
+Both fields must be non-empty for neuPrintExplorer to show its dismissible
+site-wide banner; if either is empty or absent, the keys are omitted from
+`/api/serverinfo` and no banner is shown. The config file is read once at
+process start: to post, change, or retire an announcement, edit the config
+and restart the process/container — no image rebuild is needed.
+
+`GET /api/serverinfo` also reports `IsPublic`: true when authorization is
+disabled or when DSG currently permits anonymous reads for at least one
+served dataset.
 
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
 older `neuPrint-neo4j` engine is deprecated. See below.
@@ -319,7 +348,7 @@ This development-only mode disables all authorization. Set `"disable-auth"` to t
 
 Authentication and authorization are handled by [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) (DSG). Set `"disable-auth": false` and provide a `"dsg-url"` in your config (see the DSG configuration section above).
 
-Users may authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. Anonymous callers can read only datasets DSG marks public. The dataset-list metadata endpoint remains visible as a documented compatibility exception pending dataset-visibility filtering work.
+Users may authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. Anonymous callers can read only datasets DSG marks public. The dataset listing (`/api/dbmeta/datasets`) is filtered per caller: anonymous callers see only DSG-public datasets, authenticated non-admins see their granted datasets, and hidden datasets are listed only for global admins (`?hidden=true` is ignored for everyone else).
 
 HTTPS is required when auth is enabled. To generate test certificates for local development:
 
