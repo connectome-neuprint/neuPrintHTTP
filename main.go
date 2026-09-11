@@ -156,6 +156,102 @@ func registerBaseAPIRoutes(readGrp *echo.Group, options config.Config, store sto
 	}
 }
 
+// newServer constructs the production HTTP stack without starting listeners.
+// The caller owns the datastore, log destination and server lifecycle.
+func newServer(options config.Config, store storage.Store, logOutput io.Writer) (*echo.Echo, *secure.EchoSecure, *secure.DSGClient, error) {
+	// create echo web framework
+	e := echo.New()
+
+	var err error
+
+	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
+		Format: "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
+		Output: logOutput,
+	}))
+
+	e.Use(middleware.Recover())
+	e.Pre(middleware.NonWWWRedirect())
+
+	// --- Auth setup ---
+	var dsgClient *secure.DSGClient
+	var secureAPI *secure.EchoSecure
+
+	if !options.DisableAuth && options.DSGUrl == "" {
+		return nil, nil, nil, fmt.Errorf("dsg-url is required when auth is enabled")
+	}
+	dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName)
+
+	if !options.DisableAuth {
+		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	// create read only group
+	readGrp := e.Group("/api")
+	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth, options.Hostname))
+
+	adminMiddleware := secure.DSGAdminMiddleware()
+	registerBaseAPIRoutes(readGrp, options, store)
+
+	// setup default page
+	if options.StaticDir != "" {
+		e.Static("/", options.StaticDir)
+		customHTTPErrorHandler := func(err error, c echo.Context) {
+			if he, ok := err.(*echo.HTTPError); ok {
+				req := c.Request()
+				if !strings.HasPrefix(req.RequestURI, "/api") && (he.Code == http.StatusNotFound) {
+					c.File(options.StaticDir)
+				}
+			}
+			e.DefaultHTTPErrorHandler(err, c)
+		}
+
+		e.HTTPErrorHandler = customHTTPErrorHandler
+
+	} else {
+		e.GET("/", func(c echo.Context) error {
+			authText := ""
+			if !options.DisableAuth {
+				authText = "-H \"Authorization: Bearer YOURTOKEN\" "
+			}
+			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" "+authText+"https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
+		})
+	}
+
+	// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
+	//
+	// swagger REST documentation
+	//
+	// YAML file containing swagger API documentation
+	//
+	// ---
+	// responses:
+	//   200:
+	//     description: "successful operation"
+
+	// The admin middleware is chained after auth, so admin routes get both
+	// authentication and the DSG admin gate.
+	combinedAdmin := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return adminMiddleware(next)
+	}
+
+	// load connectomic default READ-ONLY API
+	if err = api.SetupRoutes(e, readGrp, store, combinedAdmin); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Preserve the disable-auth + manual TLS registration order from main.
+	if options.DisableAuth && options.CertPEM != "" && options.KeyPEM != "" {
+		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, "", dsgClient)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	return e, secureAPI, dsgClient, nil
+}
+
 func main() {
 
 	// create command line argument for port
@@ -280,90 +376,10 @@ func main() {
 		fmt.Println("✗ Arrow format disabled (use --enable-arrow to enable)")
 	}
 
-	// create echo web framework
-	e := echo.New()
-
-	// setup logger
 	logger, err := logging.GetLogger(port, options)
-
-	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
-		Format: "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
-		Output: logger,
-	}))
-
-	e.Use(middleware.Recover())
-	e.Pre(middleware.NonWWWRedirect())
-
-	// --- Auth setup ---
-	var dsgClient *secure.DSGClient
-	var secureAPI *secure.EchoSecure
-
-	if !options.DisableAuth && options.DSGUrl == "" {
-		fmt.Println("ERROR: dsg-url is required when auth is enabled")
-		return
-	}
-	dsgClient = secure.NewDSGClient(options.DSGUrl, options.DSGCacheTTL, options.DSGServiceName)
-
-	if !options.DisableAuth {
-		secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, options.DSGUrl, dsgClient)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
-
-	// create read only group
-	readGrp := e.Group("/api")
-	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth, options.Hostname))
-
-	adminMiddleware := secure.DSGAdminMiddleware()
-	registerBaseAPIRoutes(readGrp, options, store)
-
-	// setup default page
-	if options.StaticDir != "" {
-		e.Static("/", options.StaticDir)
-		customHTTPErrorHandler := func(err error, c echo.Context) {
-			if he, ok := err.(*echo.HTTPError); ok {
-				req := c.Request()
-				if !strings.HasPrefix(req.RequestURI, "/api") && (he.Code == http.StatusNotFound) {
-					c.File(options.StaticDir)
-				}
-			}
-			e.DefaultHTTPErrorHandler(err, c)
-		}
-
-		e.HTTPErrorHandler = customHTTPErrorHandler
-
-	} else {
-		e.GET("/", func(c echo.Context) error {
-			authText := ""
-			if !options.DisableAuth {
-				authText = "-H \"Authorization: Bearer YOURTOKEN\" "
-			}
-			return c.HTML(http.StatusOK, "<html><title>neuprint http</title><body><a href='/token'><button>Download API Token</button></a><p><b>Example query using neo4j cypher:</b><br>curl -X GET -H \"Content-Type: application/json\" "+authText+"https://SERVERADDR/api/custom/custom -d '{\"cypher\": \"MATCH (m :Meta) RETURN m.dataset AS dataset, m.lastDatabaseEdit AS lastmod\"}'</p><a href='/api/help'>Documentation</a><form action='/logout' method='post'><input type='submit' value='Logout' /></form></body></html>")
-		})
-	}
-
-	// swagger:operation GET /api/help/swagger.yaml apimeta helpyaml
-	//
-	// swagger REST documentation
-	//
-	// YAML file containing swagger API documentation
-	//
-	// ---
-	// responses:
-	//   200:
-	//     description: "successful operation"
-
-	// The admin middleware is chained after auth, so admin routes get both
-	// authentication and the DSG admin gate.
-	combinedAdmin := func(next echo.HandlerFunc) echo.HandlerFunc {
-		return adminMiddleware(next)
-	}
-
-	// load connectomic default READ-ONLY API
-	if err = api.SetupRoutes(e, readGrp, store, combinedAdmin); err != nil {
-		fmt.Print(err)
+	e, secureAPI, _, err := newServer(options, store, logger)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
 
@@ -376,21 +392,10 @@ func main() {
 	}
 
 	// start server
-	if options.DisableAuth {
-		if options.CertPEM != "" && options.KeyPEM != "" {
-			// Create a minimal secure config just for SSL
-			secureAPI, err = secure.InitializeEchoSecure(e, options.CertPEM, options.KeyPEM, options.Hostname, "", dsgClient)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			secureAPI.StartEchoSecure(port)
-		} else {
-			// Fall back to HTTP if no SSL certs provided
-			portstr := strconv.Itoa(port)
-			e.Logger.Fatal(e.Start(":" + portstr))
-		}
-	} else {
+	if secureAPI != nil {
 		secureAPI.StartEchoSecure(port)
+	} else {
+		portstr := strconv.Itoa(port)
+		e.Logger.Fatal(e.Start(":" + portstr))
 	}
 }

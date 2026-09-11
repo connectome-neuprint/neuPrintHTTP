@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
-	"github.com/connectome-neuprint/neuPrintHTTP/secure"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -28,9 +28,8 @@ type mainDSGFixture struct {
 	anonymousDecision map[string]string
 }
 
-func (f *mainDSGFixture) client() *secure.DSGClient {
-	client := secure.NewDSGClient("http://dsg.test", 300, "neuprint")
-	client.SetHTTPClient(&http.Client{Transport: mainRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+func (f *mainDSGFixture) client() *http.Client {
+	return &http.Client{Transport: mainRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		switch r.URL.Path {
 		case "/api/dsg/v1/user":
 			f.userCalls++
@@ -81,8 +80,7 @@ func (f *mainDSGFixture) client() *secure.DSGClient {
 		default:
 			return mainJSONResponse(http.StatusNotFound, map[string]string{"error": "not found"}), nil
 		}
-	})})
-	return client
+	})}
 }
 
 func mainJSONResponse(status int, body interface{}) *http.Response {
@@ -95,7 +93,7 @@ func mainJSONResponse(status int, body interface{}) *http.Response {
 	}
 }
 
-func setupAPIForTest(t *testing.T, client *secure.DSGClient, disableAuth bool) *echo.Echo {
+func setupAPIForTest(t *testing.T, client *http.Client, disableAuth bool) *echo.Echo {
 	t.Helper()
 	tmpDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmpDir, "index.html"), []byte("help"), 0o600); err != nil {
@@ -105,14 +103,15 @@ func setupAPIForTest(t *testing.T, client *secure.DSGClient, disableAuth bool) *
 		t.Fatal(err)
 	}
 
-	e := echo.New()
-	group := e.Group("/api")
-	group.Use(secure.DSGOptionalAuthMiddleware(client, disableAuth, ""))
 	store := &storage.NoStore{Datasets: []string{"closed", "public", "tos"}}
-	registerBaseAPIRoutes(group, config.Config{SwaggerDir: tmpDir, NgDir: tmpDir, DisableAuth: disableAuth}, store)
-	if err := api.SetupRoutes(e, group, store, secure.DSGAdminMiddleware()); err != nil {
-		t.Fatalf("SetupRoutes: %v", err)
+	e, _, dsgClient, err := newServer(config.Config{
+		SwaggerDir: tmpDir, NgDir: tmpDir, DisableAuth: disableAuth,
+		DSGUrl: "http://dsg.test", DSGCacheTTL: 300, DSGServiceName: "neuprint",
+	}, store, io.Discard)
+	if err != nil {
+		t.Fatal(err)
 	}
+	dsgClient.SetHTTPClient(client)
 	return e
 }
 
@@ -134,7 +133,7 @@ func TestAnonymousPublicAndTOSReadRoutes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := strings.NewReader(`{"dataset":"` + tc.dataset + `","cypher":"RETURN 1"}`)
-			req := httptest.NewRequest(http.MethodPost, "/api/custom/custom", body)
+			req := httptest.NewRequest(http.MethodPost, "https://example.com/api/custom/custom", body)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			recorder := httptest.NewRecorder()
 			e.ServeHTTP(recorder, req)
@@ -224,7 +223,7 @@ func TestPreviouslyUnguardedClosedReadsAreDenied(t *testing.T) {
 	} {
 		t.Run(path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
-			e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+			e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com"+path, nil))
 			if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "authentication required") {
 				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 			}
@@ -250,7 +249,7 @@ func TestMutationWriteContractThroughRegisteredRoute(t *testing.T) {
 			fixture := &mainDSGFixture{}
 			e := setupAPIForTest(t, fixture.client(), tc.disableAuth)
 			body := strings.NewReader(`{"dataset":"closed","cypher":"RETURN 1"}`)
-			req := httptest.NewRequest(http.MethodPost, "/api/raw/cypher/cypher", body)
+			req := httptest.NewRequest(http.MethodPost, "https://example.com/api/raw/cypher/cypher", body)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			if tc.token != "" {
 				req.Header.Set(echo.HeaderAuthorization, "Bearer "+tc.token)
@@ -282,12 +281,13 @@ func TestServerInfoCapabilitySemantics(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := &mainDSGFixture{anonymousDecision: tc.anonymousDecision}
-			e := echo.New()
-			group := e.Group("/api")
-			group.Use(secure.DSGOptionalAuthMiddleware(fixture.client(), tc.disableAuth, ""))
-			registerBaseAPIRoutes(group, config.Config{DisableAuth: tc.disableAuth}, &storage.NoStore{Datasets: tc.datasets})
+			e, _, dsgClient, err := newServer(config.Config{DisableAuth: tc.disableAuth, DSGUrl: "http://dsg.test"}, &storage.NoStore{Datasets: tc.datasets}, io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dsgClient.SetHTTPClient(fixture.client())
 			recorder := httptest.NewRecorder()
-			e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/serverinfo", nil))
+			e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/api/serverinfo", nil))
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 			}
@@ -313,13 +313,13 @@ func TestServerInfoAnnouncementFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"disable-auth":true,"announcement":"Tokens have moved","announcement-id":"auth-migration-1"}`), &options); err != nil {
 		t.Fatal(err)
 	}
-	e := echo.New()
-	group := e.Group("/api")
-	group.Use(secure.DSGOptionalAuthMiddleware((&mainDSGFixture{}).client(), true, ""))
-	registerBaseAPIRoutes(group, options, &storage.NoStore{})
+	e, _, _, err := newServer(options, &storage.NoStore{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	recorder := httptest.NewRecorder()
-	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/serverinfo", nil))
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/api/serverinfo", nil))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
@@ -357,5 +357,25 @@ func TestRemovedPublicReadDetectionAndDisableWarning(t *testing.T) {
 	writeDisableAuthWarning(&warning)
 	if !strings.Contains(warning.String(), "ALL AUTHORIZATION IS DISABLED") {
 		t.Fatalf("warning was not loud and explicit: %q", warning.String())
+	}
+}
+
+func TestSharedServerConfigurationAndRedirects(t *testing.T) {
+	if _, _, _, err := newServer(config.Config{}, &storage.NoStore{}, io.Discard); err == nil {
+		t.Fatal("missing DSG URL accepted with auth enabled")
+	}
+	e, tlsServer, client, err := newServer(config.Config{DSGUrl: "http://dsg.test", DSGCacheTTL: 1, DSGServiceName: "fixture"}, &storage.NoStore{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tlsServer == nil || client.CacheTTL != time.Second || client.ServiceName != "fixture" {
+		t.Fatal("shared constructor lost DSG/TLS configuration")
+	}
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/serverinfo", nil)
+	req.Host = "example.com"
+	e.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusMovedPermanently || recorder.Header().Get("Location") != "https://example.com/api/serverinfo" {
+		t.Fatalf("HTTPS redirect changed: %d %s", recorder.Code, recorder.Header().Get("Location"))
 	}
 }
