@@ -1,17 +1,19 @@
 {
-    "engine": "neuPrint-neo4j",
+    "engine": "neuPrint-bolt",
     "engine-config": {
-	    "server": "<NEO4-SERVER>:7474",
+	    "server": "bolt://<NEO4J-SERVER>:7687",
 	    "user": "neo4j",
-	    "password": "<PASSWORD>"
+	    "password": "<PASSWORD>",
+	    "database": "data"
     },
     "mainstore-alternatives": [
       {
-        "engine": "neuPrint-neo4j",
+        "engine": "neuPrint-bolt",
         "engine-config": {
-          "server": "<NEO4-SERVER>:7474",
+          "server": "bolt://<NEO4J-SERVER>:7687",
           "user": "neo4j",
-          "password": "<PASSWORD>"
+          "password": "<PASSWORD>",
+          "database": "data"
         }
       }
     ],
