@@ -315,6 +315,27 @@ and restart the process/container — no image rebuild is needed.
 disabled or when DSG currently permits anonymous reads for at least one
 served dataset.
 
+#### llms.txt (guidance for AI agents)
+
+An optional config field serves an [llms.txt](https://llmstxt.org) file at
+`GET /llms.txt`, e.g. to steer AI agents toward bulk downloads instead of
+exporting whole datasets through the API:
+
+```json
+{
+    "llms-txt": "/opt/neuprint/llms.txt"
+}
+```
+
+The file is served verbatim (as `text/plain`) and without authentication.
+It is re-read from disk on every request, so it can be edited at any time
+without restarting the server. When the field is absent, there is no
+`/llms.txt` route.
+
+The file can be written by hand, or rendered from a Jinja template that
+embeds dataset descriptions from the `:Meta` nodes of a running server.
+See [support/llms-txt/](support/llms-txt/).
+
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
 older `neuPrint-neo4j` engine is deprecated. See below.
 

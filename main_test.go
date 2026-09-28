@@ -338,6 +338,78 @@ func TestServerInfoAnnouncementFields(t *testing.T) {
 	}
 }
 
+func TestLlmsTxtServedFromDisk(t *testing.T) {
+	llmsPath := filepath.Join(t.TempDir(), "llms.txt")
+	if err := os.WriteFile(llmsPath, []byte("# neuPrint\nfirst version\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Auth enabled with no token: llms.txt must be readable anonymously.
+	e, _, _, err := newServer(config.Config{DSGUrl: "http://dsg.test", LlmsTxt: llmsPath}, &storage.NoStore{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/llms.txt", nil))
+		return recorder
+	}
+
+	recorder := get()
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "# neuPrint\nfirst version\n" {
+		t.Fatalf("status=%d body=%q", recorder.Code, recorder.Body.String())
+	}
+	if ct := recorder.Header().Get(echo.HeaderContentType); ct != "text/plain; charset=utf-8" {
+		t.Fatalf("content-type=%q", ct)
+	}
+
+	// Edits to the file take effect without restarting the server.
+	if err := os.WriteFile(llmsPath, []byte("# neuPrint\nsecond version\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if recorder := get(); recorder.Body.String() != "# neuPrint\nsecond version\n" {
+		t.Fatalf("edited file not served: body=%q", recorder.Body.String())
+	}
+
+	if err := os.Remove(llmsPath); err != nil {
+		t.Fatal(err)
+	}
+	if recorder := get(); recorder.Code != http.StatusNotFound {
+		t.Fatalf("missing file: status=%d, want 404", recorder.Code)
+	}
+}
+
+func TestLlmsTxtTakesPrecedenceOverStaticDir(t *testing.T) {
+	staticDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(staticDir, "llms.txt"), []byte("static copy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	llmsPath := filepath.Join(t.TempDir(), "llms.txt")
+	if err := os.WriteFile(llmsPath, []byte("configured copy"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e, _, _, err := newServer(config.Config{DisableAuth: true, StaticDir: staticDir, LlmsTxt: llmsPath}, &storage.NoStore{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/llms.txt", nil))
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "configured copy" {
+		t.Fatalf("status=%d body=%q, want configured copy", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestLlmsTxtUnconfigured(t *testing.T) {
+	e, _, _, err := newServer(config.Config{DisableAuth: true}, &storage.NoStore{}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/llms.txt", nil))
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404 when llms-txt is unset", recorder.Code)
+	}
+}
+
 func TestRemovedPublicReadDetectionAndDisableWarning(t *testing.T) {
 	for _, args := range [][]string{
 		{"-public_read"}, {"--public_read"}, {"-public_read=true"}, {"--public_read=false"},

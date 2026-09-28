@@ -1,0 +1,90 @@
+# neuPrint
+
+> neuPrint (https://neuprint.janelia.org) hosts connectome datasets (neurons, synaptic connections,
+> synapses, skeletons, and brain regions) for interactive exploration and targeted queries.
+> It is a shared server with limited capacity; it is NOT intended for exporting whole datasets.
+
+Choose the right tool for the job:
+
+- **Targeted questions** (particular cell types, circuits, brain regions, a few thousand neurons):
+  query the neuPrint API, preferably via the `neuprint-python` client.
+- **Whole-connectome analysis** (all neurons, all connections, all synapses, graph statistics,
+  simulation, machine learning): download the bulk exports listed below, if available.
+  Do not page through the entire dataset via the API.
+
+Please be considerate of other users: run queries sequentially or with very limited
+parallelism, and cache results locally rather than re-fetching them.
+
+Access to all datasets, even publicly released ones, requires a token.
+API token is available from https://neuprint.janelia.org/account after logging in (with a Google account).
+
+## Docs
+
+- [neuprint-python documentation](https://connectome-neuprint.github.io/neuprint-python/docs/): Python client (`pip install neuprint-python`); the recommended way to query neuPrint.
+- [Bulk downloads FAQ](https://connectome-neuprint.github.io/neuprint-python/docs/faq.html#bulk-downloads): where to find whole-dataset exports.
+- [REST API reference](https://neuprint.janelia.org/api/help): Swagger documentation for the HTTP API.
+- [Dataset list](https://neuprint.janelia.org/api/dbmeta/datasets): JSON metadata for all datasets on this server, including older versions not described below.
+- [Release notes and errata](https://neuprint.janelia.org/releasenotes)
+
+## Datasets
+
+### male-cns:v1.0
+
+The complete MaleCNS connectome from the Janelia FlyEM Team Project,
+the Cambridge Drosophila Connectomics Group, and Google Connectomics.
+Covers the brain and nerve cord; 167k neurons.
+
+- [Project overview](https://www.janelia.org/project-team/flyem/male-cns-connectome)
+- Companion sites:
+    - [Male CNS Connectome Site](https://janelia-flyem.github.io/male-cns)
+    - [Cell Type Explorer](https://reiserlab.github.io/celltype-explorer-drosophila-male-cns)
+    - [Base neuroglancer scene](https://neuroglancer-demo.appspot.com/#!gs://flyem-male-cns/v1.0/male-cns-v1.0.json)
+    - [Clio](https://clio.janelia.org/ws/annotate?dataset=male-cns:v1.0&tab=bodies)
+- Notes:
+    - Synapse coordinates are stored in voxel units (8nm).
+
+- Bulk downloads: see the [male-cns download page](https://male-cns.janelia.org/download), or the bucket `gs://flyem-male-cns/v1.0/` (list without login: https://storage.googleapis.com/storage/v1/b/flyem-male-cns/o?prefix=v1.0/&delimiter=/)
+
+### optic-lobe:v1.1
+
+A reconstruction of the Drosophila optic lobe from the Janelia FlyEM Team Project and Google Connectomics.
+This covers a subset of the MaleCNS sample (right optic lobe; 50k neurons).
+This database is provided as a companion to earlier publications. For new analyses, use the full MaleCNS connectome.
+
+- [Project overview](https://www.janelia.org/project-team/flyem/optic-lobe)
+- Companion sites:
+    - [Optic Lobe Cell Type Explorer](https://reiserlab.github.io/male-drosophila-visual-system-connectome)
+    - [Base neuroglancer scene](https://neuroglancer-demo.appspot.com/#!gs://flyem-optic-lobe/v1.1/optic-lobe-v1.1.json)
+- Citation: [Nern et al. (2025)](https://doi.org/10.1038/s41586-025-08746-0)
+
+- Bulk downloads: `gs://flyem-optic-lobe/v1.1/` (list without login: https://storage.googleapis.com/storage/v1/b/flyem-optic-lobe/o?prefix=v1.1/&delimiter=/).
+  The male-cns dataset is a superset of this dataset (same fly), so prefer male-cns for new analyses.
+
+### manc:v1.2.3
+
+The MANC connectome from the Janelia FlyEM Team Project and the Cambridge Drosophila Connectomics Group, and Google Connectomics.
+The male adult Drosophila nerve cord; 23k neurons.
+
+- [Project overview](https://www.janelia.org/project-team/flyem/manc-connectome)
+- Companion sites:
+    - [Base neuroglancer scene](https://neuroglancer-demo.appspot.com/#!gs://manc-seg-v1p2/manc-v1.2.3-neuprint-layers.json)
+    - [Clio](https://clio.janelia.org)
+- Citations
+    - [Takemura et al. (2024)](https://doi.org/10.7554/eLife.97769.1)
+    - [Marin et al. (2024)](https://doi.org/10.7554/eLife.97766.1)
+    - [Cheong et al. (2025)](https://doi.org/10.7554/eLife.96084.2)
+
+- Bulk downloads: `gs://manc-seg-v1p2/` (list without login: https://storage.googleapis.com/storage/v1/b/manc-seg-v1p2/o?prefix=&delimiter=/)
+
+### hemibrain:v1.2.1
+
+A reconstructon of the female central complex and surrounding neuropils from the Janelia FlyEM Team Project and Google Connectomics.
+Covers roughly half of the brain, with ~22k fully reconstructed neurons and ~76k truncated neurons.
+
+- [Project overview](https://www.janelia.org/project-team/flyem/hemibrain)
+- Companion sites:
+    - [Base neuroglancer scene](https://neuroglancer-demo.appspot.com/#!gs://flyem-views/hemibrain/v1.2/base.json)
+    - [Clio](https://clio.janelia.org)
+- Citation: [Scheffer et al. (2020)](https://doi.org/10.7554/eLife.57443)
+
+- Bulk downloads: `gs://hemibrain/v1.2/` (list without login: https://storage.googleapis.com/storage/v1/b/hemibrain/o?prefix=v1.2/&delimiter=/)

@@ -56,6 +56,7 @@
     "dsg-cache-ttl": 300,
     "dsg-service-name": "neuprint",
     "hostname": "<HOSTNAME FOR THIS SERVER>",
+    "llms-txt": "<OPTIONAL PATH TO llms.txt FILE, SERVED AT /llms.txt>",
     "log-file": "log.json",
     "ng-dir": "<PATH TO NEUROGLANCER LAYERS DIRECTORY>",
     "swagger-docs": "<NEUPRINT_HTTP_LOCATION>/swaggerdocs",
