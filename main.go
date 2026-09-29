@@ -199,8 +199,13 @@ func newServer(options config.Config, store storage.Store, logOutput io.Writer) 
 	// so operators can edit the file without restarting the server.
 	if options.LlmsTxt != "" {
 		e.GET("/llms.txt", func(c echo.Context) error {
-			c.Response().Header().Set(echo.HeaderContentType, "text/plain; charset=utf-8")
-			return c.File(options.LlmsTxt)
+			content, err := os.ReadFile(options.LlmsTxt)
+			if err != nil {
+				// Respond directly rather than returning an error, so the
+				// static-dir 404 handler can't substitute index.html.
+				return c.String(http.StatusNotFound, "llms.txt is not available\n")
+			}
+			return c.Blob(http.StatusOK, "text/plain; charset=utf-8", content)
 		})
 	}
 

@@ -396,6 +396,19 @@ func TestLlmsTxtTakesPrecedenceOverStaticDir(t *testing.T) {
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "configured copy" {
 		t.Fatalf("status=%d body=%q, want configured copy", recorder.Code, recorder.Body.String())
 	}
+
+	// A missing file must be a real 404, not the static-dir index.html fallback.
+	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html>explorer</html>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(llmsPath); err != nil {
+		t.Fatal(err)
+	}
+	recorder = httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/llms.txt", nil))
+	if recorder.Code != http.StatusNotFound || strings.Contains(recorder.Body.String(), "explorer") {
+		t.Fatalf("missing file with static-dir: status=%d body=%q, want plain 404", recorder.Code, recorder.Body.String())
+	}
 }
 
 func TestLlmsTxtUnconfigured(t *testing.T) {
