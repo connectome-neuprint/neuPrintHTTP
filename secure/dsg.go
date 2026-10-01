@@ -126,7 +126,17 @@ type DSGClient struct {
 	decisionCache          sync.Map
 	anonymousDecisionCache sync.Map
 	client                 *http.Client
+
+	// revokeMu orders ForgetToken against cache insertion, so a lookup that
+	// DSG answered before a token was revoked cannot re-cache it afterwards.
+	revokeMu      sync.RWMutex
+	revokedTokens sync.Map // token -> time.Time of revocation
 }
+
+// revocationMemory is how long ForgetToken remembers a revoked token. Only
+// lookups already in flight at revocation can try to re-cache it, and they end
+// within the HTTP client timeout; later lookups get DSG's rejection.
+const revocationMemory = 10 * time.Minute
 
 // NewDSGClient creates a DSGClient with sensible defaults.
 func NewDSGClient(baseURL string, cacheTTLSeconds int, serviceName string) *DSGClient {
@@ -194,16 +204,29 @@ func (d *DSGClient) fetchIdentity(token string, forceRefresh bool) (*DSGIdentity
 		return nil, fmt.Errorf("dsg: failed to decode identity response: %w", err)
 	}
 
-	d.identityCache.Store(token, &cachedIdentityEntry{data: &identity, fetchedAt: time.Now()})
+	d.cacheUnlessRevoked(token, func() {
+		d.identityCache.Store(token, &cachedIdentityEntry{data: &identity, fetchedAt: time.Now()})
+	})
 	return &identity, nil
 }
 
-// ForgetToken drops every cached identity and dataset decision for token, so
-// a revoked token stops working in this process without waiting for CacheTTL.
+// ForgetToken drops every cached identity and dataset decision for token and
+// keeps lookups already in flight from caching it again, so a revoked token
+// stops working in this process without waiting for CacheTTL.
 func (d *DSGClient) ForgetToken(token string) {
 	if token == "" {
 		return
 	}
+	d.revokeMu.Lock()
+	defer d.revokeMu.Unlock()
+	now := time.Now()
+	d.revokedTokens.Range(func(k, v any) bool {
+		if now.Sub(v.(time.Time)) > revocationMemory {
+			d.revokedTokens.Delete(k)
+		}
+		return true
+	})
+	d.revokedTokens.Store(token, now)
 	d.identityCache.Delete(token)
 	d.decisionCache.Range(func(k, _ any) bool {
 		if key, ok := k.(decisionCacheKey); ok && key.token == token {
@@ -211,6 +234,17 @@ func (d *DSGClient) ForgetToken(token string) {
 		}
 		return true
 	})
+}
+
+// cacheUnlessRevoked runs store unless ForgetToken has revoked token. Holding
+// revokeMu for reading orders the insertion against a concurrent ForgetToken.
+func (d *DSGClient) cacheUnlessRevoked(token string, store func()) {
+	d.revokeMu.RLock()
+	defer d.revokeMu.RUnlock()
+	if _, revoked := d.revokedTokens.Load(token); revoked {
+		return
+	}
+	store()
 }
 
 // Identity validates a token and returns the principal identity, or nil if invalid.
@@ -290,10 +324,10 @@ func (d *DSGClient) AuthorizeDatasets(token string, datasets []string, returnURL
 		decisionCopy := decision
 		results[misses[i].dataset] = &decisionCopy
 		if decision.Decision != "tos_required" {
-			d.decisionCache.Store(
-				misses[i].key,
-				&cachedDecisionEntry{data: &decisionCopy, fetchedAt: now},
-			)
+			key := misses[i].key
+			d.cacheUnlessRevoked(token, func() {
+				d.decisionCache.Store(key, &cachedDecisionEntry{data: &decisionCopy, fetchedAt: now})
+			})
 		}
 	}
 

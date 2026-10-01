@@ -3,9 +3,11 @@ package secure
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -488,7 +490,175 @@ func TestDsgTokenRotateHandlerRelaysFailureAndKeepsCache(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["detail"] != "denied" {
+		t.Fatalf("relayed body = %s (err %v)", rec.Body.String(), err)
+	}
 	if identity, _ := tokenCached(dsg, "tok-old"); !identity {
 		t.Fatal("token evicted although rotation failed")
+	}
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, errors.New("connection reset") }
+
+func TestDsgTokenRotateHandlerTruncatedResponseIsBadGateway(t *testing.T) {
+	dsg := NewDSGClient("http://dsg.test", 300, "neuprint")
+	dsg.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(io.MultiReader(strings.NewReader(`{"tok`), failingReader{})),
+		}, nil
+	})})
+	seedTokenCaches(dsg, "tok-old")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/token/rotate", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer tok-old")
+	rec := httptest.NewRecorder()
+
+	err := dsgTokenRotateHandler("http://dsg.test", dsg)(e.NewContext(req, rec))
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusBadGateway {
+		t.Fatalf("err = %v, want 502 HTTPError", err)
+	}
+	// DSG answered 200, so the rotation may have committed: forget the old token.
+	if identity, decision := tokenCached(dsg, "tok-old"); identity || decision {
+		t.Fatalf("old token still cached: identity=%v decision=%v", identity, decision)
+	}
+}
+
+// rotateRouteServer builds the production route stack (InitializeEchoSecure,
+// DSGAuthMiddleware) against a fake DSG that knows tok-old and tok-session.
+func rotateRouteServer(t *testing.T, rotateCalls *int) *echo.Echo {
+	t.Helper()
+	dsg := NewDSGClient("http://dsg.test", 300, "neuprint")
+	dsg.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/dsg/v1/user":
+			switch r.Header.Get("Authorization") {
+			case "Bearer tok-old", "Bearer tok-session":
+				return jsonHTTPResponse(http.StatusOK, DSGIdentity{ID: 7, Email: "alice@example.org"}), nil
+			}
+			return jsonHTTPResponse(http.StatusUnauthorized, map[string]string{"detail": "invalid"}), nil
+		case "/api/v1/long_lived_token/rotate":
+			*rotateCalls++
+			return jsonHTTPResponse(http.StatusOK, map[string]string{"token": "tok-new"}), nil
+		}
+		return jsonHTTPResponse(http.StatusNotFound, map[string]string{"detail": "not found"}), nil
+	})})
+	e := echo.New()
+	if _, err := InitializeEchoSecure(e, "cert.pem", "key.pem", "neuprint.test", "http://dsg.test", dsg); err != nil {
+		t.Fatalf("InitializeEchoSecure: %v", err)
+	}
+	return e
+}
+
+func TestTokenRotateRouteThroughAuthMiddleware(t *testing.T) {
+	cases := []struct {
+		name       string
+		prepare    func(*http.Request)
+		wantStatus int
+		wantCalls  int
+	}{
+		{"no credentials", func(*http.Request) {}, http.StatusUnauthorized, 0},
+		{"invalid bearer", func(r *http.Request) {
+			r.Header.Set(echo.HeaderAuthorization, "Bearer tok-dead")
+		}, http.StatusUnauthorized, 0},
+		{"cookie only", func(r *http.Request) {
+			r.AddCookie(&http.Cookie{Name: "dsg_token", Value: "tok-session"})
+		}, http.StatusBadRequest, 0},
+		{"bearer", func(r *http.Request) {
+			r.Header.Set(echo.HeaderAuthorization, "Bearer tok-old")
+		}, http.StatusOK, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			e := rotateRouteServer(t, &calls)
+			req := httptest.NewRequest(http.MethodPost, "/token/rotate", nil)
+			req.Header.Set(echo.HeaderXForwardedProto, "https")
+			tc.prepare(req)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if calls != tc.wantCalls {
+				t.Fatalf("DSG rotate calls = %d, want %d", calls, tc.wantCalls)
+			}
+		})
+	}
+}
+
+// gatedDSG answers identity and authorize lookups only when released, so a
+// test can revoke a token while a lookup for it is in flight.
+func gatedDSG() (*DSGClient, chan struct{}, chan struct{}) {
+	arrived := make(chan struct{}, 4)
+	release := make(chan struct{})
+	dsg := NewDSGClient("http://dsg.test", 300, "neuprint")
+	dsg.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		arrived <- struct{}{}
+		<-release
+		switch r.URL.Path {
+		case "/api/dsg/v1/user":
+			return jsonHTTPResponse(http.StatusOK, DSGIdentity{ID: 7, Email: "alice@example.org"}), nil
+		case "/api/dsg/v1/authorize":
+			var req authorizeRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, err
+			}
+			resp := authorizeResponse{}
+			for _, entry := range req.Entries {
+				resp.Entries = append(resp.Entries, DSGDecision{Name: entry.Name, Decision: "allow", Roles: []string{"view"}})
+			}
+			return jsonHTTPResponse(http.StatusOK, resp), nil
+		}
+		return jsonHTTPResponse(http.StatusNotFound, map[string]string{}), nil
+	})})
+	return dsg, arrived, release
+}
+
+func TestForgetTokenBlocksInFlightIdentityRecache(t *testing.T) {
+	dsg, arrived, release := gatedDSG()
+	done := make(chan *DSGIdentity)
+	go func() {
+		identity, _ := dsg.Identity("tok-old")
+		done <- identity
+	}()
+	<-arrived
+	dsg.ForgetToken("tok-old")
+	close(release)
+	if identity := <-done; identity == nil {
+		t.Fatal("in-flight lookup should still answer its own request")
+	}
+	if _, cached := dsg.identityCache.Load("tok-old"); cached {
+		t.Fatal("revoked token re-cached by a lookup that was in flight")
+	}
+	if _, err := dsg.Identity("tok-other"); err != nil {
+		t.Fatalf("Identity(tok-other): %v", err)
+	}
+	if _, cached := dsg.identityCache.Load("tok-other"); !cached {
+		t.Fatal("unrelated token not cached")
+	}
+}
+
+func TestForgetTokenBlocksInFlightDecisionRecache(t *testing.T) {
+	dsg, arrived, release := gatedDSG()
+	done := make(chan error)
+	go func() {
+		_, err := dsg.AuthorizeDatasets("tok-old", []string{"hemibrain"}, "", false)
+		done <- err
+	}()
+	<-arrived
+	dsg.ForgetToken("tok-old")
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatalf("AuthorizeDatasets: %v", err)
+	}
+	if _, decision := tokenCached(dsg, "tok-old"); decision {
+		t.Fatal("revoked token's decision re-cached by a lookup that was in flight")
 	}
 }

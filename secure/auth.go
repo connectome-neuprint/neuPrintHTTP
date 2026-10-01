@@ -211,9 +211,14 @@ func dsgTokenRotateHandler(dsgURL string, dsgClient *DSGClient) echo.HandlerFunc
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if resp.StatusCode == http.StatusOK {
+			// DSG may have committed the rotation even if its response was
+			// cut short, so forget the old token either way.
 			dsgClient.ForgetToken(oldToken)
+		}
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadGateway, "token service response incomplete")
 		}
 		return c.JSONBlob(resp.StatusCode, body)
 	}
