@@ -1,0 +1,74 @@
+{#
+  Template for the neuPrint llms.txt file (see https://llmstxt.org).
+  Render with:  python render_llms_txt.py llms.txt.j2 --server neuprint.janelia.org -o llms.txt
+
+  - Use require("name") for datasets that must be present (rendering fails if the server doesn't list it).
+  - Use {% if "name" in datasets %} for optional datasets.
+  - Plain text is fine too, for datasets whose :Meta node won't be updated.
+
+  The "Bulk downloads" lines below are hand-written because (as of 2026-09) the
+  :Meta descriptions don't mention the buckets yet.  Once a dataset's :Meta
+  description includes that note, its hand-written line can be removed.
+#}
+{% macro bucket(gs_path) -%}
+{% set bucket_name, _, prefix = gs_path[5:].partition('/') -%}
+`{{ gs_path }}` (list without login: https://storage.googleapis.com/storage/v1/b/{{ bucket_name }}/o?prefix={{ prefix }}&delimiter=/)
+{%- endmacro %}
+# neuPrint
+
+> neuPrint ({{ server }}) hosts connectome datasets (neurons, synaptic connections,
+> synapses, skeletons, and brain regions) for interactive exploration and targeted queries.
+> It is a shared server with limited capacity; it is NOT intended for exporting whole datasets.
+
+Choose the right tool for the job:
+
+- **Targeted questions** (particular cell types, circuits, brain regions, a few thousand neurons):
+  query the neuPrint API, preferably via the `neuprint-python` client.
+- **Whole-connectome analysis** (all neurons, all connections, all synapses, graph statistics,
+  simulation, machine learning): download the bulk exports listed below, if available.
+  Do not page through the entire dataset via the API.
+
+Please be considerate of other users: run queries sequentially or with very limited
+parallelism, and cache results locally rather than re-fetching them.
+
+Access to all datasets, even publicly released ones, requires a token.
+API token is available from {{ server }}/account after logging in (with a Google account).
+
+## Docs
+
+- [neuprint-python documentation](https://connectome-neuprint.github.io/neuprint-python/docs/): Python client (`pip install neuprint-python`); the recommended way to query neuPrint.
+- [Bulk downloads FAQ](https://connectome-neuprint.github.io/neuprint-python/docs/faq.html#bulk-downloads): where to find whole-dataset exports.
+- [REST API reference]({{ server }}/api/help): Swagger documentation for the HTTP API.
+- [Dataset list]({{ server }}/api/dbmeta/datasets): JSON metadata for all datasets on this server, including older versions not described below.
+- [Release notes and errata]({{ server }}/releasenotes)
+
+## Datasets
+{% set d = require("male-cns:v1.0") %}
+
+### male-cns:v1.0
+
+{{ d.description | trim }}
+
+- Bulk downloads: see the [male-cns download page](https://male-cns.janelia.org/download), or the bucket {{ bucket("gs://flyem-male-cns/v1.0/") }}
+{% set d = require("optic-lobe:v1.1") %}
+
+### optic-lobe:v1.1
+
+{{ d.description | trim }}
+
+- Bulk downloads: {{ bucket("gs://flyem-optic-lobe/v1.1/") }}.
+  The male-cns dataset is a superset of this dataset (same fly), so prefer male-cns for new analyses.
+{% set d = require("manc:v1.2.3") %}
+
+### manc:v1.2.3
+
+{{ d.description | trim }}
+
+- Bulk downloads: {{ bucket("gs://manc-seg-v1p2/") }}
+{% set d = require("hemibrain:v1.2.1") %}
+
+### hemibrain:v1.2.1
+
+{{ d.description | trim }}
+
+- Bulk downloads: {{ bucket("gs://hemibrain/v1.2/") }}

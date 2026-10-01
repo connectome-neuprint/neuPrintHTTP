@@ -30,6 +30,7 @@ type Config struct {
 	DSGServiceName  string        `json:"dsg-service-name,omitempty"`       // service name for DSG TOS checks (default "neuprint")
 	Announcement    string        `json:"announcement,omitempty"`           // optional site-wide announcement text
 	AnnouncementID  string        `json:"announcement-id,omitempty"`        // dismissal key for the current announcement
+	LlmsTxt         string        `json:"llms-txt,omitempty"`               // optional file served verbatim at /llms.txt
 }
 
 // LoadConfig parses json configuration and loads options

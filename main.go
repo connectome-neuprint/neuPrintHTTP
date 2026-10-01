@@ -195,6 +195,20 @@ func newServer(options config.Config, store storage.Store, logOutput io.Writer) 
 	adminMiddleware := secure.DSGAdminMiddleware()
 	registerBaseAPIRoutes(readGrp, options, store)
 
+	// Serve llms.txt (guidance for AI agents) from disk on every request,
+	// so operators can edit the file without restarting the server.
+	if options.LlmsTxt != "" {
+		e.GET("/llms.txt", func(c echo.Context) error {
+			content, err := os.ReadFile(options.LlmsTxt)
+			if err != nil {
+				// Respond directly rather than returning an error, so the
+				// static-dir 404 handler can't substitute index.html.
+				return c.String(http.StatusNotFound, "llms.txt is not available\n")
+			}
+			return c.Blob(http.StatusOK, "text/plain; charset=utf-8", content)
+		})
+	}
+
 	// setup default page
 	if options.StaticDir != "" {
 		e.Static("/", options.StaticDir)
