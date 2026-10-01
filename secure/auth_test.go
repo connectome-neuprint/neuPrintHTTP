@@ -2,10 +2,12 @@ package secure
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -387,4 +389,106 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func newRotateTestClient(status int, body interface{}, calls *[]*http.Request) *DSGClient {
+	dsg := NewDSGClient("http://dsg.test", 300, "neuprint")
+	dsg.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		*calls = append(*calls, r)
+		return jsonHTTPResponse(status, body), nil
+	})})
+	return dsg
+}
+
+func seedTokenCaches(dsg *DSGClient, tokens ...string) {
+	for _, tok := range tokens {
+		dsg.identityCache.Store(tok, &cachedIdentityEntry{data: &DSGIdentity{}, fetchedAt: time.Now()})
+		dsg.decisionCache.Store(
+			decisionCacheKey{token: tok, name: "hemibrain"},
+			&cachedDecisionEntry{data: &DSGDecision{}, fetchedAt: time.Now()},
+		)
+	}
+}
+
+func tokenCached(dsg *DSGClient, tok string) (identity, decision bool) {
+	_, identity = dsg.identityCache.Load(tok)
+	_, decision = dsg.decisionCache.Load(decisionCacheKey{token: tok, name: "hemibrain"})
+	return identity, decision
+}
+
+func TestDsgTokenRotateHandlerRequiresBearerHeader(t *testing.T) {
+	var calls []*http.Request
+	dsg := newRotateTestClient(http.StatusOK, map[string]string{"token": "tok-new"}, &calls)
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/token/rotate", nil)
+	req.AddCookie(&http.Cookie{Name: "dsg_token", Value: "tok-session"})
+	rec := httptest.NewRecorder()
+
+	err := dsgTokenRotateHandler("http://dsg.test", dsg)(e.NewContext(req, rec))
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusBadRequest {
+		t.Fatalf("err = %v, want 400 HTTPError", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("DSG called %d times without a bearer header", len(calls))
+	}
+}
+
+func TestDsgTokenRotateHandlerProxiesAndForgetsOldToken(t *testing.T) {
+	var calls []*http.Request
+	dsg := newRotateTestClient(http.StatusOK, map[string]string{"token": "tok-new"}, &calls)
+	seedTokenCaches(dsg, "tok-old", "tok-other")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/token/rotate", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer tok-old")
+	rec := httptest.NewRecorder()
+
+	if err := dsgTokenRotateHandler("http://dsg.test", dsg)(e.NewContext(req, rec)); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("DSG calls = %d, want 1", len(calls))
+	}
+	if calls[0].Method != http.MethodPost || calls[0].URL.Path != "/api/v1/long_lived_token/rotate" {
+		t.Fatalf("proxied %s %s", calls[0].Method, calls[0].URL.Path)
+	}
+	if got := calls[0].Header.Get("Authorization"); got != "Bearer tok-old" {
+		t.Fatalf("proxied auth = %q", got)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["token"] != "tok-new" {
+		t.Fatalf("body = %s (err %v)", rec.Body.String(), err)
+	}
+	if identity, decision := tokenCached(dsg, "tok-old"); identity || decision {
+		t.Fatalf("old token still cached: identity=%v decision=%v", identity, decision)
+	}
+	if identity, decision := tokenCached(dsg, "tok-other"); !identity || !decision {
+		t.Fatalf("unrelated token evicted: identity=%v decision=%v", identity, decision)
+	}
+}
+
+func TestDsgTokenRotateHandlerRelaysFailureAndKeepsCache(t *testing.T) {
+	var calls []*http.Request
+	dsg := newRotateTestClient(http.StatusForbidden, map[string]string{"detail": "denied"}, &calls)
+	seedTokenCaches(dsg, "tok-old")
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/token/rotate", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer tok-old")
+	rec := httptest.NewRecorder()
+
+	if err := dsgTokenRotateHandler("http://dsg.test", dsg)(e.NewContext(req, rec)); err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if identity, _ := tokenCached(dsg, "tok-old"); !identity {
+		t.Fatal("token evicted although rotation failed")
+	}
 }

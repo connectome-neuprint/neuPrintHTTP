@@ -198,6 +198,21 @@ func (d *DSGClient) fetchIdentity(token string, forceRefresh bool) (*DSGIdentity
 	return &identity, nil
 }
 
+// ForgetToken drops every cached identity and dataset decision for token, so
+// a revoked token stops working in this process without waiting for CacheTTL.
+func (d *DSGClient) ForgetToken(token string) {
+	if token == "" {
+		return
+	}
+	d.identityCache.Delete(token)
+	d.decisionCache.Range(func(k, _ any) bool {
+		if key, ok := k.(decisionCacheKey); ok && key.token == token {
+			d.decisionCache.Delete(k)
+		}
+		return true
+	})
+}
+
 // Identity validates a token and returns the principal identity, or nil if invalid.
 func (d *DSGClient) Identity(token string) (*DSGIdentity, error) {
 	return d.fetchIdentity(token, false)

@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -177,6 +178,43 @@ func dsgTokenHandler(dsgURL string) echo.HandlerFunc {
 		defer resp.Body.Close()
 
 		body, _ := io.ReadAll(resp.Body)
+		return c.JSONBlob(resp.StatusCode, body)
+	}
+}
+
+// dsgTokenRotateHandler proxies a rotation of the caller's default long-lived
+// token to DatasetGateway and returns the replacement. The request must carry
+// the token being rotated in an Authorization: Bearer header. Browsers never
+// attach that header on their own, so a cross-site form POST riding the
+// dsg_token cookie cannot rotate a user's token. On success the presented
+// token is dropped from this process's caches; other services keep honoring
+// it until their own caches expire.
+func dsgTokenRotateHandler(dsgURL string, dsgClient *DSGClient) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		auth, present := requestHeader(c.Request(), echo.HeaderAuthorization)
+		fields := strings.Fields(auth)
+		if !present || len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") || fields[1] == "" {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				"token rotation requires an Authorization: Bearer header carrying the token to rotate")
+		}
+		oldToken := fields[1]
+
+		req, err := http.NewRequest("POST", dsgURL+"/api/v1/long_lived_token/rotate", nil)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to build token rotation request")
+		}
+		req.Header.Set("Authorization", "Bearer "+oldToken)
+
+		resp, err := dsgClient.client.Do(req)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadGateway, "token service unreachable")
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusOK {
+			dsgClient.ForgetToken(oldToken)
+		}
 		return c.JSONBlob(resp.StatusCode, body)
 	}
 }
