@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -622,5 +624,74 @@ func TestRequestLogLineIsEscapedJSON(t *testing.T) {
 		if record[key] != want {
 			t.Errorf("log %s=%q, want %q", key, record[key], want)
 		}
+	}
+}
+
+func TestDefaultPolicyCredentialTransportsAndRequestVariants(t *testing.T) {
+	fixture := &mainDSGFixture{anonymousDecision: map[string]string{"public": "allow"}}
+	e := setupAPIForTest(t, fixture.client(), false, false)
+	cypher := `{"dataset":"public","cypher":"RETURN 1"}`
+	for _, tc := range []struct {
+		name       string
+		method     string
+		target     string
+		setup      func(*http.Request)
+		wantStatus int
+	}{
+		{"cookie token", http.MethodPost, "/api/custom/custom", func(r *http.Request) {
+			r.AddCookie(&http.Cookie{Name: "dsg_token", Value: "reader"})
+		}, http.StatusOK},
+		{"query token", http.MethodPost, "/api/custom/custom?dsg_token=reader", nil, http.StatusOK},
+		{"anonymous trailing slash", http.MethodPost, "/api/custom/custom/", nil, http.StatusUnauthorized},
+		{"anonymous encoded slash", http.MethodPost, "/api/custom%2Fcustom", nil, http.StatusUnauthorized},
+		{"anonymous HEAD", http.MethodHead, "/api/custom/custom", nil, http.StatusUnauthorized},
+		{"anonymous OPTIONS", http.MethodOptions, "/api/custom/custom", nil, http.StatusUnauthorized},
+		{"anonymous PUT", http.MethodPut, "/api/custom/custom", nil, http.StatusUnauthorized},
+		{"anonymous DELETE", http.MethodDelete, "/api/skeletons/skeleton/public/1", nil, http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "https://example.com"+tc.target, strings.NewReader(cypher))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			if tc.setup != nil {
+				tc.setup(req)
+			}
+			recorder := httptest.NewRecorder()
+			e.ServeHTTP(recorder, req)
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf("status=%d body=%s, want %d", recorder.Code, recorder.Body.String(), tc.wantStatus)
+			}
+			if tc.wantStatus == http.StatusOK && !strings.Contains(recorder.Body.String(), "columns") {
+				t.Fatalf("body=%s, want query results", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestRequestLogNumbersFromWireRequest(t *testing.T) {
+	fixture := &mainDSGFixture{}
+	var logOutput bytes.Buffer
+	e, _, dsgClient, err := newServer(config.Config{DSGUrl: "http://dsg.test"}, &storage.NoStore{Datasets: []string{"public"}}, &logOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dsgClient.SetHTTPClient(fixture.client())
+
+	// Go's parser accepts "00", which is not a valid JSON number.
+	raw := "GET /api/version HTTP/1.1\r\nHost: example.com\r\nContent-Length: 00\r\n\r\n"
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.TLS = &tls.ConnectionState{} // as behind TLS; plain HTTP is redirected before logging
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, req)
+
+	var record map[string]interface{}
+	line := strings.TrimSuffix(logOutput.String(), "\n")
+	if err := json.Unmarshal([]byte(line), &record); err != nil {
+		t.Fatalf("log line is not valid JSON: %v\n%s", err, line)
+	}
+	if record["bytes_in"] != float64(0) || record["status"] != float64(http.StatusOK) {
+		t.Fatalf("bytes_in=%v status=%v, want 0 and 200", record["bytes_in"], record["status"])
 	}
 }

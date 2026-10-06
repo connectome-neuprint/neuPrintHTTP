@@ -13,7 +13,6 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/knightjdr/hclust v1.0.2
 	github.com/labstack/echo/v4 v4.9.0
-	github.com/labstack/gommon v0.3.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.27.0
 	github.com/valyala/fasttemplate v1.2.1
 	golang.org/x/crypto v0.45.0
@@ -37,6 +36,7 @@ require (
 	github.com/google/flatbuffers v24.12.23+incompatible // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect

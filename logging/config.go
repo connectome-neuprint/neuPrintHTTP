@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/color"
 	"github.com/valyala/fasttemplate"
 )
 
@@ -61,7 +60,6 @@ type (
 		Output io.Writer
 
 		template *fasttemplate.Template
-		colorer  *color.Color
 		pool     *sync.Pool
 	}
 )
@@ -75,7 +73,6 @@ var (
 			`"bytes_out":${bytes_out}}` + "\n",
 		CustomTimeFormat: "2006-01-02 15:04:05.00000",
 		Output:           os.Stdout,
-		colorer:          color.New(),
 	}
 )
 
@@ -96,8 +93,6 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 	}
 
 	config.template = fasttemplate.New(config.Format, "${", "}")
-	config.colorer = color.New()
-	config.colorer.SetOutput(config.Output)
 	config.pool = &sync.Pool{
 		New: func() interface{} {
 			return bytes.NewBuffer(make([]byte, 256))
@@ -163,17 +158,7 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 				case "user_agent":
 					return writeJSONString(buf, req.UserAgent())
 				case "status":
-					n := res.Status
-					s := config.colorer.Green(n)
-					switch {
-					case n >= 500:
-						s = config.colorer.Red(n)
-					case n >= 400:
-						s = config.colorer.Yellow(n)
-					case n >= 300:
-						s = config.colorer.Cyan(n)
-					}
-					return buf.WriteString(s)
+					return buf.WriteString(strconv.Itoa(res.Status))
 				case "error":
 					if err != nil {
 						return writeJSONString(buf, err.Error())
@@ -185,11 +170,14 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 				case "latency_human":
 					return buf.WriteString(stop.Sub(start).String())
 				case "bytes_in":
-					cl := req.Header.Get(echo.HeaderContentLength)
-					if cl == "" {
-						cl = "0"
+					// The parsed length, not the header text: Go accepts
+					// spellings such as "00" that are not valid JSON numbers.
+					// An unknown length (-1) is logged as 0, as before.
+					n := req.ContentLength
+					if n < 0 {
+						n = 0
 					}
-					return buf.WriteString(cl)
+					return buf.WriteString(strconv.FormatInt(n, 10))
 				case "bytes_out":
 					return buf.WriteString(strconv.FormatInt(res.Size, 10))
 				case "category":
