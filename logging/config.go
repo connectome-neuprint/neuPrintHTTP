@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -42,6 +43,10 @@ type (
 		// - header:<NAME>
 		// - query:<NAME>
 		// - form:<NAME>
+		//
+		// String values are written JSON-escaped, so a format that places a
+		// tag inside a JSON string stays one valid JSON line whatever the
+		// request contains.
 		//
 		// Example "${remote_ip} ${status}"
 		//
@@ -120,7 +125,7 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					if !ok {
 						dataset = c.Param("dataset")
 					}
-					buf.WriteString(dataset)
+					return writeJSONString(buf, dataset)
 				case "time_unix":
 					return buf.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
 				case "time_unix_nano":
@@ -136,27 +141,27 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					if id == "" {
 						id = res.Header().Get(echo.HeaderXRequestID)
 					}
-					return buf.WriteString(id)
+					return writeJSONString(buf, id)
 				case "remote_ip":
-					return buf.WriteString(c.RealIP())
+					return writeJSONString(buf, c.RealIP())
 				case "host":
-					return buf.WriteString(req.Host)
+					return writeJSONString(buf, req.Host)
 				case "uri":
-					return buf.WriteString(req.RequestURI)
+					return writeJSONString(buf, req.RequestURI)
 				case "method":
-					return buf.WriteString(req.Method)
+					return writeJSONString(buf, req.Method)
 				case "path":
 					p := req.URL.Path
 					if p == "" {
 						p = "/"
 					}
-					return buf.WriteString(p)
+					return writeJSONString(buf, p)
 				case "protocol":
-					return buf.WriteString(req.Proto)
+					return writeJSONString(buf, req.Proto)
 				case "referer":
-					return buf.WriteString(req.Referer())
+					return writeJSONString(buf, req.Referer())
 				case "user_agent":
-					return buf.WriteString(req.UserAgent())
+					return writeJSONString(buf, req.UserAgent())
 				case "status":
 					n := res.Status
 					s := config.colorer.Green(n)
@@ -171,7 +176,7 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 					return buf.WriteString(s)
 				case "error":
 					if err != nil {
-						return buf.WriteString(err.Error())
+						return writeJSONString(buf, err.Error())
 					}
 				case "latency":
 					l := stop.Sub(start)
@@ -195,29 +200,27 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 							category = path[1] + "/" + path[2]
 						}
 					}
-					return buf.WriteString(category)
+					return writeJSONString(buf, category)
 				default:
 					switch {
 					case strings.HasPrefix(tag, "header:"):
-						return buf.Write([]byte(c.Request().Header.Get(tag[7:])))
+						return writeJSONString(buf, c.Request().Header.Get(tag[7:]))
 					case strings.HasPrefix(tag, "query:"):
-						return buf.Write([]byte(c.QueryParam(tag[6:])))
+						return writeJSONString(buf, c.QueryParam(tag[6:]))
 					case strings.HasPrefix(tag, "form:"):
-						return buf.Write([]byte(c.FormValue(tag[5:])))
+						return writeJSONString(buf, c.FormValue(tag[5:]))
 					case strings.HasPrefix(tag, "custom:"):
 						if custval, ok := c.Get(tag[7:]).([]byte); ok {
-							tempval := strings.Replace(string(custval), "\"", "\\\"", -1)
-							return buf.Write([]byte(tempval))
+							return writeJSONString(buf, string(custval))
 						} else if custval, ok := c.Get(tag[7:]).(string); ok {
-							tempval := strings.Replace(custval, "\"", "\\\"", -1)
-							return buf.WriteString(tempval)
+							return writeJSONString(buf, custval)
 						} else {
 							return buf.WriteString("")
 						}
 					case strings.HasPrefix(tag, "cookie:"):
 						cookie, err := c.Cookie(tag[7:])
 						if err == nil {
-							return buf.Write([]byte(cookie.Value))
+							return writeJSONString(buf, cookie.Value)
 						}
 					}
 				}
@@ -229,4 +232,32 @@ func LoggerWithConfig(config LoggerConfig) echo.MiddlewareFunc {
 			return
 		}
 	}
+}
+
+// writeJSONString writes s escaped for the inside of a JSON string literal:
+// quotes, backslashes and control characters are escaped, and invalid UTF-8
+// becomes U+FFFD. Unlike encoding/json it leaves <, > and & as they are.
+func writeJSONString(buf *bytes.Buffer, s string) (int, error) {
+	start := buf.Len()
+	for _, r := range s {
+		switch r {
+		case '"':
+			buf.WriteString(`\"`)
+		case '\\':
+			buf.WriteString(`\\`)
+		case '\n':
+			buf.WriteString(`\n`)
+		case '\r':
+			buf.WriteString(`\r`)
+		case '\t':
+			buf.WriteString(`\t`)
+		default:
+			if r < 0x20 || r == '\u2028' || r == '\u2029' {
+				fmt.Fprintf(buf, `\u%04x`, r)
+			} else {
+				buf.WriteRune(r)
+			}
+		}
+	}
+	return buf.Len() - start, nil
 }

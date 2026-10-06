@@ -264,7 +264,7 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 
 #### DatasetGateway (DSG) Authentication
 
-neuPrintHTTP delegates per-dataset authorization to a [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) instance. A request with no credential may read a DSG-public dataset; closed datasets require authentication. Any supplied credential is validated and is never silently treated as anonymous. Public access is read-only: all mutations require an explicit dataset grant, while DSG global administrators retain their existing bypass.
+neuPrintHTTP delegates per-dataset authorization to a [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) instance. Every data request needs a DSG credential, including requests for DSG-public datasets, so that usage can be attributed to users. Without a credential only these `/api` routes answer: `/api/version`, `/api/serverinfo`, `/api/help`, `/api/available`, `/api/vimoserver` and the dataset listing `/api/dbmeta/datasets` (which still lists DSG-public datasets). Every other `/api` route returns 401 with a message pointing at `https://<hostname>/account`. `/`, static files, `/login`, `/logout` and `/llms.txt` are unaffected. Setting `allow-anonymous-reads` restores the behavior of earlier releases, in which a request with no credential may read a DSG-public dataset. Closed datasets always require authentication. Any supplied credential is validated and is never silently treated as anonymous. Public access is read-only: all mutations require an explicit dataset grant, while DSG global administrators retain their existing bypass.
 
 Add these fields to your config to enable DSG auth:
 
@@ -283,9 +283,10 @@ Add these fields to your config to enable DSG auth:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `dsg-url` | Yes (when auth enabled) | Base URL of the DatasetGateway service |
-| `dsg-cache-ttl` | No | Seconds to cache DSG identity and non-TOS dataset decisions (default: 300). A public-to-closed change can remain readable anonymously until this TTL expires. |
+| `dsg-cache-ttl` | No | Seconds to cache DSG identity and non-TOS dataset decisions (default: 300). With `allow-anonymous-reads`, a public-to-closed change can remain readable anonymously until this TTL expires. |
 | `dsg-service-name` | No | Service name sent to DSG native authorization (default: "neuprint") |
-| `hostname` | No | Public hostname of this server. When set, invalid/expired-token 401 responses point the caller at `https://<hostname>/account` to obtain a new token; when empty, the URL hint is omitted from the message. |
+| `hostname` | No | Public hostname of this server. When set, 401 responses for a missing or invalid/expired token point the caller at `https://<hostname>/account` to obtain one; when empty, the URL hint is omitted from the message. |
+| `allow-anonymous-reads` | No | When true, requests without a credential may read DSG-public datasets on every data route (the behavior before 1.9.6). Default false: every data route requires a token. |
 
 #### Site-wide Announcements
 
@@ -312,8 +313,9 @@ process start: to post, change, or retire an announcement, edit the config
 and restart the process/container — no image rebuild is needed.
 
 `GET /api/serverinfo` also reports `IsPublic`: true when authorization is
-disabled or when DSG currently permits anonymous reads for at least one
-served dataset.
+disabled, or when `allow-anonymous-reads` is set and DSG currently permits
+anonymous reads for at least one served dataset. neuPrintExplorer prompts
+logged-out visitors to log in when it is false.
 
 #### llms.txt (guidance for AI agents)
 
@@ -338,6 +340,20 @@ See [support/llms-txt/](support/llms-txt/).
 
 Note that the Bolt (optimized neo4j protocol) engine `neupPrint-bolt` is recommended while the 
 older `neuPrint-neo4j` engine is deprecated. See below.
+
+#### Request log
+
+`log-file` names a file that receives one JSON object per request, for
+example:
+
+```json
+{"dataset": "hemibrain:v1.2.1", "uri": "/api/custom/custom", "status": 200, "bytes_in": 120, "bytes_out": 2048, "duration": 35.2, "time": 1790280503, "user": "someone@example.org", "category": "custom/custom", "debug": "MATCH (n:Neuron) RETURN n.bodyId LIMIT 10", "agent": "python-requests/2.32.3"}
+```
+
+`user` is the caller's DSG email (empty without a credential), `duration` is
+in milliseconds, `debug` holds the cypher of custom queries, and `agent` is
+the request's `User-Agent`. Every string value is JSON-escaped, so each
+record is one line of valid JSON even when a query spans several lines.
 
 #### Neo4j Bolt Driver
 
@@ -369,7 +385,7 @@ This development-only mode disables all authorization. Set `"disable-auth"` to t
 
 Authentication and authorization are handled by [DatasetGateway](https://github.com/JaneliaSciComp/DatasetGateway) (DSG). Set `"disable-auth": false` and provide a `"dsg-url"` in your config (see the DSG configuration section above).
 
-Users may authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. `GET /token` returns the caller's long-lived DSG token (the one neuPrintExplorer shows on the Account page). `POST /token/rotate` revokes that token and returns a replacement as `{"token": ...}`; the token being rotated must be sent as `Authorization: Bearer <token>` (cookie-only requests are refused, so a cross-site form cannot rotate a user's token), and a second rotation of an already-rotated token gets 409. This server forgets the old token immediately, including lookups for it that were already in flight; other servers and services stop honoring it once their DSG caches expire (`dsg-cache-ttl` here, 300 s by default). Anonymous callers can read only datasets DSG marks public. The dataset listing (`/api/dbmeta/datasets`) is filtered per caller: anonymous callers see only DSG-public datasets, authenticated non-admins see their granted datasets, and hidden datasets are listed only for global admins (`?hidden=true` is ignored for everyone else).
+Users may authenticate with DSG API keys, and neuPrintHTTP checks per-dataset permissions on every data request. `GET /token` returns the caller's long-lived DSG token (the one neuPrintExplorer shows on the Account page). `POST /token/rotate` revokes that token and returns a replacement as `{"token": ...}`; the token being rotated must be sent as `Authorization: Bearer <token>` (cookie-only requests are refused, so a cross-site form cannot rotate a user's token), and a second rotation of an already-rotated token gets 409. This server forgets the old token immediately, including lookups for it that were already in flight; other servers and services stop honoring it once their DSG caches expire (`dsg-cache-ttl` here, 300 s by default). Without `allow-anonymous-reads`, a caller without a credential can read no data; with it, anonymous callers can read only datasets DSG marks public. The dataset listing (`/api/dbmeta/datasets`) is filtered per caller: anonymous callers see only DSG-public datasets, authenticated non-admins see their granted datasets, and hidden datasets are listed only for global admins (`?hidden=true` is ignored for everyone else).
 
 HTTPS is required when auth is enabled. To generate test certificates for local development:
 

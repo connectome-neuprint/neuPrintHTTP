@@ -14,6 +14,7 @@ import (
 
 	"github.com/connectome-neuprint/neuPrintHTTP/api"
 	"github.com/connectome-neuprint/neuPrintHTTP/config"
+	"github.com/connectome-neuprint/neuPrintHTTP/internal/version"
 	"github.com/connectome-neuprint/neuPrintHTTP/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -93,7 +94,7 @@ func mainJSONResponse(status int, body interface{}) *http.Response {
 	}
 }
 
-func setupAPIForTest(t *testing.T, client *http.Client, disableAuth bool) *echo.Echo {
+func setupAPIForTest(t *testing.T, client *http.Client, disableAuth, allowAnonymousReads bool) *echo.Echo {
 	t.Helper()
 	tmpDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmpDir, "index.html"), []byte("help"), 0o600); err != nil {
@@ -107,6 +108,7 @@ func setupAPIForTest(t *testing.T, client *http.Client, disableAuth bool) *echo.
 	e, _, dsgClient, err := newServer(config.Config{
 		SwaggerDir: tmpDir, NgDir: tmpDir, DisableAuth: disableAuth,
 		DSGUrl: "http://dsg.test", DSGCacheTTL: 300, DSGServiceName: "neuprint",
+		AllowAnonymousReads: allowAnonymousReads,
 	}, store, io.Discard)
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +122,7 @@ func TestAnonymousPublicAndTOSReadRoutes(t *testing.T) {
 		"public": "allow",
 		"tos":    "tos_required",
 	}}
-	e := setupAPIForTest(t, fixture.client(), false)
+	e := setupAPIForTest(t, fixture.client(), false, true)
 	for _, tc := range []struct {
 		name       string
 		dataset    string
@@ -146,7 +148,7 @@ func TestAnonymousPublicAndTOSReadRoutes(t *testing.T) {
 
 func TestEveryAPIRouteHasDeclaredPolicy(t *testing.T) {
 	fixture := &mainDSGFixture{}
-	e := setupAPIForTest(t, fixture.client(), false)
+	e := setupAPIForTest(t, fixture.client(), false, false)
 	policies := api.DeclaredRoutePolicies()
 
 	for _, route := range e.Routes() {
@@ -214,7 +216,7 @@ func TestEveryAPIRouteHasDeclaredPolicy(t *testing.T) {
 
 func TestPreviouslyUnguardedClosedReadsAreDenied(t *testing.T) {
 	fixture := &mainDSGFixture{}
-	e := setupAPIForTest(t, fixture.client(), false)
+	e := setupAPIForTest(t, fixture.client(), false, true)
 	for _, path := range []string{
 		"/api/skeletons/skeleton/closed/1",
 		"/api/roimeshes/mesh/closed/roi",
@@ -247,7 +249,7 @@ func TestMutationWriteContractThroughRegisteredRoute(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := &mainDSGFixture{}
-			e := setupAPIForTest(t, fixture.client(), tc.disableAuth)
+			e := setupAPIForTest(t, fixture.client(), tc.disableAuth, false)
 			body := strings.NewReader(`{"dataset":"closed","cypher":"RETURN 1"}`)
 			req := httptest.NewRequest(http.MethodPost, "https://example.com/api/raw/cypher/cypher", body)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -272,16 +274,18 @@ func TestServerInfoCapabilitySemantics(t *testing.T) {
 		datasets          []string
 		anonymousDecision map[string]string
 		disableAuth       bool
+		allowAnonymous    bool
 		wantPublic        bool
 		wantAuthorize     int
 	}{
-		{"at least one public dataset", []string{"closed", "public"}, map[string]string{"public": "allow"}, false, true, 1},
-		{"zero public datasets", []string{"closed"}, nil, false, false, 1},
-		{"disable auth", []string{"closed"}, nil, true, true, 0},
+		{"anonymous reads, at least one public dataset", []string{"closed", "public"}, map[string]string{"public": "allow"}, false, true, true, 1},
+		{"anonymous reads, zero public datasets", []string{"closed"}, nil, false, true, false, 1},
+		{"default requires a token despite public datasets", []string{"closed", "public"}, map[string]string{"public": "allow"}, false, false, false, 0},
+		{"disable auth", []string{"closed"}, nil, true, false, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := &mainDSGFixture{anonymousDecision: tc.anonymousDecision}
-			e, _, dsgClient, err := newServer(config.Config{DisableAuth: tc.disableAuth, DSGUrl: "http://dsg.test"}, &storage.NoStore{Datasets: tc.datasets}, io.Discard)
+			e, _, dsgClient, err := newServer(config.Config{DisableAuth: tc.disableAuth, DSGUrl: "http://dsg.test", AllowAnonymousReads: tc.allowAnonymous}, &storage.NoStore{Datasets: tc.datasets}, io.Discard)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -462,5 +466,161 @@ func TestSharedServerConfigurationAndRedirects(t *testing.T) {
 	e.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusMovedPermanently || recorder.Header().Get("Location") != "https://example.com/api/serverinfo" {
 		t.Fatalf("HTTPS redirect changed: %d %s", recorder.Code, recorder.Header().Get("Location"))
+	}
+}
+
+// concreteRoutePath fills an Echo route pattern's parameters so that a
+// request matches that route.
+func concreteRoutePath(pattern string) string {
+	if strings.HasSuffix(pattern, "*") {
+		return strings.TrimSuffix(pattern, "*") + "/"
+	}
+	parts := strings.Split(pattern, "/")
+	for i, part := range parts {
+		switch {
+		case part == "v:ver":
+			parts[i] = "v" + version.Version
+		case strings.HasPrefix(part, ":"):
+			parts[i] = "public"
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
+func isAPIEndpoint(path string) bool {
+	return strings.HasPrefix(path, "/api") && path != "/api" && path != "/api/*"
+}
+
+func TestTokenRequiredByDefaultOnEveryDataRoute(t *testing.T) {
+	fixture := &mainDSGFixture{anonymousDecision: map[string]string{"public": "allow"}}
+	e := setupAPIForTest(t, fixture.client(), false, false)
+	paths := []struct{ method, path string }{{http.MethodGet, "/api/no-such-route"}}
+	for _, route := range e.Routes() {
+		if !isAPIEndpoint(route.Path) {
+			continue
+		}
+		if policy, _ := api.RoutePolicyFor(route.Method, route.Path); policy == api.NamedExceptionRoute {
+			continue
+		}
+		paths = append(paths, struct{ method, path string }{route.Method, concreteRoutePath(route.Path)})
+	}
+	if len(paths) < 40 {
+		t.Fatalf("only %d data routes found; route enumeration is broken", len(paths))
+	}
+	for _, p := range paths {
+		t.Run(p.method+" "+p.path, func(t *testing.T) {
+			body := strings.NewReader(`{"dataset":"public","cypher":"RETURN 1"}`)
+			req := httptest.NewRequest(p.method, "https://example.com"+p.path, body)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			recorder := httptest.NewRecorder()
+			e.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "requires an API token for all data") {
+				t.Fatalf("status=%d body=%s, want 401 with the login message", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+	if fixture.userCalls != 0 || fixture.authorizeCalls != 0 {
+		t.Fatalf("refused anonymous requests consulted DSG: user=%d authorize=%d", fixture.userCalls, fixture.authorizeCalls)
+	}
+}
+
+func TestNamedExceptionsOpenWithoutTokenByDefault(t *testing.T) {
+	fixture := &mainDSGFixture{anonymousDecision: map[string]string{"public": "allow"}}
+	e := setupAPIForTest(t, fixture.client(), false, false)
+	seen := 0
+	for _, route := range e.Routes() {
+		if !isAPIEndpoint(route.Path) {
+			continue
+		}
+		if policy, _ := api.RoutePolicyFor(route.Method, route.Path); policy != api.NamedExceptionRoute {
+			continue
+		}
+		seen++
+		path := concreteRoutePath(route.Path)
+		t.Run(route.Method+" "+path, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			e.ServeHTTP(recorder, httptest.NewRequest(route.Method, "https://example.com"+path, nil))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s, want 200 without a token", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+	if seen != 7 {
+		t.Fatalf("saw %d named-exception routes, want 7", seen)
+	}
+
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/api/dbmeta/datasets", nil))
+	var listing map[string]interface{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &listing); err != nil {
+		t.Fatalf("invalid listing JSON: %v", err)
+	}
+	if _, ok := listing["public"]; !ok || len(listing) != 1 {
+		t.Fatalf("anonymous listing=%v, want exactly the DSG-public dataset", listing)
+	}
+
+	recorder = httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "https://example.com/api/serverinfo", nil))
+	var info struct{ IsPublic bool }
+	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil || info.IsPublic {
+		t.Fatalf("serverinfo=%s err=%v, want IsPublic false", recorder.Body.String(), err)
+	}
+}
+
+func TestTokenReadsPublicDatasetByDefault(t *testing.T) {
+	fixture := &mainDSGFixture{anonymousDecision: map[string]string{"public": "allow"}}
+	e := setupAPIForTest(t, fixture.client(), false, false)
+	body := strings.NewReader(`{"dataset":"public","cypher":"RETURN 1"}`)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/api/custom/custom", body)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer reader")
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "columns") {
+		t.Fatalf("status=%d body=%s, want 200 with results", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRequestLogLineIsEscapedJSON(t *testing.T) {
+	fixture := &mainDSGFixture{}
+	var logOutput bytes.Buffer
+	e, _, dsgClient, err := newServer(config.Config{DSGUrl: "http://dsg.test"}, &storage.NoStore{Datasets: []string{"public"}}, &logOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dsgClient.SetHTTPClient(fixture.client())
+
+	cypher := "MATCH (n)\nWHERE n.name = \"a\\\\b\"\tAND n.x = 1\nRETURN n"
+	agent := `evil", "user": "forged@example.com`
+	requestBody, _ := json.Marshal(map[string]string{"dataset": "public", "cypher": cypher})
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/api/custom/custom", bytes.NewReader(requestBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer reader")
+	req.Header.Set("User-Agent", agent)
+	req.RequestURI = "/api/custom/custom" // as a server sees it; httptest keeps the absolute URL
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	lines := strings.Split(strings.TrimSuffix(logOutput.String(), "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("one request produced %d log lines: %q", len(lines), logOutput.String())
+	}
+	var record map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
+		t.Fatalf("log line is not valid JSON: %v\n%s", err, lines[0])
+	}
+	for key, want := range map[string]string{
+		"user":    "reader@example.com",
+		"agent":   agent,
+		"debug":   cypher,
+		"dataset": "public",
+		"uri":     "/api/custom/custom",
+	} {
+		if record[key] != want {
+			t.Errorf("log %s=%q, want %q", key, record[key], want)
+		}
 	}
 }

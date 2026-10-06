@@ -743,15 +743,43 @@ func invalidTokenError(hostname string) *echo.HTTPError {
 	return echo.NewHTTPError(http.StatusUnauthorized, invalidTokenMessage(hostname))
 }
 
+const loginRequiredMessageBase = "authentication required: neuPrint now requires an API token for all data, including public datasets"
+
+func loginRequiredMessage(hostname string) string {
+	if hostname == "" {
+		return loginRequiredMessageBase
+	}
+	return fmt.Sprintf("%s; log in at https://%s/account to get one", loginRequiredMessageBase, hostname)
+}
+
 func configuredHostname(c echo.Context) string {
 	hostname, _ := c.Get("configured_hostname").(string)
 	return hostname
 }
 
-// DSGOptionalAuthMiddleware authenticates attempted credentials and otherwise
-// proceeds anonymously. Disable-auth mode installs a synthetic global admin so
-// every authorization guard takes the existing admin short-circuit.
-func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool, hostname string) echo.MiddlewareFunc {
+// AnonymousPolicy decides which requests without a credential may proceed.
+type AnonymousPolicy struct {
+	// AllowReads lets anonymous requests reach every route, where per-dataset
+	// checks admit reads of DSG-public datasets (allow-anonymous-reads).
+	AllowReads bool
+	// OpenRoute reports whether the matched route (method and Echo path
+	// pattern) stays open to anonymous requests when AllowReads is false.
+	// A nil OpenRoute opens no route.
+	OpenRoute func(method, path string) bool
+}
+
+func (p AnonymousPolicy) admits(c echo.Context) bool {
+	if p.AllowReads {
+		return true
+	}
+	return p.OpenRoute != nil && p.OpenRoute(c.Request().Method, c.Path())
+}
+
+// DSGOptionalAuthMiddleware authenticates attempted credentials. A request
+// without one proceeds anonymously only where the AnonymousPolicy admits it;
+// otherwise it gets 401. Disable-auth mode installs a synthetic global admin
+// so every authorization guard takes the existing admin short-circuit.
+func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool, hostname string, anonymous AnonymousPolicy) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			c.Set("configured_hostname", hostname)
@@ -773,6 +801,9 @@ func DSGOptionalAuthMiddleware(client *DSGClient, disableAuth bool, hostname str
 
 			token, attempted, valid := credentialFromRequest(c)
 			if !attempted {
+				if !anonymous.admits(c) {
+					return echo.NewHTTPError(http.StatusUnauthorized, loginRequiredMessage(hostname))
+				}
 				return next(c)
 			}
 			if !valid {

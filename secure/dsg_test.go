@@ -385,7 +385,7 @@ func TestDSGOptionalAuthCredentialStateMatrix(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 			called := false
-			err := DSGOptionalAuthMiddleware(client, false, "neuprint.test")(func(c echo.Context) error {
+			err := DSGOptionalAuthMiddleware(client, false, "neuprint.test", AnonymousPolicy{AllowReads: true})(func(c echo.Context) error {
 				called = true
 				_, identified := c.Get("dsg_identity").(*DSGIdentity)
 				if identified != tc.identified {
@@ -474,7 +474,7 @@ func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 		req.Header.Set("Authorization", "Basic malformed-is-ignored-in-disable-mode")
 		c := e.NewContext(req, httptest.NewRecorder())
 
-		err := DSGOptionalAuthMiddleware(client, true, "")(func(c echo.Context) error {
+		err := DSGOptionalAuthMiddleware(client, true, "", AnonymousPolicy{})(func(c echo.Context) error {
 			identity := c.Get("dsg_identity").(*DSGIdentity)
 			if !identity.Admin || identity.Email != "disable-auth@localhost" {
 				t.Fatalf("synthetic identity = %+v", identity)
@@ -489,7 +489,7 @@ func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 		}
 	})
 
-	t.Run("default mode has no anonymous write bypass", func(t *testing.T) {
+	t.Run("anonymous reads mode has no anonymous write bypass", func(t *testing.T) {
 		fake := newFakeDSG(t)
 		fake.decide = func(entry authorizeEntry) DSGDecision {
 			return DSGDecision{Name: entry.Name, Decision: "allow", Roles: []string{"view"}}
@@ -497,7 +497,7 @@ func TestDSGOptionalAuthDisableAuthAndDefaultOff(t *testing.T) {
 		client := fake.client()
 		e := echo.New()
 		c := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/mutation", nil), httptest.NewRecorder())
-		err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
+		err := DSGOptionalAuthMiddleware(client, false, "", AnonymousPolicy{AllowReads: true})(func(c echo.Context) error {
 			return RequireDatasetAccess(c, "public", ADMIN)
 		})(c)
 		assertHTTPErrorCode(t, err, http.StatusUnauthorized)
@@ -525,7 +525,7 @@ func TestCredentialedFailuresNeverFallbackToAnonymous(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 			req.Header.Set("Authorization", "Bearer credentialed")
 			c := e.NewContext(req, httptest.NewRecorder())
-			err := DSGOptionalAuthMiddleware(client, false, "")(func(echo.Context) error {
+			err := DSGOptionalAuthMiddleware(client, false, "", AnonymousPolicy{AllowReads: true})(func(echo.Context) error {
 				t.Fatal("credentialed DSG failure reached anonymous handler")
 				return nil
 			})(c)
@@ -553,7 +553,7 @@ func TestAuthenticatedDenyDoesNotRetryAnonymous(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.Header.Set("Authorization", "Bearer credentialed")
 	c := e.NewContext(req, httptest.NewRecorder())
-	err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
+	err := DSGOptionalAuthMiddleware(client, false, "", AnonymousPolicy{AllowReads: true})(func(c echo.Context) error {
 		return RequireDatasetAccess(c, "closed", READ)
 	})(c)
 	assertHTTPErrorCode(t, err, http.StatusForbidden)
@@ -583,7 +583,7 @@ func TestCredentialedMalformedAuthorizeIsBadGatewayWithoutFallback(t *testing.T)
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.Header.Set("Authorization", "Bearer credentialed")
 	c := e.NewContext(req, httptest.NewRecorder())
-	err := DSGOptionalAuthMiddleware(client, false, "")(func(c echo.Context) error {
+	err := DSGOptionalAuthMiddleware(client, false, "", AnonymousPolicy{AllowReads: true})(func(c echo.Context) error {
 		return RequireDatasetAccess(c, "dataset", READ)
 	})(c)
 	assertHTTPErrorCode(t, err, http.StatusBadGateway)
@@ -822,5 +822,73 @@ func TestDSGAuthMiddlewareUnavailable(t *testing.T) {
 	httpErr, ok := err.(*echo.HTTPError)
 	if !ok || httpErr.Code != http.StatusBadGateway {
 		t.Fatalf("err = %v, want 502 HTTPError", err)
+	}
+}
+
+func TestAnonymousPolicyGate(t *testing.T) {
+	openRoute := func(method, path string) bool {
+		return method == http.MethodGet && path == "/api/open"
+	}
+	for _, tc := range []struct {
+		name        string
+		policy      AnonymousPolicy
+		path        string
+		credential  string
+		badToken    bool
+		wantCalled  bool
+		wantCode    int
+		wantMessage string
+	}{
+		{"token required by default", AnonymousPolicy{}, "/api/data", "", false, false, http.StatusUnauthorized, loginRequiredMessage("neuprint.test")},
+		{"closed route stays closed with an open-route list", AnonymousPolicy{OpenRoute: openRoute}, "/api/data", "", false, false, http.StatusUnauthorized, loginRequiredMessage("neuprint.test")},
+		{"open route admits anonymous", AnonymousPolicy{OpenRoute: openRoute}, "/api/open", "", false, true, 0, ""},
+		{"anonymous reads admit every route", AnonymousPolicy{AllowReads: true}, "/api/data", "", false, true, 0, ""},
+		{"valid token passes the gate", AnonymousPolicy{}, "/api/data", "good", false, true, 0, ""},
+		{"invalid token keeps the invalid-token message", AnonymousPolicy{}, "/api/data", "bad", true, false, http.StatusUnauthorized, invalidTokenMessage("neuprint.test")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := newFakeDSG(t)
+			if tc.badToken {
+				fake.identityStatus = http.StatusUnauthorized
+			}
+			client := fake.client()
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			if tc.credential != "" {
+				req.Header.Set("Authorization", "Bearer "+tc.credential)
+			}
+			c := e.NewContext(req, httptest.NewRecorder())
+			c.SetPath(tc.path)
+			called := false
+			err := DSGOptionalAuthMiddleware(client, false, "neuprint.test", tc.policy)(func(c echo.Context) error {
+				called = true
+				return nil
+			})(c)
+			if called != tc.wantCalled {
+				t.Fatalf("handler called=%v, want %v (err=%v)", called, tc.wantCalled, err)
+			}
+			if tc.wantCode == 0 {
+				if err != nil {
+					t.Fatalf("err=%v, want none", err)
+				}
+				return
+			}
+			assertHTTPErrorCode(t, err, tc.wantCode)
+			if got := err.(*echo.HTTPError).Message; got != tc.wantMessage {
+				t.Fatalf("message=%v, want %q", got, tc.wantMessage)
+			}
+			if tc.credential == "" && (fake.userCalls != 0 || fake.authorizeCalls != 0) {
+				t.Fatalf("refused anonymous request consulted DSG: user=%d authorize=%d", fake.userCalls, fake.authorizeCalls)
+			}
+		})
+	}
+}
+
+func TestLoginRequiredMessageHostnameCases(t *testing.T) {
+	if got, want := loginRequiredMessage("neuprint.example.org"), "authentication required: neuPrint now requires an API token for all data, including public datasets; log in at https://neuprint.example.org/account to get one"; got != want {
+		t.Fatalf("loginRequiredMessage = %q, want %q", got, want)
+	}
+	if got, want := loginRequiredMessage(""), "authentication required: neuPrint now requires an API token for all data, including public datasets"; got != want {
+		t.Fatalf("loginRequiredMessage(\"\") = %q, want %q", got, want)
 	}
 }

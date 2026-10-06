@@ -47,7 +47,11 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-const publicReadRemovalMessage = "-public_read has been removed: anonymous read access to DSG-public datasets is now always on, and closed datasets always require authorization; remove this flag from the service command"
+const publicReadRemovalMessage = "-public_read has been removed: anonymous reads of DSG-public datasets are now controlled by the allow-anonymous-reads config key (off by default), and closed datasets always require authorization; remove this flag from the service command"
+
+// requestLogFormat is one JSON object per request. The logger JSON-escapes
+// every string value it substitutes.
+const requestLogFormat = "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\", \"agent\": \"${user_agent}\"}\n"
 
 func customUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] CONFIG.json\n", os.Args[0])
@@ -92,11 +96,12 @@ func registerBaseAPIRoutes(readGrp *echo.Group, options config.Config, store sto
 	// swagger:operation GET /api/serverinfo apimeta serverinfo
 	//
 	// Reports server capabilities and optional site announcement information.
-	// IsPublic is true when authorization is disabled or DSG currently permits
-	// anonymous reads for at least one configured dataset.
+	// IsPublic is true when authorization is disabled, or when anonymous reads
+	// are allowed and DSG currently permits them for at least one configured
+	// dataset.
 	api.SetGroupRoute(readGrp, api.GET, "/serverinfo", func(c echo.Context) error {
 		isPublic := options.DisableAuth
-		if !isPublic {
+		if !isPublic && options.AllowAnonymousReads {
 			datasets, err := store.GetDatasets()
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "dataset inventory is unavailable")
@@ -165,7 +170,7 @@ func newServer(options config.Config, store storage.Store, logOutput io.Writer) 
 	var err error
 
 	e.Use(logging.LoggerWithConfig(logging.LoggerConfig{
-		Format: "{\"dataset\": \"${dataset}\", \"uri\": \"${uri}\", \"status\": ${status}, \"bytes_in\": ${bytes_in}, \"bytes_out\": ${bytes_out}, \"duration\": ${latency}, \"time\": ${time_unix}, \"user\": \"${custom:email}\", \"category\": \"${category}\", \"debug\": \"${custom:debug}\"}\n",
+		Format: requestLogFormat,
 		Output: logOutput,
 	}))
 
@@ -188,9 +193,17 @@ func newServer(options config.Config, store storage.Store, logOutput io.Writer) 
 		}
 	}
 
-	// create read only group
+	// create read only group. Without a token, only named-exception routes
+	// answer unless allow-anonymous-reads is set.
+	anonymous := secure.AnonymousPolicy{
+		AllowReads: options.AllowAnonymousReads,
+		OpenRoute: func(method, path string) bool {
+			policy, ok := api.RoutePolicyFor(method, path)
+			return ok && policy == api.NamedExceptionRoute
+		},
+	}
 	readGrp := e.Group("/api")
-	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth, options.Hostname))
+	readGrp.Use(secure.DSGOptionalAuthMiddleware(dsgClient, options.DisableAuth, options.Hostname, anonymous))
 
 	adminMiddleware := secure.DSGAdminMiddleware()
 	registerBaseAPIRoutes(readGrp, options, store)
@@ -279,7 +292,7 @@ func main() {
 	flag.Usage = customUsage
 	flag.IntVar(&port, "port", 11000, "port to start server")
 	flag.StringVar(&pidfile, "pid-file", "", "file for pid")
-	flag.BoolVar(&removedPublicRead, "public_read", false, "removed; anonymous DSG-public reads are always enabled")
+	flag.BoolVar(&removedPublicRead, "public_read", false, "removed; see the allow-anonymous-reads config key")
 	flag.BoolVar(&storage.Verbose, "verbose", false, "verbose mode")
 	flag.BoolVar(&storage.VerboseNumeric, "verbose-numeric", false, "enable verbose numeric type conversion debugging")
 	flag.BoolVar(&disableArrow, "disable-arrow", false, "disable Arrow format support (enabled by default)")

@@ -175,6 +175,15 @@ func DeclareRoutePolicy(method, path string, policy RoutePolicy) {
 	routePolicyRegistry.policies[key] = policy
 }
 
+// RoutePolicyFor returns the policy declared for a route, given its method and
+// Echo path pattern (c.Path()).
+func RoutePolicyFor(method, path string) (RoutePolicy, bool) {
+	routePolicyRegistry.RLock()
+	defer routePolicyRegistry.RUnlock()
+	policy, ok := routePolicyRegistry.policies[RoutePolicyKey{Method: method, Path: path}]
+	return policy, ok
+}
+
 // DeclaredRoutePolicies returns a copy of the route-to-policy registry.
 func DeclaredRoutePolicies() map[RoutePolicyKey]RoutePolicy {
 	routePolicyRegistry.RLock()
