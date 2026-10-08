@@ -273,10 +273,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	cypher2 := `
 		MATCH (meta :Meta)
 		WITH
-			CASE meta.overviewRois
-				WHEN NULL THEN meta.primaryRois
-				ELSE meta.overviewRois
-			END AS overviewRois,
+			coalesce(meta.overviewRois, meta.primaryRois) AS overviewRois,
 			meta,
 			apoc.convert.fromJsonMap(meta.roiInfo) AS roiInfo
 		UNWIND overviewRois as roi
@@ -377,10 +374,7 @@ func (ca cypherAPI) getROIConnectivity_int(dataset string) (interface{}, error) 
 	cypher3 := `
 	MATCH (m:Meta)
 	RETURN
-		CASE m.overviewOrder
-			WHEN NULL THEN 'clustered'
-			ELSE m.overviewOrder
-		END AS overviewOrder
+		coalesce(m.overviewOrder, 'clustered') AS overviewOrder
 	`
 	res3, err := ca.Store.GetMain(dataset).CypherRequest(cypher3, true)
 	if err != nil {
@@ -614,7 +608,7 @@ func (ca cypherAPI) getDailyType_int(dataset string) ([]byte, error) {
 	requester := ca.Store.GetMain(dataset)
 
 	// find a random cell typee
-	random_query := "MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] AND EXISTS(n.type) AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
+	random_query := "MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] WITH percentileDisc(n.pre, 0.2) AS prethres, percentileDisc(n.post, 0.2) AS postthres MATCH (n :Neuron) WHERE (n.cropped IS NULL OR not n.cropped) AND n.status IN [\"Traced\",\"Anchor\"] AND n.type IS NOT NULL AND n.type<>\"\" AND (n.pre > prethres OR n.post > postthres) WITH n.type as type, collect(n.bodyId) as bodylist WITH type, rand() AS randvar RETURN type ORDER BY randvar LIMIT 1"
 
 	rand_res, err := requester.CypherRequest(random_query, true)
 	if err != nil {
