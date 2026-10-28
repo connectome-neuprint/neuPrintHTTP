@@ -156,6 +156,7 @@ type databaseInfo struct {
 	Hidden         bool     `json:"hidden"`
 	Logo           string   `json:"logo"`
 	Description    string   `json:"description"`
+	Default        bool     `json:"default"`
 }
 
 // GetDatasets returns information on the datasets supported
@@ -164,7 +165,7 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 		fmt.Printf("Trying to get datasets\n")
 	}
 	
-	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag, m.hideDataSet AS hidden, m.logo, m.description"
+	cypher := "MATCH (m :Meta) RETURN m.dataset, m.uuid, m.lastDatabaseEdit, m.roiInfo, m.info, m.superLevelRois AS rois, m.tag AS tag, m.hideDataSet AS hidden, m.logo, m.description, m.default AS isDefault"
 	metadata, err := store.CypherRequest(cypher, true)
 	if err != nil {
 		return nil, err
@@ -223,6 +224,16 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 			description = row[9].(string)
 		}
 
+		// Meta.default marks the dataset the explorer shows first.
+		// Accept a boolean or the string "true"; anything else is ignored.
+		isDefault := false
+		switch v := row[10].(type) {
+		case bool:
+			isDefault = v
+		case string:
+			isDefault = v == "true"
+		}
+
 		superROIs := row[5].([]interface{})
 		dbInfo := databaseInfo{
 			LastEdit:       edit,
@@ -233,6 +244,7 @@ func (store *Store) GetDatasets() (map[string]interface{}, error) {
 			Hidden:         hidden,
 			Logo:           logo,
 			Description:    description,
+			Default:        isDefault,
 		}
 
 		for roi := range roidata {
