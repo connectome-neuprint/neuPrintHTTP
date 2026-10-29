@@ -4,7 +4,7 @@
         "server": "bolt://localhost:7687",
         "user": "neo4j",
         "password": "password",
-        "database": "neo4j"
+        "database": "data"
     },
     "timeout": 600
 }

@@ -366,11 +366,21 @@ neuPrintHTTP now supports the Neo4j Bolt protocol driver, which provides better 
         "server": "bolt://localhost:7687", 
         "user": "neo4j",
         "password": "password",
-        "database": "neo4j"  // Optional: database name for Neo4j 4.0+ (omit for Neo4j 3.x)
+        "database": "data"  // Database name -- see the note below
     },
     "timeout": 600
 }
 ```
+
+Note on the `database` field: the flyem-snapshot ingestion pipeline builds its
+database as `data` (via `neo4j-admin database import full data`), not the Neo4j
+default of `neo4j`. If this value does not match the name of the database that was
+actually built, neuPrintHTTP will connect successfully but find none of the
+expected data.
+
+The `neuPrint-neo4j` engine is not merely deprecated -- it speaks the legacy HTTP
+transactional API that was **removed in Neo4j 5**, so it cannot work against any
+Neo4j 5.x or 2025.x/2026.x server. Use `neuPrint-bolt`.
 
 The Bolt driver correctly preserves large integer values (including integers above 2^53) that would be truncated to floating-point by the HTTP JSON API. This is particularly important for precise integer operations on large IDs and counts.
 
