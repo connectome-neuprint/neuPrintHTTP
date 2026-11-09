@@ -4,7 +4,7 @@
 	    "server": "bolt://<NEO4J-SERVER>:7687",
 	    "user": "neo4j",
 	    "password": "<PASSWORD>",
-	    "database": "data"
+	    "database": "<OPTIONAL DATABASE NAME; OMIT FOR NEO4J 3.5>"
     },
     "mainstore-alternatives": [
       {
@@ -13,7 +13,7 @@
           "server": "bolt://<NEO4J-SERVER>:7687",
           "user": "neo4j",
           "password": "<PASSWORD>",
-          "database": "data"
+          "database": "<OPTIONAL DATABASE NAME; OMIT FOR NEO4J 3.5>"
         }
       }
     ],
