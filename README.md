@@ -238,7 +238,7 @@ A sample configuration file can be found in `config-examples/config.json` in thi
 {
     "engine": "neuPrint-bolt",
     "engine-config": {
-        "server": "<NEO4-SERVER>:7687",
+        "server": "bolt://<NEO4J-SERVER>:7687",
         "user": "neo4j",
         "password": "<PASSWORD>"
     },
@@ -366,26 +366,32 @@ neuPrintHTTP now supports the Neo4j Bolt protocol driver, which provides better 
         "server": "bolt://localhost:7687", 
         "user": "neo4j",
         "password": "password",
-        "database": "data"  // Database name -- see the note below
+        "database": "neo4j"  // Optional: database name for Neo4j 4.0+ (omit for Neo4j 3.x)
     },
     "timeout": 600
 }
 ```
 
-Note on the `database` field: the flyem-snapshot ingestion pipeline builds its
-database as `data` (via `neo4j-admin database import full data`), not the Neo4j
-default of `neo4j`. If this value does not match the name of the database that was
-actually built, neuPrintHTTP will connect successfully but find none of the
-expected data.
-
-The `neuPrint-neo4j` engine is not merely deprecated -- it speaks the legacy HTTP
-transactional API that was **removed in Neo4j 5**, so it cannot work against any
-Neo4j 5.x or 2025.x/2026.x server. Use `neuPrint-bolt`.
-
 The Bolt driver correctly preserves large integer values (including integers above 2^53) that would be truncated to floating-point by the HTTP JSON API. This is particularly important for precise integer operations on large IDs and counts.
 
 For more detailed configuration options, refer to `config/config.go`.
 
+
+### Neo4j server compatibility
+
+- Use the `neuPrint-bolt` engine. `neuPrint-neo4j` uses the `/db/data/transaction`
+  HTTP endpoint, which Neo4j 5 removed.
+- Every server needs an APOC plugin for its version. neuPrintHTTP calls
+  `apoc.convert.fromJsonMap` and `apoc.map.fromValues`, both in APOC Core from
+  5.x on.
+- `database` in `engine-config` is optional on 4.4 and later. Without it, the
+  server uses the user's home database, normally its default. Omit it for
+  Neo4j 3.5.
+- From 2026.02, the `neo4j.conf` shipped with Neo4j sets
+  `db.query.default_language=CYPHER_25`. Set it to `CYPHER_5` before creating
+  the neuPrint database; an existing database keeps its language.
+- Cypher sent to `/api/custom/custom` or `/api/custom/arrow` runs as-is. On
+  Neo4j 5 and later, use `n.prop IS NOT NULL` instead of `exists(n.prop)`.
 
 ### No Auth Mode
 
