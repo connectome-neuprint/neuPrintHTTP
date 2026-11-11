@@ -13,7 +13,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/knightjdr/hclust v1.0.2
 	github.com/labstack/echo/v4 v4.9.0
-	github.com/neo4j/neo4j-go-driver/v5 v5.27.0
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/valyala/fasttemplate v1.2.1
 	golang.org/x/crypto v0.45.0
 	google.golang.org/grpc v1.69.2
