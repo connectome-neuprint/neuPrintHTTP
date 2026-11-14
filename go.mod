@@ -14,7 +14,7 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/valyala/fasttemplate v1.2.2
 	golang.org/x/crypto v0.57.0
-	google.golang.org/grpc v1.79.3
+	google.golang.org/grpc v1.83.2
 	gopkg.in/confluentinc/confluent-kafka-go.v1 v1.8.2
 )
 
@@ -52,5 +52,5 @@ require (
 	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto v0.0.0-20220421151946-72621c1f0bd3 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
